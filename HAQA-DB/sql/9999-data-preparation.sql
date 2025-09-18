@@ -1,0 +1,1 @@
+INSERT INTO users (username, email, password_hash, first_name, last_name, is_active, last_login, created_at, updated_at) VALUES ('admin', 'admin@haqa.com', hash_password('P@ssw0rd'), 'Admin', 'Admin', TRUE, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
