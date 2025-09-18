@@ -1,0 +1,53 @@
+services:
+  db:
+    user: postgres
+    image: postgres:17.0-alpine3.20
+    container_name: ${DB_HOST}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      DB_SCHEMA: ${DB_SCHEMA}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - haqa_db_data:/var/lib/postgresql/data
+      - ./HAQA-DB/scripts:/scripts
+    restart: unless-stopped
+    networks:
+      - haqa-network
+    entrypoint: ["/scripts/entrypoint.sh"]
+
+  redis:
+    image: redis:8.2.1-alpine3.22
+    container_name: ${REDIS_HOST}
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - haqa_redis_data:/data
+      - ./HAQA-REDIS/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./HAQA-REDIS/scripts:/scripts
+    command: sh -c "/scripts/generate-acl.sh && redis-server /usr/local/etc/redis/redis.conf"
+    restart: unless-stopped
+    networks:
+      - haqa-network
+    environment:
+      - REDIS_ADMIN_PASSWORD=${REDIS_ADMIN_PASSWORD}
+      - REDIS_APP_PASSWORD=${REDIS_APP_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  haqa_db_data:
+  haqa_data_tablespace:
+  haqa_index_tablespace:
+  haqa_redis_data:
+
+networks:
+  haqa-network:
+    driver: bridge
