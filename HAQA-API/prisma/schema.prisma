@@ -1,5 +1,3 @@
-// schema.prisma
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -8,71 +6,74 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["haqa_schema"] 
+  schemas  = ["haqa_schema"]
 }
 
 model User {
-  id         Int       @id @default(autoincrement())
-  username   String    @unique @db.VarChar(100)
-  email      String    @unique @db.VarChar(255)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  firstName  String?   @map("first_name") @db.VarChar(100)
-  lastName   String?   @map("last_name") @db.VarChar(100)
-  isActive   Boolean   @default(true) @map("is_active")
-  lastLogin  DateTime? @map("last_login") @db.Timestamptz
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz
-
-  // Relations
-  userRoles     UserRole[]
+  id            Int            @id @default(autoincrement())
+  username      String         @unique(map: "users_username_uk") @db.VarChar(100)
+  email         String         @unique(map: "users_email_uk") @db.VarChar(255)
+  passwordHash  String         @map("password_hash") @db.VarChar(255)
+  firstName     String?        @map("first_name") @db.VarChar(100)
+  lastName      String?        @map("last_name") @db.VarChar(100)
+  isActive      Boolean?       @default(true) @map("is_active")
+  lastLogin     DateTime?      @map("last_login") @db.Timestamptz(6)
+  createdAt     DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime?      @default(now()) @map("updated_at") @db.Timestamptz(6)
   userFunctions UserFunction[]
+  userRoles     UserRole[]
 
+  @@index([isActive], map: "idx_users_active")
+  @@index([email], map: "idx_users_email")
+  @@index([firstName, lastName], map: "idx_users_name")
+  @@index([username], map: "idx_users_username")
   @@map("users")
   @@schema("haqa_schema")
 }
 
 model Role {
-  id           Int       @id @default(autoincrement())
-  name         String    @unique @db.VarChar(50)
-  description  String?   @db.Text
-  isSystemRole Boolean   @default(false) @map("is_system_role")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz
-
-  // Relations
-  userRoles     UserRole[]
+  id            Int            @id @default(autoincrement())
+  name          String         @unique(map: "roles_name_unique") @db.VarChar(50)
+  description   String?
+  isSystemRole  Boolean?       @default(false) @map("is_system_role")
+  createdAt     DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime?      @default(now()) @map("updated_at") @db.Timestamptz(6)
   roleFunctions RoleFunction[]
+  userRoles     UserRole[]
 
+  @@index([name], map: "idx_roles_name")
+  @@index([isSystemRole], map: "idx_roles_system")
   @@map("roles")
   @@schema("haqa_schema")
 }
 
 model Function {
-  id          Int       @id @default(autoincrement())
-  code        String    @unique @db.VarChar(100)
-  name        String    @unique @db.VarChar(100)
-  description String?   @db.Text
-  category    String?   @db.VarChar(100)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz
-
-  // Relations
+  id            Int            @id @default(autoincrement())
+  code          String         @unique(map: "functions_code_unique") @db.VarChar(100)
+  name          String         @unique(map: "functions_name_unique") @db.VarChar(100)
+  description   String?
+  category      String?        @db.VarChar(100)
+  createdAt     DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime?      @default(now()) @map("updated_at") @db.Timestamptz(6)
   roleFunctions RoleFunction[]
   userFunctions UserFunction[]
 
+  @@index([category], map: "idx_functions_category")
+  @@index([category, code], map: "idx_functions_category_code")
+  @@index([code], map: "idx_functions_code")
   @@map("functions")
-  @@schema("haqa_schema") 
+  @@schema("haqa_schema")
 }
 
 model RoleFunction {
   roleId     Int      @map("role_id")
   functionId Int      @map("function_id")
-
-  // Relations
-  role       Role     @relation(fields: [roleId], references: [id])
-  function   Function @relation(fields: [functionId], references: [id])
+  function   Function @relation(fields: [functionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_role_functions_function")
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_role_functions_role")
 
   @@id([roleId, functionId])
+  @@index([functionId], map: "idx_role_functions_function_id")
+  @@index([roleId], map: "idx_role_functions_role_id")
   @@map("role_functions")
   @@schema("haqa_schema")
 }
@@ -80,14 +81,13 @@ model RoleFunction {
 model UserRole {
   userId    Int       @map("user_id")
   roleId    Int       @map("role_id")
-  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz
-  expiresAt DateTime? @map("expires_at") @db.Timestamptz
-
-  // Relations
-  user      User      @relation(fields: [userId], references: [id])
-  role      Role      @relation(fields: [roleId], references: [id])
+  grantedAt DateTime? @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_roles_role")
+  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_roles_user")
 
   @@id([userId, roleId])
+  @@index([userId, roleId, expiresAt], map: "idx_user_roles_user_expires")
   @@map("user_roles")
   @@schema("haqa_schema")
 }
@@ -95,14 +95,13 @@ model UserRole {
 model UserFunction {
   userId     Int       @map("user_id")
   functionId Int       @map("function_id")
-  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz
-  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
-
-  // Relations
-  user       User      @relation(fields: [userId], references: [id])
-  function   Function  @relation(fields: [functionId], references: [id])
+  grantedAt  DateTime? @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  function   Function  @relation(fields: [functionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_functions_function")
+  user       User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_functions_user")
 
   @@id([userId, functionId])
+  @@index([userId, functionId, expiresAt], map: "idx_user_functions_user_expires")
   @@map("user_functions")
   @@schema("haqa_schema")
 }
