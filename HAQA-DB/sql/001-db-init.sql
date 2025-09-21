@@ -1,8 +1,7 @@
 BEGIN;
 
-    
     CREATE USER haqa_app WITH 
-        PASSWORD 'P@ssw0rd'
+        PASSWORD '##APP_USER_PASSWORD##'
         NOSUPERUSER 
         NOCREATEDB 
         NOCREATEROLE 
