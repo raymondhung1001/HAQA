@@ -1,6 +1,8 @@
+
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  provider = "prisma-kysely"
+  output   = "../src/db"
+  fileName = "types.ts"
 }
 
 datasource db {
