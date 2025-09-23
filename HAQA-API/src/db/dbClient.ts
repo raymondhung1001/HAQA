@@ -5,7 +5,7 @@ import pg from 'pg';
 export type DatabaseClient = Kysely<DB>;
 
 export function setup(connectionString: string): DatabaseClient {
-    
+
     const dbClient = new Kysely<DB>({
         dialect: new PostgresDialect({
             pool: new pg.Pool({
