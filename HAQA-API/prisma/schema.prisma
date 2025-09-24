@@ -1,7 +1,7 @@
 
 generator client {
   provider = "prisma-kysely"
-  output   = "../src/db"
+  output   = "../src/db/postgres"
   fileName = "types.ts"
 }
 

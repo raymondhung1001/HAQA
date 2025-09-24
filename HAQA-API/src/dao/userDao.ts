@@ -1,5 +1,5 @@
-import type { User } from "@/db/types";
-import type { DatabaseClient } from "@/db/dbClient";
+import type { User } from "@/db/postgres/types";
+import type { DatabaseClient } from "@/db/postgres";
 import { type Selectable } from "kysely";
 
 export class UserDao {

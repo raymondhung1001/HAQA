@@ -1,5 +1,5 @@
 import { UserDao } from '@/dao/userDao';
-import type { User } from "@/db/types";
+import type { User } from "@/db/postgres/types";
 import type { Context } from 'hono';
 import { type Selectable } from "kysely";
 

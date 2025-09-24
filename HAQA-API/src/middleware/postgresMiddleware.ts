@@ -1,4 +1,4 @@
-import { setup } from "@/db/dbClient";
+import { setup } from "@/db/postgres";
 import type { Context, Next } from "hono";
 
 if (!process.env.DATABASE_URL) {

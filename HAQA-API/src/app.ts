@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import userRoute from '@/route/userRoute'
-import { dbClientMiddleWare } from '@/middleware/dbMiddleware';
+import { dbClientMiddleWare } from '@/middleware/postgresMiddleware';
+import { redisMiddleware } from '@/middleware/redisMiddleware';
 
 const app = new Hono()
 
 app.use(dbClientMiddleWare);
+app.use(redisMiddleware);
 
 app.route('/users', userRoute)
 

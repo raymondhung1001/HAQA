@@ -1,6 +1,6 @@
 import type { Context, Handler } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
-import { ApiException } from '@/exception/index';
+import { ApiException } from '@/exception';
 
 export enum ErrorType {
     BAD_REQUEST = 'BAD_REQUEST',
