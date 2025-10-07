@@ -2,7 +2,7 @@ services:
   db:
     user: postgres
     image: postgres:17.0-alpine3.20
-    container_name: ${DB_HOST}
+    container_name: HAQA-DB
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -25,7 +25,7 @@ services:
 
   redis:
     image: redis:8.2.1-alpine3.22
-    container_name: ${REDIS_HOST}
+    container_name: HAQA-REDIS
     ports:
       - "${REDIS_PORT}:6379"
     volumes:

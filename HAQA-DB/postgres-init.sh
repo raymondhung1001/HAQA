@@ -16,13 +16,13 @@ done
 echo "SQL templates processed successfully."
 
 echo "Waiting for PostgreSQL to be ready..."
-until pg_isready -U "$POSTGRES_USER"; do
+until pg_isready -U postgres; do
   sleep 1
 done
 
 echo "PostgreSQL is ready. Running initialization scripts..."
 
-PSQL="psql -v ON_ERROR_STOP=1 -U $POSTGRES_USER -d $POSTGRES_DB"
+PSQL="psql -v ON_ERROR_STOP=1 -U postgres -d $POSTGRES_DB"
 
 $PSQL -f "$PROCESSED_DIR/001-db-init.sql"
 $PSQL -f "$PROCESSED_DIR/002-sequence-creation.sql"
