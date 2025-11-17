@@ -24,9 +24,18 @@ import { RepositoryModule } from '@/repository/repository.module';
 			inject: [ConfigService],
 		}),
 		RedisModule.forRootAsync({
-			useFactory: (config: ConfigService) => ({
-				config: config.get<RedisModuleOptions['config']>('redis'),
-			}),
+			useFactory: (config: ConfigService) => {
+				const redisConfig = config.get('redis');
+				return {
+					config: {
+						host: redisConfig.host,
+						port: redisConfig.port,
+						username: redisConfig.username,
+						password: redisConfig.password,
+						enableReadyCheck: false,
+					},
+				};
+			},
 			inject: [ConfigService],
 		}),
 

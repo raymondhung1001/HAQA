@@ -14,34 +14,51 @@ export abstract class RedisCacheRepository<T> implements ICacheRepository<T> {
     protected abstract readonly prefix: string;
     protected abstract readonly namespaceKey: RedisNamespaceKey;
     protected readonly ttl: number = 3600;
-    protected readonly namespace: string;
+    protected namespace: string;
 
     constructor(
         private readonly redisService: RedisService,
         protected readonly configService: ConfigService
     ) {
         this.redis = this.redisService.getOrThrow();
-        this.namespace = this.getNamespace();
+        // Namespace will be initialized lazily via getter
+        this.namespace = '' as string; // Temporary placeholder
     }
 
     private getNamespace(): string {
-        const namespaceMap = {
+        const namespaceKey = this.namespaceKey;
+        if (!namespaceKey) {
+            throw new Error('namespaceKey must be defined in child class');
+        }
+        
+        const namespaceMap: Record<RedisNamespaceKey, string> = {
             auth: this.configService.get('REDIS_NAMESPACE_AUTH', 'auth'),
         };
 
-        const baseNamespace = namespaceMap[this.namespaceKey];
+        const baseNamespace = namespaceMap[namespaceKey];
+        if (!baseNamespace) {
+            throw new Error(`Invalid namespaceKey: ${namespaceKey}. Namespace could not be determined.`);
+        }
         // const env = this.configService.get('NODE_ENV', 'development');
 
         // return env === 'production' ? baseNamespace : `${env}:${baseNamespace}`;
         return baseNamespace;
     }
 
+    protected getNamespaceValue(): string {
+        if (!this.namespace || this.namespace === '') {
+            // Lazy initialization - namespaceKey is now available
+            this.namespace = this.getNamespace();
+        }
+        return this.namespace;
+    }
+
     protected getCacheKey(id: string): string {
-        return `${this.namespace}:${this.prefix}:${id}`;
+        return `${this.getNamespaceValue()}:${this.prefix}:${id}`;
     }
 
     protected getIndexKey(): string {
-        return `${this.namespace}:${this.prefix}:index`;
+        return `${this.getNamespaceValue()}:${this.prefix}:index`;
     }
 
     async get(id: string): Promise<T | null> {

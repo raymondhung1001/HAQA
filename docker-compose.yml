@@ -34,7 +34,7 @@ services:
     command: >
       sh -c "cp /tmp/redis.conf /tmp/redis-running.conf &&
              sed -i 's|>#PASSWORD|>'${REDIS_ADMIN_PASSWORD}'|' /tmp/redis-running.conf &&
-             sed -i 's|user app on >#PASSWORD|user app on >'${REDIS_APP_PASSWORD}'|' /tmp/redis-running.conf &&
+             sed -i 's|user haqa_app on >#PASSWORD|user haqa_app on >'${REDIS_APP_PASSWORD}'|' /tmp/redis-running.conf &&
              redis-server /tmp/redis-running.conf"
     restart: unless-stopped
     networks:

@@ -8,9 +8,10 @@ import { UserFunctions } from "@/entities/UserFunctions";
 import { UserRoles } from "@/entities/UserRoles";
 
 import { UsersRepository } from "./impl/users.repository";
+import { AuthCacheRepository } from "./impl/auth-cache.repository";
 
 const entities = [Roles, Functions, Users, UserFunctions, UserRoles];
-const repositories = [UsersRepository];
+const repositories = [UsersRepository, AuthCacheRepository];
 
 @Global()
 @Module({

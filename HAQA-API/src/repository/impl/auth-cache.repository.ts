@@ -35,17 +35,20 @@ export class AuthCacheRepository extends RedisCacheRepository<AuthCacheEntity> {
         refreshToken: string,
         ttl: number = 604800
     ): Promise<void> {
-        const refreshKey = `${this.namespace}:refresh:${userId}`;
+        const namespace = this.getNamespaceValue();
+        const refreshKey = `${namespace}:refresh:${userId}`;
         await this.redis.set(refreshKey, refreshToken, 'EX', ttl);
     }
 
     async getRefreshToken(userId: string): Promise<string | null> {
-        const refreshKey = `${this.namespace}:refresh:${userId}`;
+        const namespace = this.getNamespaceValue();
+        const refreshKey = `${namespace}:refresh:${userId}`;
         return this.redis.get(refreshKey);
     }
 
     async deleteRefreshToken(userId: string): Promise<boolean> {
-        const refreshKey = `${this.namespace}:refresh:${userId}`;
+        const namespace = this.getNamespaceValue();
+        const refreshKey = `${namespace}:refresh:${userId}`;
         const result = await this.redis.del(refreshKey);
         return result === 1;
     }

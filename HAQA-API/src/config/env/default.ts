@@ -18,5 +18,15 @@ export const config = {
         port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379,
         username: 'haqa_app',
         password: process.env.REDIS_PASSWORD || 'P@ssw0rd',
+    },
+    auth: {
+        jwt: {
+            secret: process.env.JWT_SECRET || 'change-me-in-prod',
+            expiresIn: process.env.JWT_EXPIRES_IN ? parseInt(process.env.JWT_EXPIRES_IN, 10) : 3600,
+            refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'change-me-in-prod',
+            refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ? parseInt(process.env.JWT_REFRESH_EXPIRES_IN, 10) : 604800,
+            issuer: process.env.JWT_ISSUER || 'haqa-api',
+            audience: process.env.JWT_AUDIENCE || 'haqa-clients',
+        },
     }
 }
