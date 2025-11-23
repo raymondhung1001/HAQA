@@ -3,6 +3,10 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { RedisModule, RedisModuleOptions } from '@liaoliaots/nestjs-redis';
 import { LoggerModule } from 'nestjs-pino';
+import * as fs from 'fs';
+import * as path from 'path';
+import pinoRoll from 'pino-roll';
+import { multistream } from 'pino';
 
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
@@ -19,23 +23,94 @@ import { LoggerService } from '@/logger';
 
 @Module({
 	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			load: [appConfiguration],
+		}),
 		LoggerModule.forRootAsync({
-			useFactory: () => {
+			inject: [ConfigService],
+			useFactory: (config: ConfigService) => {
 				const isDevelopment = process.env.NODE_ENV !== 'production';
+				const loggingConfig = config.get('logging');
+				const logLevel = loggingConfig?.level || (isDevelopment ? 'debug' : 'info');
+				const enableFileLogging = loggingConfig?.enableFileLogging !== false;
+				
+				// Prepare streams array for multistream
+				const streams: Array<{ level: string; stream: any }> = [];
+				
+				// Console stream - pretty printing for development, raw for production
+				if (isDevelopment) {
+					streams.push({
+						level: logLevel,
+						stream: require('pino-pretty')({
+							colorize: true,
+							singleLine: false,
+							translateTime: 'SYS:standard',
+							ignore: 'pid,hostname',
+						}),
+					});
+				} else {
+					// In production, also log to console (stdout) for containerized environments
+					streams.push({
+						level: logLevel,
+						stream: process.stdout,
+					});
+				}
+				
+				// File stream with rotation
+				if (enableFileLogging) {
+					const logDir = loggingConfig?.logDir || 'logs';
+					const logPath = path.resolve(process.cwd(), logDir);
+					
+					// Ensure log directory exists
+					if (!fs.existsSync(logPath)) {
+						fs.mkdirSync(logPath, { recursive: true });
+					}
+					
+					const logFile = path.join(logPath, 'app.log');
+					const maxFileSize = loggingConfig?.maxFileSize || 10 * 1024 * 1024; // 10MB
+					const maxFiles = loggingConfig?.maxFiles || 10;
+					const compress = loggingConfig?.compress !== false;
+					
+					// Create file stream with rotation using pino-roll
+					const fileStream = pinoRoll({
+						file: logFile,
+						frequency: 'daily', // Rotate daily
+						size: maxFileSize, // Also rotate when file size exceeds
+						limit: maxFiles, // Keep maxFiles rotated files
+						compress: compress, // Compress archived logs
+					});
+					
+					streams.push({
+						level: logLevel,
+						stream: fileStream,
+					});
+				}
+				
+				// Use multistream if we have multiple streams, otherwise use single transport
+				const useMultistream = streams.length > 1;
+				
 				return {
 					pinoHttp: {
-						level: isDevelopment ? 'debug' : 'info',
-						transport: isDevelopment
+						level: logLevel,
+						// Use multistream for multiple outputs, otherwise use transport
+						...(useMultistream
 							? {
-									target: 'pino-pretty',
-									options: {
-										colorize: true,
-										singleLine: false,
-										translateTime: 'SYS:standard',
-										ignore: 'pid,hostname',
+									stream: multistream(streams),
+								}
+							: isDevelopment && streams.length === 1
+							? {
+									transport: {
+										target: 'pino-pretty',
+										options: {
+											colorize: true,
+											singleLine: false,
+											translateTime: 'SYS:standard',
+											ignore: 'pid,hostname',
+										},
 									},
 								}
-							: undefined,
+							: {}),
 						serializers: {
 							req: (req: any) => ({
 								id: req.id,
@@ -63,10 +138,6 @@ import { LoggerService } from '@/logger';
 					},
 				};
 			},
-		}),
-		ConfigModule.forRoot({
-			isGlobal: true,
-			load: [appConfiguration],
 		}),
 		TypeOrmModule.forRootAsync({
 			useFactory: (config: ConfigService) => ({

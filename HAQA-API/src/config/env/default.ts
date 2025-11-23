@@ -28,5 +28,13 @@ export const config = {
             issuer: process.env.JWT_ISSUER || 'haqa-api',
             audience: process.env.JWT_AUDIENCE || 'haqa-clients',
         },
+    },
+    logging: {
+        level: process.env.LOG_LEVEL || 'info',
+        enableFileLogging: process.env.ENABLE_FILE_LOGGING !== 'false',
+        logDir: process.env.LOG_DIR || 'logs',
+        maxFileSize: process.env.LOG_MAX_FILE_SIZE ? parseInt(process.env.LOG_MAX_FILE_SIZE, 10) : 10 * 1024 * 1024, // 10MB default
+        maxFiles: process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 10, // Keep 10 rotated files
+        compress: process.env.LOG_COMPRESS !== 'false', // Compress archived logs
     }
 }
