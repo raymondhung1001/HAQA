@@ -30,7 +30,8 @@ const generateEntities = async () => {
             `--schema=haqa_schema`,
             `--case-entity=pascal`,
             `--case-property=camel`,
-            `--skipSchema=public`
+            `--skipSchema=public`,
+            `--generateIndex`
         ];
 
         // Construct the command string
