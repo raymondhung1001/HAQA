@@ -64,6 +64,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
         this.logError(exception, request, status, message, requestId);
 
+        // Ensure request ID is in response headers for client correlation
+        if (requestId) {
+            response.setHeader('x-request-id', requestId);
+        }
+
         response.status(status).json(errorResponse);
     }
 

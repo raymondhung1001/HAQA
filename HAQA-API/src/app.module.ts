@@ -14,6 +14,8 @@ import { RepositoryModule } from '@/repository/repository.module';
 import { RequestIdMiddleware, LoggingMiddleware } from '@/middleware';
 import { HttpExceptionFilter } from '@/filter/http-exception.filter';
 import { TransformInterceptor } from '@/interceptor/transform.interceptor';
+import { LoggingInterceptor } from '@/interceptor/logging.interceptor';
+import { LoggerService } from '@/logger';
 
 @Module({
 	imports: [
@@ -48,9 +50,15 @@ import { TransformInterceptor } from '@/interceptor/transform.interceptor';
 								statusCode: res.statusCode,
 							}),
 						},
-						customProps: (req: any) => ({
-							context: 'HTTP',
-						}),
+						customProps: (req: any) => {
+							const props: Record<string, any> = {
+								context: 'HTTP',
+							};
+							if (req.id) {
+								props.requestId = req.id;
+							}
+							return props;
+						},
 						redact: ['req.headers.authorization', 'req.headers.cookie'],
 					},
 				};
@@ -102,6 +110,8 @@ import { TransformInterceptor } from '@/interceptor/transform.interceptor';
 		AppService,
 		HttpExceptionFilter,
 		TransformInterceptor,
+		LoggingInterceptor,
+		LoggerService,
 	],
 })
 export class AppModule implements NestModule {
