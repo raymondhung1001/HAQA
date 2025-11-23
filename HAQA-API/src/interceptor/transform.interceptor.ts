@@ -3,11 +3,12 @@ import {
     NestInterceptor,
     ExecutionContext,
     CallHandler,
-    Logger,
+    Inject,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Request } from 'express';
+import { PinoLogger } from 'nestjs-pino';
 
 export interface SuccessResponse<T> {
     success: true;
@@ -22,7 +23,10 @@ export interface SuccessResponse<T> {
 
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<T, SuccessResponse<T>> {
-    private readonly logger = new Logger(TransformInterceptor.name);
+    constructor(
+        @Inject(PinoLogger)
+        private readonly logger: PinoLogger,
+    ) {}
 
     intercept(context: ExecutionContext, next: CallHandler): Observable<SuccessResponse<T>> {
         const ctx = context.switchToHttp();

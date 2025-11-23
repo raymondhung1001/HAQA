@@ -4,11 +4,12 @@ import {
     ArgumentsHost,
     HttpException,
     HttpStatus,
-    Logger,
     BadRequestException,
+    Inject,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { QueryFailedError, EntityNotFoundError } from 'typeorm';
+import { PinoLogger } from 'nestjs-pino';
 
 export interface ErrorResponse {
     success: false;
@@ -33,7 +34,10 @@ export interface ValidationError {
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-    private readonly logger = new Logger(HttpExceptionFilter.name);
+    constructor(
+        @Inject(PinoLogger)
+        private readonly logger: PinoLogger,
+    ) {}
 
     catch(exception: unknown, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
@@ -460,19 +464,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message: string | string[],
         requestId?: string,
     ): void {
-        const logMessage = `[${requestId || 'N/A'}] ${request.method} ${request.url} - ${status}`;
         const messageStr = Array.isArray(message) ? message.join(', ') : message;
+        const logData = {
+            requestId,
+            method: request.method,
+            url: request.url,
+            statusCode: status,
+            message: messageStr,
+            error: exception instanceof Error ? exception.message : String(exception),
+            stack: exception instanceof Error ? exception.stack : undefined,
+        };
 
         if (status >= 500) {
             this.logger.error(
-                `${logMessage} - ${messageStr}`,
-                exception instanceof Error ? exception.stack : String(exception),
-                'HttpExceptionFilter',
+                logData,
+                `HTTP ${status} Error: ${request.method} ${request.url} - ${messageStr}`,
             );
         } else if (status >= 400) {
-            this.logger.warn(`${logMessage} - ${messageStr}`, 'HttpExceptionFilter');
+            this.logger.warn(
+                logData,
+                `HTTP ${status} Warning: ${request.method} ${request.url} - ${messageStr}`,
+            );
         } else {
-            this.logger.debug(`${logMessage} - ${messageStr}`, 'HttpExceptionFilter');
+            this.logger.debug(
+                logData,
+                `HTTP ${status}: ${request.method} ${request.url} - ${messageStr}`,
+            );
         }
     }
 }
