@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { requestContextService } from '@/context/request-context.service';
+import { sanitizeObject } from '@/utils/sanitize.util';
 
 /**
  * LoggerService provides enhanced logging with automatic requestId inclusion.
@@ -38,7 +39,9 @@ export class LoggerService {
             baseContext.requestId = context.requestId;
         }
 
-        return { ...baseContext, ...additionalContext };
+        const mergedContext = { ...baseContext, ...additionalContext };
+        // Sanitize sensitive fields in the context
+        return sanitizeObject(mergedContext);
     }
 
     enter(methodName: string, additionalContext?: Record<string, any>): void {

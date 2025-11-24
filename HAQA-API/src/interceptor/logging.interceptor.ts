@@ -9,6 +9,7 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { LoggerService } from '@/logger';
 import { LOG_METADATA_KEY } from '@/decorators/log.decorator';
+import { sanitizeObject } from '@/utils/sanitize.util';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -96,7 +97,9 @@ export class LoggingInterceptor implements NestInterceptor {
             try {
                 // Try to serialize, but limit depth and size
                 const serialized = JSON.parse(JSON.stringify(arg, this.getCircularReplacer(), 2));
-                result[`arg${index}`] = serialized;
+                // Sanitize sensitive fields in the serialized object
+                const sanitized = sanitizeObject(serialized, arg);
+                result[`arg${index}`] = sanitized;
             } catch {
                 // If serialization fails, just use type name
                 result[`arg${index}`] = `[${typeof arg}]`;
