@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
-import { requestContextService } from '@/context/request-context.service';
+import { RequestContextService } from '@/context/request-context.service';
 import { sanitizeObject } from '@/utils/sanitize.util';
 
 /**
@@ -30,10 +30,11 @@ export class LoggerService {
     constructor(
         @Inject(PinoLogger)
         private readonly logger: PinoLogger,
+        private readonly requestContextService: RequestContextService,
     ) {}
 
     private getLogContext(additionalContext?: Record<string, any>): Record<string, any> {
-        const context = requestContextService.getContext();
+        const context = this.requestContextService.getContext();
         const baseContext: Record<string, any> = {};
 
         if (context?.requestId) {

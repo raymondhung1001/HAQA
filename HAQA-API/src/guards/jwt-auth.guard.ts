@@ -2,11 +2,14 @@ import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '@/decorators/public.decorator';
-import { requestContextService } from '@/context/request-context.service';
+import { RequestContextService } from '@/context/request-context.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-    constructor(private reflector: Reflector) {
+    constructor(
+        private reflector: Reflector,
+        private readonly requestContextService: RequestContextService,
+    ) {
         super();
     }
 
@@ -30,7 +33,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
         // If user is authenticated, set userId in request context
         if (user && user.id) {
-            requestContextService.setUserId(user.id);
+            this.requestContextService.setUserId(user.id);
         }
 
         return result;

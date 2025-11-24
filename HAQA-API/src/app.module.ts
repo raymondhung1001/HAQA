@@ -15,6 +15,7 @@ import { appConfiguration } from '@/config';
 import { ControllerModule } from '@/controller/controller.module';
 import { ServiceModule } from '@/service/service.module';
 import { RepositoryModule } from '@/repository/repository.module';
+import { ContextModule } from '@/context/context.module';
 import { RequestIdMiddleware, LoggingMiddleware } from '@/middleware';
 import { HttpExceptionFilter } from '@/filter/http-exception.filter';
 import { TransformInterceptor } from '@/interceptor/transform.interceptor';
@@ -160,6 +161,11 @@ import { LoggerService } from '@/logger';
 			},
 			inject: [ConfigService],
 		}),
+
+		/**
+		 * Context
+		 */
+		ContextModule,
 
 		/**
 		 * Conrollers

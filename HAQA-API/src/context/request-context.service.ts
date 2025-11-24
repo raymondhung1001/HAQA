@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
 export interface RequestContext {
@@ -5,7 +6,8 @@ export interface RequestContext {
     userId?: number;
 }
 
-class RequestContextService {
+@Injectable()
+export class RequestContextService {
     private readonly asyncLocalStorage = new AsyncLocalStorage<RequestContext>();
 
     run<T>(context: RequestContext, callback: () => T): T {
@@ -31,6 +33,4 @@ class RequestContextService {
         return this.getContext()?.userId;
     }
 }
-
-export const requestContextService = new RequestContextService();
 

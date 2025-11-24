@@ -1,10 +1,12 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
-import { requestContextService } from '@/context/request-context.service';
+import { RequestContextService } from '@/context/request-context.service';
 
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
+    constructor(private readonly requestContextService: RequestContextService) {}
+
     use(req: Request, res: Response, next: NextFunction) {
         // Check if request ID already exists in headers
         const existingRequestId =
@@ -22,7 +24,7 @@ export class RequestIdMiddleware implements NestMiddleware {
         res.setHeader('x-request-id', requestId);
 
         // Store in AsyncLocalStorage context for the entire request lifecycle
-        requestContextService.run(
+        this.requestContextService.run(
             {
                 requestId,
             },
