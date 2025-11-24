@@ -4,7 +4,7 @@ import { requestContextService } from '@/context/request-context.service';
 import { sanitizeObject } from '@/utils/sanitize.util';
 
 /**
- * LoggerService provides enhanced logging with automatic requestId inclusion.
+ * LoggerService provides enhanced logging with automatic requestId and userId inclusion.
  * 
  * Usage example:
  * ```typescript
@@ -23,6 +23,7 @@ import { sanitizeObject } from '@/utils/sanitize.util';
  * 
  * All logger methods (enter, leave, debug, info, warn, error) automatically include:
  * - requestId: Unique ID for the HTTP request
+ * - userId: ID of the authenticated user (if available)
  */
 @Injectable()
 export class LoggerService {
@@ -37,6 +38,10 @@ export class LoggerService {
 
         if (context?.requestId) {
             baseContext.requestId = context.requestId;
+        }
+
+        if (context?.userId) {
+            baseContext.userId = context.userId;
         }
 
         const mergedContext = { ...baseContext, ...additionalContext };

@@ -2,6 +2,7 @@ import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '@/decorators/public.decorator';
+import { requestContextService } from '@/context/request-context.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -21,6 +22,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         }
 
         return super.canActivate(context);
+    }
+
+    handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+        // Call parent handler first
+        const result = super.handleRequest(err, user, info, context);
+
+        // If user is authenticated, set userId in request context
+        if (user && user.id) {
+            requestContextService.setUserId(user.id);
+        }
+
+        return result;
     }
 }
 
