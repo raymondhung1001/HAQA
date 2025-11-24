@@ -1,3 +1,5 @@
+import { parseSizeToBytes } from '@/utils/size.util';
+
 export const config = {
     database: {
         type: 'postgres',
@@ -33,7 +35,7 @@ export const config = {
         level: process.env.LOG_LEVEL || 'info',
         enableFileLogging: process.env.ENABLE_FILE_LOGGING !== 'false',
         logDir: process.env.LOG_DIR || 'logs',
-        maxFileSize: process.env.LOG_MAX_FILE_SIZE ? parseInt(process.env.LOG_MAX_FILE_SIZE, 10) : 10 * 1024 * 1024, // 10MB default
+        maxFileSize: parseSizeToBytes(process.env.LOG_MAX_FILE_SIZE) ?? 10 * 1024 * 1024, // 10MB default, supports units like "10MB", "1GB", etc.
         maxFiles: process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 10, // Keep 10 rotated files
         compress: process.env.LOG_COMPRESS !== 'false', // Compress archived logs
     }
