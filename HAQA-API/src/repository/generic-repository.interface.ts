@@ -1,4 +1,4 @@
-import { DeepPartial, FindOptionsWhere } from 'typeorm';
+import { DeepPartial, FindOptionsWhere, FindOptionsOrder } from 'typeorm';
 
 export type PrimaryKeyInput<T = any> = string | number | Record<string, any>;
 
@@ -14,4 +14,11 @@ export interface IRepository<T> {
     getPrimaryKeyValues(entity: T): PrimaryKeyInput<T>;
     getPrimaryKeyMetadata(): { name: string; type: string }[];
     hasCompositePrimaryKey(): boolean;
+    
+    // Snowflake ID search methods
+    isSnowflakeId(id: string | number | bigint): boolean;
+    parseSnowflakeId(id: string | number | bigint): { timestamp: number; machineId: number; sequence: number; date: Date } | null;
+    findBySnowflakeId(id: string | number | bigint): Promise<T | null>;
+    findBySnowflakeTimestampRange(startDate: Date, endDate: Date, order?: FindOptionsOrder<T>): Promise<T[]>;
+    findBySnowflakeMachineId(machineId: number, order?: FindOptionsOrder<T>): Promise<T[]>;
 }

@@ -9,13 +9,17 @@ import { UserRoles } from "@/entities/UserRoles";
 
 import { UsersRepository } from "./impl/users.repository";
 import { AuthCacheRepository } from "./impl/auth-cache.repository";
+import { ServiceModule } from "@/service/service.module";
 
 const entities = [Roles, Functions, Users, UserFunctions, UserRoles];
 const repositories = [UsersRepository, AuthCacheRepository];
 
 @Global()
 @Module({
-    imports: [TypeOrmModule.forFeature(entities)],
+    imports: [
+        TypeOrmModule.forFeature(entities),
+        ServiceModule, // Import ServiceModule to make SnowflakeService available
+    ],
     providers: repositories,
     exports: repositories,
 })
