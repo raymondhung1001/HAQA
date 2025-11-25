@@ -96,13 +96,21 @@ export class SnowflakeService implements OnModuleInit {
 		return new Date(SnowflakeService.SNOWFLAKE_EPOCH);
 	}
 
-	onModuleInit() {
-		// Get machine ID from coordinator (it should be ready by now since it's a dependency)
-		if (!this.machineIdCoordinator.isCoordinatorReady()) {
-			throw new Error(
-				'MachineIdCoordinatorService is not ready. ' +
-				'This should not happen as it is initialized before SnowflakeService.'
-			);
+	async onModuleInit() {
+		// Wait for MachineIdCoordinatorService to be ready
+		// Since NestJS calls onModuleInit hooks in parallel, we need to wait
+		const maxWaitTime = 30000; // 30 seconds
+		const checkInterval = 100; // Check every 100ms
+		const startTime = Date.now();
+
+		while (!this.machineIdCoordinator.isCoordinatorReady()) {
+			if (Date.now() - startTime > maxWaitTime) {
+				throw new Error(
+					'MachineIdCoordinatorService did not become ready within 30 seconds. ' +
+					'This may indicate a problem with Redis connection or coordinator initialization.'
+				);
+			}
+			await new Promise((resolve) => setTimeout(resolve, checkInterval));
 		}
 
 		try {
