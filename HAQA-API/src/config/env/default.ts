@@ -38,5 +38,58 @@ export const config = {
         maxFileSize: parseSizeToBytes(process.env.LOG_MAX_FILE_SIZE) ?? 10 * 1024 * 1024, // 10MB default, supports units like "10MB", "1GB", etc.
         maxFiles: process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 10, // Keep 10 rotated files
         compress: process.env.LOG_COMPRESS !== 'false', // Compress archived logs
-    }
+    },
+    app: {
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
+        globalPrefix: process.env.API_PREFIX || 'api',
+    },
+    security: {
+        helmet: {
+            contentSecurityPolicy: process.env.NODE_ENV === 'production',
+            crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+            crossOriginOpenerPolicy: true,
+            crossOriginResourcePolicy: { policy: 'cross-origin' },
+            dnsPrefetchControl: true,
+            frameguard: { action: 'deny' },
+            hidePoweredBy: true,
+            hsts: {
+                maxAge: 31536000, // 1 year
+                includeSubDomains: true,
+                preload: process.env.NODE_ENV === 'production',
+            },
+            ieNoOpen: true,
+            noSniff: true,
+            originAgentCluster: true,
+            permittedCrossDomainPolicies: false,
+            referrerPolicy: { policy: 'no-referrer' },
+            xssFilter: true,
+        },
+        csrf: {
+            enabled: process.env.CSRF_ENABLED !== 'false',
+            cookie: {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict' as const,
+                path: '/',
+            },
+            ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
+            skipIf: (req: any) => {
+                // Skip CSRF for API routes that use Bearer tokens (JWT)
+                const authHeader = req.headers.authorization;
+                return authHeader && authHeader.startsWith('Bearer ');
+            },
+        },
+        cors: {
+            origin: process.env.CORS_ORIGIN 
+                ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+                : process.env.NODE_ENV === 'production' 
+                    ? [] // Must be explicitly configured in production
+                    : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'],
+            methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Correlation-ID', 'X-CSRF-Token'],
+            exposedHeaders: ['X-Request-ID', 'X-CSRF-Token'],
+            credentials: true,
+            maxAge: 86400, // 24 hours
+        },
+    },
 }

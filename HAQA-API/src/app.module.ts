@@ -16,7 +16,7 @@ import { ControllerModule } from '@/controller/controller.module';
 import { ServiceModule } from '@/service/service.module';
 import { RepositoryModule } from '@/repository/repository.module';
 import { ContextModule } from '@/context/context.module';
-import { RequestIdMiddleware, LoggingMiddleware } from '@/middleware';
+import { RequestIdMiddleware, LoggingMiddleware, CsrfMiddleware } from '@/middleware';
 import { HttpExceptionFilter } from '@/filter/http-exception.filter';
 import { TransformInterceptor } from '@/interceptor/transform.interceptor';
 import { LoggingInterceptor } from '@/interceptor/logging.interceptor';
@@ -189,12 +189,20 @@ import { LoggerService } from '@/logger';
 		TransformInterceptor,
 		LoggingInterceptor,
 		LoggerService,
+		CsrfMiddleware,
 	],
 })
 export class AppModule implements NestModule {
 	configure(consumer: MiddlewareConsumer) {
+		// Request ID and Logging middleware (applied first)
 		consumer
 			.apply(RequestIdMiddleware, LoggingMiddleware)
+			.forRoutes('*');
+
+		// CSRF middleware (applied after cookie parser is set up in main.ts)
+		// The middleware automatically skips CSRF for requests with Bearer tokens
+		consumer
+			.apply(CsrfMiddleware)
 			.forRoutes('*');
 	}
 }
