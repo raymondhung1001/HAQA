@@ -1,5 +1,5 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { RedisModule, RedisModuleOptions } from '@liaoliaots/nestjs-redis';
 import { LoggerModule } from 'nestjs-pino';
@@ -17,6 +17,7 @@ import { ServiceModule } from '@/service/service.module';
 import { RepositoryModule } from '@/repository/repository.module';
 import { ContextModule } from '@/context/context.module';
 import { RequestIdMiddleware, LoggingMiddleware, CsrfMiddleware } from '@/middleware';
+import { TokenController } from '@/controller/token.controller';
 import { HttpExceptionFilter } from '@/filter/http-exception.filter';
 import { TransformInterceptor } from '@/interceptor/transform.interceptor';
 import { LoggingInterceptor } from '@/interceptor/logging.interceptor';
@@ -30,7 +31,7 @@ import { LoggerService } from '@/logger';
 		}),
 		LoggerModule.forRootAsync({
 			inject: [ConfigService],
-			useFactory: (config: ConfigService) => {
+			useFactory: async (config: ConfigService) => {
 				const isDevelopment = process.env.NODE_ENV !== 'production';
 				const loggingConfig = config.get('logging');
 				const logLevel = loggingConfig?.level || (isDevelopment ? 'debug' : 'info');
@@ -73,12 +74,12 @@ import { LoggerService } from '@/logger';
 					const maxFiles = loggingConfig?.maxFiles || 10;
 					const compress = loggingConfig?.compress !== false;
 					
-					// Create file stream with rotation using pino-roll
-					const fileStream = pinoRoll({
+					// Create file stream with rotation using pino-roll (async function)
+					const fileStream = await pinoRoll({
 						file: logFile,
 						frequency: 'daily', // Rotate daily
 						size: maxFileSize, // Also rotate when file size exceeds
-						limit: maxFiles, // Keep maxFiles rotated files
+						limit: { count: maxFiles }, // Keep maxFiles rotated files
 						compress: compress, // Compress archived logs
 					});
 					
@@ -195,14 +196,16 @@ import { LoggerService } from '@/logger';
 export class AppModule implements NestModule {
 	configure(consumer: MiddlewareConsumer) {
 		// Request ID and Logging middleware (applied first)
+		// Apply to all route classes explicitly to avoid path-to-regexp wildcard issues
 		consumer
 			.apply(RequestIdMiddleware, LoggingMiddleware)
-			.forRoutes('*');
+			.forRoutes(AppController, TokenController);
 
 		// CSRF middleware (applied after cookie parser is set up in main.ts)
 		// The middleware automatically skips CSRF for requests with Bearer tokens
+		// Apply to all route classes explicitly to avoid path-to-regexp wildcard issues
 		consumer
 			.apply(CsrfMiddleware)
-			.forRoutes('*');
+			.forRoutes(AppController, TokenController);
 	}
 }
