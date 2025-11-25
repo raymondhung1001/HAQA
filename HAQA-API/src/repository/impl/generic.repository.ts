@@ -2,14 +2,14 @@ import { Repository, DeepPartial, FindOptionsWhere, FindOptionsOrder, ObjectLite
 import { Injectable, Optional } from '@nestjs/common';
 
 import { IRepository, PrimaryKeyInput } from '../generic-repository.interface';
-import { SnowflakeService } from '@/service/snowflake.service';
+import { MistService } from '@/service/mist.service';
 
 @Injectable()
 export class GenericRepository<T extends ObjectLiteral> implements IRepository<T> {
 
     constructor(
         protected readonly repository: Repository<T>,
-        @Optional() protected readonly snowflakeService?: SnowflakeService,
+        @Optional() protected readonly mistService?: MistService,
     ) { }
 
     private buildPrimaryKeyCondition(id: PrimaryKeyInput<T>): FindOptionsWhere<T> {
@@ -166,25 +166,24 @@ export class GenericRepository<T extends ObjectLiteral> implements IRepository<T
     }
 
     /**
-     * Check if an ID is a valid Snowflake ID
+     * Check if an ID is a valid Mist ID
      * @param id The ID to check
-     * @returns true if the ID is a valid Snowflake ID
+     * @returns true if the ID is a valid Mist ID
      */
-    isSnowflakeId(id: string | number | bigint): boolean {
-        if (!this.snowflakeService) {
+    isMistId(id: string | number | bigint): boolean {
+        if (!this.mistService) {
             return false;
         }
 
         try {
             const idBigInt = BigInt(id);
-            // Snowflake IDs are 64-bit integers, so they should be within valid range
-            // and have a reasonable timestamp component (not too old or too far in future)
+            // Mist IDs are 64-bit integers, so they should be within valid range
             if (idBigInt < 0n || idBigInt > 0x7FFFFFFFFFFFFFFFn) {
                 return false;
             }
 
-            // Try to parse it - if it succeeds, it's a valid snowflake ID
-            this.snowflakeService.parseId(id);
+            // Try to parse it - if it succeeds, it's a valid Mist ID
+            this.mistService.parseId(id);
             return true;
         } catch {
             return false;
@@ -192,138 +191,35 @@ export class GenericRepository<T extends ObjectLiteral> implements IRepository<T
     }
 
     /**
-     * Parse a Snowflake ID to extract its components
-     * @param id The Snowflake ID to parse
-     * @returns Parsed components or null if not a valid Snowflake ID
+     * Parse a Mist ID to extract its components
+     * @param id The Mist ID to parse
+     * @returns Parsed components or null if not a valid Mist ID
      */
-    parseSnowflakeId(id: string | number | bigint): { timestamp: number; machineId: number; sequence: number; date: Date } | null {
-        if (!this.snowflakeService) {
+    parseMistId(id: string | number | bigint): { sequence: bigint; salt1: number; salt2: number } | null {
+        if (!this.mistService) {
             return null;
         }
 
         try {
-            return this.snowflakeService.parseId(id);
+            return this.mistService.parseId(id);
         } catch {
             return null;
         }
     }
 
     /**
-     * Find an entity by Snowflake ID
-     * This is a convenience method that uses findById but validates the ID is a Snowflake ID first
-     * @param id The Snowflake ID
+     * Find an entity by Mist ID
+     * This is a convenience method that uses findById but validates the ID is a Mist ID first
+     * @param id The Mist ID
      * @returns The entity or null if not found
      */
-    async findBySnowflakeId(id: string | number | bigint): Promise<T | null> {
-        if (!this.isSnowflakeId(id)) {
+    async findByMistId(id: string | number | bigint): Promise<T | null> {
+        if (!this.isMistId(id)) {
             return null;
         }
 
-        // Convert to string for consistency (Snowflake IDs are returned as strings)
+        // Convert to string for consistency (Mist IDs are returned as strings)
         const idString = typeof id === 'bigint' ? id.toString() : String(id);
         return await this.findById(idString as PrimaryKeyInput<T>);
-    }
-
-    /**
-     * Find entities created within a timestamp range based on Snowflake ID timestamps
-     * This searches for entities whose ID (if it's a Snowflake ID) falls within the date range
-     * @param startDate Start of the date range
-     * @param endDate End of the date range
-     * @param order Optional ordering
-     * @returns Array of entities found in the timestamp range
-     */
-    async findBySnowflakeTimestampRange(
-        startDate: Date,
-        endDate: Date,
-        order?: FindOptionsOrder<T>
-    ): Promise<T[]> {
-        if (!this.snowflakeService) {
-            throw new Error('SnowflakeService is not available. Cannot search by Snowflake timestamp range.');
-        }
-
-        const metadata = this.repository.metadata;
-        const primaryColumns = metadata.primaryColumns;
-
-        if (primaryColumns.length !== 1) {
-            throw new Error(
-                `findBySnowflakeTimestampRange only supports entities with a single primary key. ` +
-                `Entity ${metadata.name} has ${primaryColumns.length} primary key(s).`
-            );
-        }
-
-        const primaryKeyName = primaryColumns[0].propertyName;
-        const startTimestamp = startDate.getTime();
-        const endTimestamp = endDate.getTime();
-
-        // Get all entities and filter by Snowflake ID timestamp
-        // Note: This is not the most efficient approach for large datasets.
-        // For better performance, consider adding a created_at column and indexing it.
-        const allEntities = await this.repository.find({ order });
-
-        const filteredEntities: T[] = [];
-
-        for (const entity of allEntities) {
-            const id = entity[primaryKeyName as keyof T];
-            if (id === null || id === undefined) {
-                continue;
-            }
-
-            const parsed = this.parseSnowflakeId(id as string | number | bigint);
-            if (parsed && parsed.timestamp >= startTimestamp && parsed.timestamp <= endTimestamp) {
-                filteredEntities.push(entity);
-            }
-        }
-
-        return filteredEntities;
-    }
-
-    /**
-     * Find entities created by a specific machine ID based on Snowflake ID
-     * @param machineId The machine ID (0-1023)
-     * @param order Optional ordering
-     * @returns Array of entities found with the specified machine ID
-     */
-    async findBySnowflakeMachineId(
-        machineId: number,
-        order?: FindOptionsOrder<T>
-    ): Promise<T[]> {
-        if (!this.snowflakeService) {
-            throw new Error('SnowflakeService is not available. Cannot search by Snowflake machine ID.');
-        }
-
-        if (machineId < 0 || machineId > 1023) {
-            throw new Error(`Machine ID must be between 0 and 1023, got ${machineId}`);
-        }
-
-        const metadata = this.repository.metadata;
-        const primaryColumns = metadata.primaryColumns;
-
-        if (primaryColumns.length !== 1) {
-            throw new Error(
-                `findBySnowflakeMachineId only supports entities with a single primary key. ` +
-                `Entity ${metadata.name} has ${primaryColumns.length} primary key(s).`
-            );
-        }
-
-        // Get all entities and filter by Snowflake ID machine ID
-        // Note: This is not the most efficient approach for large datasets.
-        const allEntities = await this.repository.find({ order });
-
-        const filteredEntities: T[] = [];
-        const primaryKeyName = primaryColumns[0].propertyName;
-
-        for (const entity of allEntities) {
-            const id = entity[primaryKeyName as keyof T];
-            if (id === null || id === undefined) {
-                continue;
-            }
-
-            const parsed = this.parseSnowflakeId(id as string | number | bigint);
-            if (parsed && parsed.machineId === machineId) {
-                filteredEntities.push(entity);
-            }
-        }
-
-        return filteredEntities;
     }
 }

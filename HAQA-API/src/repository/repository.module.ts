@@ -18,7 +18,7 @@ const repositories = [UsersRepository, AuthCacheRepository];
 @Module({
     imports: [
         TypeOrmModule.forFeature(entities),
-        ServiceModule, // Import ServiceModule to make SnowflakeService available
+        ServiceModule, // Import ServiceModule to make MistService available
     ],
     providers: repositories,
     exports: repositories,

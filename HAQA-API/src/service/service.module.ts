@@ -4,11 +4,10 @@ import { PassportModule } from "@nestjs/passport";
 import { ConfigService } from "@nestjs/config";
 
 import { AuthService } from "./auth.service";
-import { SnowflakeService } from "./snowflake.service";
-import { MachineIdCoordinatorService } from "./machine-id-coordinator.service";
+import { MistService } from "./mist.service";
 import { JwtStrategy } from "@/strategies/jwt.strategy";
 
-const services = [AuthService, SnowflakeService, MachineIdCoordinatorService];
+const services = [AuthService, MistService];
 
 @Module({
     imports: [

@@ -15,10 +15,8 @@ export interface IRepository<T> {
     getPrimaryKeyMetadata(): { name: string; type: string }[];
     hasCompositePrimaryKey(): boolean;
     
-    // Snowflake ID search methods
-    isSnowflakeId(id: string | number | bigint): boolean;
-    parseSnowflakeId(id: string | number | bigint): { timestamp: number; machineId: number; sequence: number; date: Date } | null;
-    findBySnowflakeId(id: string | number | bigint): Promise<T | null>;
-    findBySnowflakeTimestampRange(startDate: Date, endDate: Date, order?: FindOptionsOrder<T>): Promise<T[]>;
-    findBySnowflakeMachineId(machineId: number, order?: FindOptionsOrder<T>): Promise<T[]>;
+    // Mist ID search methods
+    isMistId(id: string | number | bigint): boolean;
+    parseMistId(id: string | number | bigint): { sequence: bigint; salt1: number; salt2: number } | null;
+    findByMistId(id: string | number | bigint): Promise<T | null>;
 }

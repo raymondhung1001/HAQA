@@ -43,34 +43,24 @@ export const config = {
         port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
         globalPrefix: process.env.API_PREFIX || 'api',
     },
-    snowflake: {
-        // Note: Snowflake epoch is FIXED in SnowflakeService as 2024-01-01T00:00:00Z
-        // and cannot be customized. This ensures consistency and prevents data corruption.
-        // To change epoch, modify SnowflakeService.SNOWFLAKE_EPOCH constant BEFORE first ID generation.
+    mist: {
+        // Mist ID Generator Configuration
+        // Mist algorithm uses Redis for centralized sequence management
+        // No timestamp dependency - works "forever" without overflow concerns
         
-        // Application name for hash-based machine ID generation (used in fallback scenarios)
-        // This helps ensure consistent machine ID ranges per application while maintaining uniqueness per instance
-        // Default: 'haqa-api' (from package.json name)
-        appName: process.env.SNOWFLAKE_APP_NAME || process.env.APP_NAME || 'haqa-api',
-        // Machine ID (0-1023) - OPTIONAL, only used as fallback when Redis coordination fails
-        // When using Redis coordination (recommended for Docker scaling), machine IDs are auto-assigned
-        // This is only needed if Redis is unavailable and you want to manually assign IDs
-        machineId: process.env.SNOWFLAKE_MACHINE_ID ? parseInt(process.env.SNOWFLAKE_MACHINE_ID, 10) : undefined,
-        // Maximum time to wait for clock to catch up after rollback (milliseconds)
-        rollbackWaitTimeout: process.env.SNOWFLAKE_ROLLBACK_WAIT_TIMEOUT 
-            ? parseInt(process.env.SNOWFLAKE_ROLLBACK_WAIT_TIMEOUT, 10) 
-            : 5000,
-        // Machine ID coordination settings (for distributed scaling)
-        coordination: {
-            // Heartbeat interval in milliseconds (how often to renew the lease)
-            heartbeatInterval: process.env.SNOWFLAKE_HEARTBEAT_INTERVAL 
-                ? parseInt(process.env.SNOWFLAKE_HEARTBEAT_INTERVAL, 10) 
-                : 30000, // 30 seconds
-            // Heartbeat TTL in milliseconds (lease expiration time, should be 2x heartbeat interval)
-            heartbeatTtl: process.env.SNOWFLAKE_HEARTBEAT_TTL 
-                ? parseInt(process.env.SNOWFLAKE_HEARTBEAT_TTL, 10) 
-                : 60000, // 60 seconds
-        },
+        // Sequence batch size - pre-fetch sequence numbers in batches for performance
+        // Larger batches = fewer Redis calls but more wasted IDs if instance crashes
+        // Default: 1000 (good balance between performance and efficiency)
+        sequenceBatchSize: process.env.MIST_SEQUENCE_BATCH_SIZE 
+            ? parseInt(process.env.MIST_SEQUENCE_BATCH_SIZE, 10) 
+            : 1000,
+        
+        // Sequence batch TTL in seconds - how long to reserve a batch in Redis
+        // Used for cleanup/recovery if an instance crashes with unused sequence numbers
+        // Default: 60 seconds
+        sequenceBatchTtl: process.env.MIST_SEQUENCE_BATCH_TTL 
+            ? parseInt(process.env.MIST_SEQUENCE_BATCH_TTL, 10) 
+            : 60,
     },
     security: {
         helmet: {
