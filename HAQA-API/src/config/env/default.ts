@@ -43,25 +43,6 @@ export const config = {
         port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
         globalPrefix: process.env.API_PREFIX || 'api',
     },
-    mist: {
-        // Mist ID Generator Configuration
-        // Mist algorithm uses Redis for centralized sequence management
-        // No timestamp dependency - works "forever" without overflow concerns
-        
-        // Sequence batch size - pre-fetch sequence numbers in batches for performance
-        // Larger batches = fewer Redis calls but more wasted IDs if instance crashes
-        // Default: 1000 (good balance between performance and efficiency)
-        sequenceBatchSize: process.env.MIST_SEQUENCE_BATCH_SIZE 
-            ? parseInt(process.env.MIST_SEQUENCE_BATCH_SIZE, 10) 
-            : 1000,
-        
-        // Sequence batch TTL in seconds - how long to reserve a batch in Redis
-        // Used for cleanup/recovery if an instance crashes with unused sequence numbers
-        // Default: 60 seconds
-        sequenceBatchTtl: process.env.MIST_SEQUENCE_BATCH_TTL 
-            ? parseInt(process.env.MIST_SEQUENCE_BATCH_TTL, 10) 
-            : 60,
-    },
     security: {
         helmet: {
             contentSecurityPolicy: process.env.NODE_ENV === 'production',

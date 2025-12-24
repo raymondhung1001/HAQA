@@ -14,9 +14,4 @@ export interface IRepository<T> {
     getPrimaryKeyValues(entity: T): PrimaryKeyInput<T>;
     getPrimaryKeyMetadata(): { name: string; type: string }[];
     hasCompositePrimaryKey(): boolean;
-    
-    // Mist ID search methods
-    isMistId(id: string | number | bigint): boolean;
-    parseMistId(id: string | number | bigint): { sequence: bigint; salt1: number; salt2: number } | null;
-    findByMistId(id: string | number | bigint): Promise<T | null>;
 }

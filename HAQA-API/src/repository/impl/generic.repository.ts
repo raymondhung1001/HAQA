@@ -1,15 +1,13 @@
 import { Repository, DeepPartial, FindOptionsWhere, FindOptionsOrder, ObjectLiteral } from 'typeorm';
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { IRepository, PrimaryKeyInput } from '../generic-repository.interface';
-import { MistService } from '@/service/mist.service';
 
 @Injectable()
 export class GenericRepository<T extends ObjectLiteral> implements IRepository<T> {
 
     constructor(
         protected readonly repository: Repository<T>,
-        @Optional() protected readonly mistService?: MistService,
     ) { }
 
     private buildPrimaryKeyCondition(id: PrimaryKeyInput<T>): FindOptionsWhere<T> {
@@ -163,63 +161,5 @@ export class GenericRepository<T extends ObjectLiteral> implements IRepository<T
 
     hasCompositePrimaryKey(): boolean {
         return this.repository.metadata.primaryColumns.length > 1;
-    }
-
-    /**
-     * Check if an ID is a valid Mist ID
-     * @param id The ID to check
-     * @returns true if the ID is a valid Mist ID
-     */
-    isMistId(id: string | number | bigint): boolean {
-        if (!this.mistService) {
-            return false;
-        }
-
-        try {
-            const idBigInt = BigInt(id);
-            // Mist IDs are 64-bit integers, so they should be within valid range
-            if (idBigInt < 0n || idBigInt > 0x7FFFFFFFFFFFFFFFn) {
-                return false;
-            }
-
-            // Try to parse it - if it succeeds, it's a valid Mist ID
-            this.mistService.parseId(id);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Parse a Mist ID to extract its components
-     * @param id The Mist ID to parse
-     * @returns Parsed components or null if not a valid Mist ID
-     */
-    parseMistId(id: string | number | bigint): { sequence: bigint; salt1: number; salt2: number } | null {
-        if (!this.mistService) {
-            return null;
-        }
-
-        try {
-            return this.mistService.parseId(id);
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Find an entity by Mist ID
-     * This is a convenience method that uses findById but validates the ID is a Mist ID first
-     * @param id The Mist ID
-     * @returns The entity or null if not found
-     */
-    async findByMistId(id: string | number | bigint): Promise<T | null> {
-        if (!this.isMistId(id)) {
-            return null;
-        }
-
-        // Convert to string for consistency (Mist IDs are returned as strings)
-        const idString = typeof id === 'bigint' ? id.toString() : String(id);
-        return await this.findById(idString as PrimaryKeyInput<T>);
     }
 }
