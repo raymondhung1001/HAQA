@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    /* Shared compiler options */
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    
+    /* Module interop - safe for both frontend and backend */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    
+    /* Source maps for better debugging */
+    "sourceMap": true,
+    
+    /* Strict type checking - can be overridden by projects */
+    "strictNullChecks": true,
+    
+    /* Path mapping - shared across projects */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
+
