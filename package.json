@@ -4,12 +4,18 @@
   "private": true,
   "description": "HAQA Monorepo",
   "workspaces": [
-    "haqa-api"
+    "haqa-api",
+    "haqa-app"
   ],
   "scripts": {
-    "dev": "bun run --filter haqa-api start:dev",
+    "dev:api": "bun run --filter haqa-api start:dev",
+    "dev:app": "bun run --filter haqa-app dev",
+    "dev:all": "bun run --filter haqa-api start:dev & bun run --filter haqa-app dev",
     "build": "bun run --filter haqa-api build",
+    "build:app": "bun run --filter haqa-app build",
+    "build:all": "bun run --filter haqa-api build && bun run --filter haqa-app build",
     "start": "bun run --filter haqa-api start",
+    "preview:app": "bun run --filter haqa-app preview",
     "lint": "bun run --filter haqa-api lint",
     "format": "bun run --filter haqa-api format"
   },
