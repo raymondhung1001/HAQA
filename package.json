@@ -1,0 +1,30 @@
+{
+  "name": "haqa-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HAQA Monorepo",
+  "workspaces": [
+    "haqa-api"
+  ],
+  "scripts": {
+    "dev": "bun run --filter haqa-api start:dev",
+    "build": "bun run --filter haqa-api build",
+    "start": "bun run --filter haqa-api start",
+    "lint": "bun run --filter haqa-api lint",
+    "format": "bun run --filter haqa-api format"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}
+

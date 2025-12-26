@@ -1,0 +1,14 @@
+# Bun configuration for HAQA monorepo
+[install]
+# Use production mode by default
+production = false
+# Auto install peer dependencies
+peer = true
+# Use exact versions
+exact = false
+# Hoist dependencies to root (like pnpm)
+hoist = true
+
+[install.scopes]
+# Configure scoped packages if needed
+
