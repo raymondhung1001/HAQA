@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { apiClient } from '@/lib/api'
 import { useLogout } from '@/lib/auth-queries'
 import { LayoutDashboard, LogOut, User, Shield, FileText, Settings } from 'lucide-react'
-import { useState, useEffect } from 'react'
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async () => {
@@ -22,57 +21,6 @@ export const Route = createFileRoute('/dashboard')({
 
 function DashboardPage() {
   const navigate = useNavigate()
-  const [tokenInfo, setTokenInfo] = useState<{
-    expiresAt: Date
-    isExpired: boolean
-  } | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
-
-  // Safely access localStorage only on client side
-  useEffect(() => {
-    const updateAuthStatus = () => {
-      if (typeof window !== 'undefined') {
-        const accessToken = apiClient.getToken()
-        const expiresAt = apiClient.getTokenExpiresAt()
-        
-        // Debug logging
-        console.log('[Dashboard] Token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'null')
-        console.log('[Dashboard] ExpiresAt:', expiresAt)
-        console.log('[Dashboard] Current time:', Date.now())
-        if (expiresAt) {
-          const expiresAtNum = parseInt(expiresAt, 10)
-          console.log('[Dashboard] ExpiresAt (parsed):', expiresAtNum)
-          console.log('[Dashboard] Time until expiry:', expiresAtNum - Date.now(), 'ms')
-          console.log('[Dashboard] Is expired?', Date.now() >= expiresAtNum)
-        }
-        
-        const authStatus = apiClient.isAuthenticated()
-        console.log('[Dashboard] Auth status:', authStatus)
-        
-        setToken(accessToken)
-        setIsAuthenticated(authStatus)
-        
-        if (expiresAt) {
-          const expiresAtNum = parseInt(expiresAt, 10)
-          setTokenInfo({
-            expiresAt: new Date(expiresAtNum),
-            isExpired: Date.now() >= expiresAtNum,
-          })
-        } else {
-          setTokenInfo(null)
-        }
-      }
-    }
-
-    // Update immediately
-    updateAuthStatus()
-
-    // Update every second to keep status current
-    const interval = setInterval(updateAuthStatus, 1000)
-
-    return () => clearInterval(interval)
-  }, [])
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -104,20 +52,6 @@ function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {tokenInfo && (
-                <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Shield
-                    className={`w-4 h-4 ${
-                      tokenInfo.isExpired ? 'text-red-500' : 'text-green-500'
-                    }`}
-                  />
-                  <span>
-                    {tokenInfo.isExpired
-                      ? 'Token Expired'
-                      : `Expires: ${tokenInfo.expiresAt.toLocaleTimeString()}`}
-                  </span>
-                </div>
-              )}
               <button
                 onClick={handleLogout}
                 disabled={logoutMutation.isPending}
@@ -202,92 +136,6 @@ function DashboardPage() {
           </div>
         </div>
 
-        {/* Authentication Status Card */}
-        <div className="mt-8 bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-slate-700">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Authentication Status
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Token Status:
-              </span>
-              <span
-                className={`text-sm font-medium ${
-                  isAuthenticated
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
-                }`}
-              >
-                {isAuthenticated ? 'Valid' : 'Invalid'}
-              </span>
-            </div>
-            {/* Debug Info */}
-            {typeof window !== 'undefined' && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Debug Info (check browser console for details):
-                </p>
-                <div className="space-y-1 text-xs font-mono text-gray-600 dark:text-gray-400">
-                  <div>Has Token: {token ? 'Yes' : 'No'}</div>
-                  <div>Token Length: {token?.length || 0}</div>
-                  <div>Has ExpiresAt: {apiClient.getTokenExpiresAt() ? 'Yes' : 'No'}</div>
-                  <div>ExpiresAt Value: {apiClient.getTokenExpiresAt() || 'N/A'}</div>
-                  {apiClient.getTokenExpiresAt() && (
-                    <>
-                      <div>
-                        Current Time: {Date.now()}
-                      </div>
-                      <div>
-                        Expires At: {parseInt(apiClient.getTokenExpiresAt() || '0', 10)}
-                      </div>
-                      <div>
-                        Time Until Expiry: {parseInt(apiClient.getTokenExpiresAt() || '0', 10) - Date.now()} ms
-                      </div>
-                      <div>
-                        Is Expired?: {Date.now() >= parseInt(apiClient.getTokenExpiresAt() || '0', 10) ? 'Yes' : 'No'}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-            {tokenInfo && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Token Expires:
-                  </span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {tokenInfo.expiresAt.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Time Remaining:
-                  </span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {tokenInfo.isExpired
-                      ? 'Expired'
-                      : `${Math.floor(
-                          (tokenInfo.expiresAt.getTime() - Date.now()) / 1000 / 60
-                        )} minutes`}
-                  </span>
-                </div>
-              </>
-            )}
-            {token && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Token Preview:
-                </span>
-                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate max-w-xs">
-                  {token.substring(0, 20)}...
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   )
