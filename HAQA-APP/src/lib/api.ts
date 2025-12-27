@@ -25,15 +25,75 @@ export interface RefreshTokenRequest {
 class ApiClient {
   private baseUrl: string
   private refreshTokenPromise: Promise<AuthTokenResponse> | null = null
+  private csrfToken: string | null = null
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl
   }
 
   /**
+   * Get CSRF token from cookie or fetch it from the server
+   */
+  private async getCsrfToken(): Promise<string | null> {
+    // Try to read from cookie first (set by server with httpOnly: false)
+    const cookieToken = this.getCookie('XSRF-TOKEN')
+    if (cookieToken) {
+      this.csrfToken = cookieToken
+      return cookieToken
+    }
+
+    // If not in cookie, fetch it by making a GET request to root endpoint
+    // The server will set the token in response header and cookie
+    try {
+      const response = await fetch(`${this.baseUrl}/`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      // Try to get from response header
+      const headerToken = response.headers.get('X-CSRF-Token')
+      if (headerToken) {
+        this.csrfToken = headerToken
+        return headerToken
+      }
+
+      // Try to read from cookie after the request
+      const cookieTokenAfter = this.getCookie('XSRF-TOKEN')
+      if (cookieTokenAfter) {
+        this.csrfToken = cookieTokenAfter
+        return cookieTokenAfter
+      }
+    } catch (error) {
+      console.warn('Failed to fetch CSRF token:', error)
+    }
+
+    return null
+  }
+
+  /**
+   * Get a cookie value by name
+   */
+  private getCookie(name: string): string | null {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) {
+      return parts.pop()?.split(';').shift() || null
+    }
+    return null
+  }
+
+  /**
+   * Check if we're in a browser environment
+   */
+  private isBrowser(): boolean {
+    return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+  }
+
+  /**
    * Get the stored access token from localStorage
    */
   getToken(): string | null {
+    if (!this.isBrowser()) return null
     return localStorage.getItem('accessToken')
   }
 
@@ -41,6 +101,7 @@ class ApiClient {
    * Set the access token in localStorage
    */
   setToken(token: string): void {
+    if (!this.isBrowser()) return
     localStorage.setItem('accessToken', token)
   }
 
@@ -48,6 +109,7 @@ class ApiClient {
    * Get the stored refresh token from localStorage
    */
   getRefreshToken(): string | null {
+    if (!this.isBrowser()) return null
     return localStorage.getItem('refreshToken')
   }
 
@@ -55,13 +117,31 @@ class ApiClient {
    * Set the refresh token in localStorage
    */
   setRefreshToken(token: string): void {
+    if (!this.isBrowser()) return
     localStorage.setItem('refreshToken', token)
+  }
+
+  /**
+   * Set the token expiration time
+   */
+  setTokenExpiresAt(expiresAt: number): void {
+    if (!this.isBrowser()) return
+    localStorage.setItem('tokenExpiresAt', String(expiresAt))
+  }
+
+  /**
+   * Get the token expiration time
+   */
+  getTokenExpiresAt(): string | null {
+    if (!this.isBrowser()) return null
+    return localStorage.getItem('tokenExpiresAt')
   }
 
   /**
    * Clear all stored tokens
    */
   clearTokens(): void {
+    if (!this.isBrowser()) return
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('tokenExpiresAt')
@@ -84,12 +164,20 @@ class ApiClient {
     // Create the refresh promise
     this.refreshTokenPromise = (async () => {
       try {
+        // Get CSRF token for the refresh request
+        const csrfToken = await this.getCsrfToken()
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken
+        }
+
         const response = await fetch(`${this.baseUrl}/token/refresh`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({ refreshToken }),
+          credentials: 'include',
         })
 
         if (!response.ok) {
@@ -110,7 +198,7 @@ class ApiClient {
         // Store new tokens
         this.setToken(data.accessToken)
         this.setRefreshToken(data.refreshToken)
-        localStorage.setItem('tokenExpiresAt', String(data.expiresAt))
+        this.setTokenExpiresAt(data.expiresAt)
 
         return data
       } finally {
@@ -143,9 +231,22 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
+    // Add CSRF token for state-changing methods (POST, PUT, PATCH, DELETE)
+    // Skip CSRF if Bearer token is present (API authentication)
+    const method = options.method || 'GET'
+    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())
+    if (isStateChanging && !token) {
+      // Only add CSRF token if we don't have a Bearer token
+      const csrfToken = await this.getCsrfToken()
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
+    }
+
     let response = await fetch(url, {
       ...options,
       headers,
+      credentials: 'include', // Include cookies for CSRF token
     })
 
     // If we get a 401 and retry is enabled, try to refresh the token
@@ -161,6 +262,7 @@ class ApiClient {
           response = await fetch(url, {
             ...options,
             headers,
+            credentials: 'include',
           })
         }
       } catch (refreshError) {
@@ -200,7 +302,7 @@ class ApiClient {
     // Store tokens
     this.setToken(response.accessToken)
     this.setRefreshToken(response.refreshToken)
-    localStorage.setItem('tokenExpiresAt', String(response.expiresAt))
+    this.setTokenExpiresAt(response.expiresAt)
 
     return response
   }
@@ -209,12 +311,20 @@ class ApiClient {
    * Refresh authentication tokens (public method for manual refresh)
    */
   async refreshToken(refreshToken: string): Promise<AuthTokenResponse> {
+    // Get CSRF token for the refresh request
+    const csrfToken = await this.getCsrfToken()
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken
+    }
+
     const response = await fetch(`${this.baseUrl}/token/refresh`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ refreshToken }),
+      credentials: 'include',
     })
 
     if (!response.ok) {
@@ -234,7 +344,7 @@ class ApiClient {
     // Store tokens
     this.setToken(data.accessToken)
     this.setRefreshToken(data.refreshToken)
-    localStorage.setItem('tokenExpiresAt', String(data.expiresAt))
+    this.setTokenExpiresAt(data.expiresAt)
 
     return data
   }
@@ -250,8 +360,10 @@ class ApiClient {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
+    if (!this.isBrowser()) return false
+    
     const token = this.getToken()
-    const expiresAt = localStorage.getItem('tokenExpiresAt')
+    const expiresAt = this.getTokenExpiresAt()
     
     if (!token || !expiresAt) {
       return false

@@ -1,19 +1,49 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import { LogIn, Loader2 } from 'lucide-react'
 import { useLogin } from '@/lib/auth-queries'
+import { apiClient } from '@/lib/api'
 
-export const Route = createFileRoute('/')({ component: LoginPage })
+export const Route = createFileRoute('/')({
+  beforeLoad: () => {
+    // If already authenticated, redirect to dashboard (only on client side)
+    if (typeof window !== 'undefined' && apiClient.isAuthenticated()) {
+      throw redirect({
+        to: '/dashboard',
+      })
+    }
+  },
+  component: LoginPage,
+})
 
 function LoginPage() {
+  const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
 
+  // Pre-fetch CSRF token when component mounts
+  useEffect(() => {
+    // Fetch CSRF token by making a GET request to ensure it's available
+    // This will set the cookie and make the token ready for the login request
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/`, {
+      method: 'GET',
+      credentials: 'include',
+    }).catch((error) => {
+      console.warn('Failed to pre-fetch CSRF token:', error)
+    })
+  }, [])
+
   const loginMutation = useLogin({
-    onSuccess: () => {
-      // Login successful - reload the page to update auth state throughout the app
-      // TODO: Replace with navigation to dashboard route once it's created
-      window.location.reload()
+    onSuccess: (data) => {
+      // Login successful - tokens are already set by apiClient.login()
+      // Use window.location.href for reliable navigation after login
+      // This ensures a full page load and proper authentication check
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard'
+      }
+    },
+    onError: (error) => {
+      console.error('Login error:', error)
     },
   })
 
