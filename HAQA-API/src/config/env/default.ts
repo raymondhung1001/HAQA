@@ -40,7 +40,7 @@ export const config = {
         compress: process.env.LOG_COMPRESS !== 'false', // Compress archived logs
     },
     app: {
-        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3001,
         globalPrefix: process.env.API_PREFIX || 'api',
     },
     security: {
