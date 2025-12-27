@@ -14,13 +14,14 @@
     "sourceMap": true,
     
     /* Strict type checking - can be overridden by projects */
+    "strict": true,
     "strictNullChecks": true,
     
-    /* Path mapping - shared across projects */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    /* Linting - can be overridden by projects */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
   }
 }
 

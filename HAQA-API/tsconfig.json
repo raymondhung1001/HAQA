@@ -12,6 +12,12 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "noUnusedLocals": false
+    "noUnusedLocals": false,
+
+    /* Path mapping - override base config for this project */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   }
 }
