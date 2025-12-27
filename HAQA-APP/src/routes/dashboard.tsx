@@ -27,22 +27,51 @@ function DashboardPage() {
     isExpired: boolean
   } | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
 
   // Safely access localStorage only on client side
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const accessToken = apiClient.getToken()
-      const expiresAt = apiClient.getTokenExpiresAt()
-      
-      setToken(accessToken)
-      
-      if (expiresAt) {
-        setTokenInfo({
-          expiresAt: new Date(parseInt(expiresAt, 10)),
-          isExpired: Date.now() >= parseInt(expiresAt, 10),
-        })
+    const updateAuthStatus = () => {
+      if (typeof window !== 'undefined') {
+        const accessToken = apiClient.getToken()
+        const expiresAt = apiClient.getTokenExpiresAt()
+        
+        // Debug logging
+        console.log('[Dashboard] Token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'null')
+        console.log('[Dashboard] ExpiresAt:', expiresAt)
+        console.log('[Dashboard] Current time:', Date.now())
+        if (expiresAt) {
+          const expiresAtNum = parseInt(expiresAt, 10)
+          console.log('[Dashboard] ExpiresAt (parsed):', expiresAtNum)
+          console.log('[Dashboard] Time until expiry:', expiresAtNum - Date.now(), 'ms')
+          console.log('[Dashboard] Is expired?', Date.now() >= expiresAtNum)
+        }
+        
+        const authStatus = apiClient.isAuthenticated()
+        console.log('[Dashboard] Auth status:', authStatus)
+        
+        setToken(accessToken)
+        setIsAuthenticated(authStatus)
+        
+        if (expiresAt) {
+          const expiresAtNum = parseInt(expiresAt, 10)
+          setTokenInfo({
+            expiresAt: new Date(expiresAtNum),
+            isExpired: Date.now() >= expiresAtNum,
+          })
+        } else {
+          setTokenInfo(null)
+        }
       }
     }
+
+    // Update immediately
+    updateAuthStatus()
+
+    // Update every second to keep status current
+    const interval = setInterval(updateAuthStatus, 1000)
+
+    return () => clearInterval(interval)
   }, [])
 
   const logoutMutation = useLogout({
@@ -185,16 +214,44 @@ function DashboardPage() {
               </span>
               <span
                 className={`text-sm font-medium ${
-                  typeof window !== 'undefined' && apiClient.isAuthenticated()
+                  isAuthenticated
                     ? 'text-green-600 dark:text-green-400'
                     : 'text-red-600 dark:text-red-400'
                 }`}
               >
-                {typeof window !== 'undefined' && apiClient.isAuthenticated()
-                  ? 'Valid'
-                  : 'Invalid'}
+                {isAuthenticated ? 'Valid' : 'Invalid'}
               </span>
             </div>
+            {/* Debug Info */}
+            {typeof window !== 'undefined' && (
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Debug Info (check browser console for details):
+                </p>
+                <div className="space-y-1 text-xs font-mono text-gray-600 dark:text-gray-400">
+                  <div>Has Token: {token ? 'Yes' : 'No'}</div>
+                  <div>Token Length: {token?.length || 0}</div>
+                  <div>Has ExpiresAt: {apiClient.getTokenExpiresAt() ? 'Yes' : 'No'}</div>
+                  <div>ExpiresAt Value: {apiClient.getTokenExpiresAt() || 'N/A'}</div>
+                  {apiClient.getTokenExpiresAt() && (
+                    <>
+                      <div>
+                        Current Time: {Date.now()}
+                      </div>
+                      <div>
+                        Expires At: {parseInt(apiClient.getTokenExpiresAt() || '0', 10)}
+                      </div>
+                      <div>
+                        Time Until Expiry: {parseInt(apiClient.getTokenExpiresAt() || '0', 10) - Date.now()} ms
+                      </div>
+                      <div>
+                        Is Expired?: {Date.now() >= parseInt(apiClient.getTokenExpiresAt() || '0', 10) ? 'Yes' : 'No'}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             {tokenInfo && (
               <>
                 <div className="flex items-center justify-between">

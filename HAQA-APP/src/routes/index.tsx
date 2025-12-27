@@ -34,12 +34,35 @@ function LoginPage() {
   }, [])
 
   const loginMutation = useLogin({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Login successful - tokens are already set by apiClient.login()
-      // Use window.location.href for reliable navigation after login
-      // This ensures a full page load and proper authentication check
+      // Wait a moment to ensure tokens are stored in localStorage
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Verify tokens are stored before navigating
       if (typeof window !== 'undefined') {
-        window.location.href = '/dashboard'
+        const token = apiClient.getToken()
+        const expiresAt = apiClient.getTokenExpiresAt()
+        
+        console.log('[Login Success] Before navigation:', {
+          hasToken: !!token,
+          hasExpiresAt: !!expiresAt,
+          tokenLength: token?.length || 0,
+          expiresAt: expiresAt,
+          localStorageKeys: typeof window !== 'undefined' ? Object.keys(localStorage) : [],
+        })
+        
+        if (token && expiresAt) {
+          // Tokens are stored, navigate to dashboard
+          window.location.href = '/dashboard'
+        } else {
+          console.error('[Login Success] Tokens not stored!', {
+            token,
+            expiresAt,
+            localStorage: Object.keys(localStorage),
+          })
+          alert('Login successful but tokens were not stored. Please try again.')
+        }
       }
     },
     onError: (error) => {

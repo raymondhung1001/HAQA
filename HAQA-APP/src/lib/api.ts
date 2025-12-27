@@ -86,7 +86,13 @@ class ApiClient {
    * Check if we're in a browser environment
    */
   private isBrowser(): boolean {
-    return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+    try {
+      return typeof window !== 'undefined' && 
+             typeof localStorage !== 'undefined' &&
+             window.localStorage !== null
+    } catch (e) {
+      return false
+    }
   }
 
   /**
@@ -101,8 +107,21 @@ class ApiClient {
    * Set the access token in localStorage
    */
   setToken(token: string): void {
-    if (!this.isBrowser()) return
-    localStorage.setItem('accessToken', token)
+    if (!this.isBrowser()) {
+      console.warn('[setToken] Not in browser environment')
+      return
+    }
+    if (!token) {
+      console.warn('[setToken] Token is empty or undefined')
+      return
+    }
+    try {
+      localStorage.setItem('accessToken', token)
+      console.log('[setToken] Token stored successfully, length:', token.length)
+    } catch (error) {
+      console.error('[setToken] Error storing token:', error)
+      throw error
+    }
   }
 
   /**
@@ -117,16 +136,35 @@ class ApiClient {
    * Set the refresh token in localStorage
    */
   setRefreshToken(token: string): void {
-    if (!this.isBrowser()) return
-    localStorage.setItem('refreshToken', token)
+    if (!this.isBrowser()) {
+      console.warn('[setRefreshToken] Not in browser environment')
+      return
+    }
+    try {
+      localStorage.setItem('refreshToken', token)
+      console.log('[setRefreshToken] Refresh token stored successfully')
+    } catch (error) {
+      console.error('[setRefreshToken] Error storing refresh token:', error)
+      throw error
+    }
   }
 
   /**
    * Set the token expiration time
    */
   setTokenExpiresAt(expiresAt: number): void {
-    if (!this.isBrowser()) return
-    localStorage.setItem('tokenExpiresAt', String(expiresAt))
+    if (!this.isBrowser()) {
+      console.warn('[setTokenExpiresAt] Not in browser environment')
+      return
+    }
+    try {
+      const expiresAtStr = String(expiresAt)
+      localStorage.setItem('tokenExpiresAt', expiresAtStr)
+      console.log('[setTokenExpiresAt] Expiration time stored:', expiresAtStr)
+    } catch (error) {
+      console.error('[setTokenExpiresAt] Error storing expiration time:', error)
+      throw error
+    }
   }
 
   /**
@@ -193,7 +231,11 @@ class ApiClient {
           throw new Error(errorMessage)
         }
 
-        const data: AuthTokenResponse = await response.json()
+        const responseData = await response.json()
+        
+        // The API wraps responses in a SuccessResponse format with a 'data' property
+        // Extract the actual auth data from the response
+        const data: AuthTokenResponse = responseData?.data || responseData
 
         // Store new tokens
         this.setToken(data.accessToken)
@@ -290,7 +332,7 @@ class ApiClient {
    * Login and get authentication tokens
    */
   async login(credentials: LoginRequest): Promise<AuthTokenResponse> {
-    const response = await this.request<AuthTokenResponse>(
+    const response = await this.request<any>(
       '/token',
       {
         method: 'POST',
@@ -299,12 +341,68 @@ class ApiClient {
       false // Don't retry login on 401
     )
 
-    // Store tokens
-    this.setToken(response.accessToken)
-    this.setRefreshToken(response.refreshToken)
-    this.setTokenExpiresAt(response.expiresAt)
+    // The API wraps responses in a SuccessResponse format with a 'data' property
+    // Extract the actual auth data from the response
+    const authData: AuthTokenResponse = response?.data || response
 
-    return response
+    // Validate response data
+    if (!authData || !authData.accessToken || !authData.refreshToken) {
+      console.error('[Login] Invalid response:', { response, authData })
+      throw new Error('Invalid login response: missing tokens')
+    }
+    
+    if (!authData.expiresAt || typeof authData.expiresAt !== 'number') {
+      console.error('[Login] Invalid expiration time:', authData.expiresAt)
+      throw new Error('Invalid login response: missing or invalid expiration time')
+    }
+    
+    // Store tokens
+    console.log('[Login] Storing tokens:', {
+      hasAccessToken: !!authData.accessToken,
+      hasRefreshToken: !!authData.refreshToken,
+      expiresAt: authData.expiresAt,
+      expiresAtType: typeof authData.expiresAt,
+      currentTime: Date.now(),
+      timeUntilExpiry: authData.expiresAt - Date.now(),
+      isBrowser: this.isBrowser(),
+    })
+    
+    // Ensure we're in browser before storing
+    if (!this.isBrowser()) {
+      console.error('[Login] Not in browser environment, cannot store tokens')
+      throw new Error('Cannot store tokens: not in browser environment')
+    }
+    
+    try {
+      this.setToken(authData.accessToken)
+      this.setRefreshToken(authData.refreshToken)
+      this.setTokenExpiresAt(authData.expiresAt)
+      
+      // Verify tokens were stored
+      const storedToken = this.getToken()
+      const storedExpiresAt = this.getTokenExpiresAt()
+      console.log('[Login] Verification:', {
+        storedToken: storedToken ? `${storedToken.substring(0, 20)}...` : 'null',
+        storedTokenLength: storedToken?.length || 0,
+        storedExpiresAt: storedExpiresAt,
+        storedExpiresAtType: typeof storedExpiresAt,
+        isAuthenticated: this.isAuthenticated(),
+        localStorageKeys: typeof window !== 'undefined' ? Object.keys(localStorage) : [],
+      })
+      
+      // Double-check by reading directly from localStorage
+      const directToken = localStorage.getItem('accessToken')
+      const directExpiresAt = localStorage.getItem('tokenExpiresAt')
+      console.log('[Login] Direct localStorage check:', {
+        directToken: directToken ? `${directToken.substring(0, 20)}...` : 'null',
+        directExpiresAt: directExpiresAt,
+      })
+    } catch (error) {
+      console.error('[Login] Error storing tokens:', error)
+      throw error
+    }
+
+    return authData
   }
 
   /**
@@ -339,7 +437,11 @@ class ApiClient {
       throw new Error(errorMessage)
     }
 
-    const data: AuthTokenResponse = await response.json()
+    const responseData = await response.json()
+    
+    // The API wraps responses in a SuccessResponse format with a 'data' property
+    // Extract the actual auth data from the response
+    const data: AuthTokenResponse = responseData?.data || responseData
 
     // Store tokens
     this.setToken(data.accessToken)
@@ -365,18 +467,38 @@ class ApiClient {
     const token = this.getToken()
     const expiresAt = this.getTokenExpiresAt()
     
-    if (!token || !expiresAt) {
+    if (!token) {
+      console.debug('[Auth] No token found')
+      return false
+    }
+    
+    if (!expiresAt) {
+      console.debug('[Auth] No expiration time found')
       return false
     }
 
     // Check if token is expired
     const now = Date.now()
     const expiresAtNum = parseInt(expiresAt, 10)
-    if (isNaN(expiresAtNum) || now >= expiresAtNum) {
+    
+    if (isNaN(expiresAtNum)) {
+      // Invalid expiration time, clear tokens
+      console.warn('[Auth] Invalid expiration time:', expiresAt)
+      this.clearTokens()
+      return false
+    }
+    
+    // Check if token is expired
+    // expiresAt is in milliseconds (timestamp)
+    const timeUntilExpiry = expiresAtNum - now
+    if (timeUntilExpiry <= 0) {
+      // Token is expired, clear tokens
+      console.debug('[Auth] Token expired. Expired', Math.abs(timeUntilExpiry), 'ms ago')
       this.clearTokens()
       return false
     }
 
+    console.debug('[Auth] Token valid. Expires in', Math.floor(timeUntilExpiry / 1000), 'seconds')
     return true
   }
 }
