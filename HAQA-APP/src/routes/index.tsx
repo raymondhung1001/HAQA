@@ -34,7 +34,7 @@ function LoginPage() {
   }, [])
 
   const loginMutation = useLogin({
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       // Login successful - tokens are already set by apiClient.login()
       // Wait a moment to ensure tokens are stored in localStorage
       await new Promise(resolve => setTimeout(resolve, 100))
