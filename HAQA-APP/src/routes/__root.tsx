@@ -1,10 +1,10 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-
-import Header from '../components/Header'
+import { QueryClientProvider } from '@tanstack/react-query'
 
 import appCss from '../styles.css?url'
+import { queryClient } from '@/lib/query-client'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -17,7 +17,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'HAQA - Testing Execution Workflow System',
       },
     ],
     links: [
@@ -38,8 +38,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Header />
-        {children}
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
