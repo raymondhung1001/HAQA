@@ -16,38 +16,38 @@ import { UserRoles } from "./UserRoles";
 @Entity("roles", { schema: "haqa_schema" })
 export class Roles {
   @PrimaryGeneratedColumn({ type: "integer", name: "id" })
-  id: number;
+  id!: number;
 
   @Column("character varying", { name: "name", length: 50 })
-  name: string;
+  name!: string;
 
   @Column("text", { name: "description", nullable: true })
-  description: string | null;
+  description!: string | null;
 
   @Column("boolean", {
     name: "is_system_role",
     nullable: true,
     default: () => "false",
   })
-  isSystemRole: boolean | null;
+  isSystemRole!: boolean | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("timestamp with time zone", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @ManyToMany(() => Functions, (functions) => functions.roles)
-  functions: Functions[];
+  functions!: Functions[];
 
   @OneToMany(() => UserRoles, (userRoles) => userRoles.role)
-  userRoles: UserRoles[];
+  userRoles!: UserRoles[];
 }

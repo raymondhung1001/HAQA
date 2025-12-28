@@ -38,7 +38,7 @@ export class ZodValidationPipe implements PipeTransform {
     /**
      * Transform and validate the incoming value
      */
-    transform(value: any, metadata: ArgumentMetadata) {
+    transform(value: any, _metadata: ArgumentMetadata) {
         try {
             // If value is null or undefined, pass it through (let schema handle it)
             if (value === null || value === undefined) {

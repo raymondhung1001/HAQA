@@ -53,7 +53,7 @@ export class LoggingInterceptor implements NestInterceptor {
         // Handle the request and log exit
         return next.handle().pipe(
             tap({
-                next: (data) => {
+                next: (_data) => {
                     const duration = Date.now() - startTime;
                     this.logger.leave(methodName, {
                         className,
@@ -111,7 +111,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
     private getCircularReplacer() {
         const seen = new WeakSet();
-        return (key: string, value: any) => {
+        return (_key: string, value: any) => {
             if (typeof value === 'object' && value !== null) {
                 if (seen.has(value)) {
                     return '[Circular]';

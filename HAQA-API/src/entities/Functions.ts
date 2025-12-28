@@ -19,37 +19,37 @@ import { UserFunctions } from "./UserFunctions";
 @Entity("functions", { schema: "haqa_schema" })
 export class Functions {
   @PrimaryGeneratedColumn({ type: "integer", name: "id" })
-  id: number;
+  id!: number;
 
   @Column("character varying", { name: "code", length: 100 })
-  code: string;
+  code!: string;
 
   @Column("character varying", { name: "name", length: 100 })
-  name: string;
+  name!: string;
 
   @Column("text", { name: "description", nullable: true })
-  description: string | null;
+  description!: string | null;
 
   @Column("character varying", {
     name: "category",
     nullable: true,
     length: 100,
   })
-  category: string | null;
+  category!: string | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("timestamp with time zone", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @ManyToMany(() => Roles, (roles) => roles.functions)
   @JoinTable({
@@ -58,8 +58,8 @@ export class Functions {
     inverseJoinColumns: [{ name: "role_id", referencedColumnName: "id" }],
     schema: "haqa_schema",
   })
-  roles: Roles[];
+  roles!: Roles[];
 
   @OneToMany(() => UserFunctions, (userFunctions) => userFunctions.function)
-  userFunctions: UserFunctions[];
+  userFunctions!: UserFunctions[];
 }

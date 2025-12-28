@@ -89,7 +89,7 @@ export class CsrfMiddleware implements NestMiddleware {
         next();
     }
 
-    private validateToken(req: Request, res: Response, next: NextFunction) {
+    private validateToken(req: Request, _res: Response, next: NextFunction) {
         const secret = req.cookies?.['_csrf_secret'];
         const token = this.getTokenFromRequest(req);
 

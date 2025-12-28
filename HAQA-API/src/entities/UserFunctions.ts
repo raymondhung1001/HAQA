@@ -11,26 +11,26 @@ import { Users } from "./Users";
 @Entity("user_functions", { schema: "haqa_schema" })
 export class UserFunctions {
   @Column("integer", { primary: true, name: "user_id" })
-  userId: number;
+  userId!: number;
 
   @Column("integer", { primary: true, name: "function_id" })
-  functionId: number;
+  functionId!: number;
 
   @Column("timestamp with time zone", {
     name: "granted_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  grantedAt: Date | null;
+  grantedAt!: Date | null;
 
   @Column("timestamp with time zone", { name: "expires_at", nullable: true })
-  expiresAt: Date | null;
+  expiresAt!: Date | null;
 
   @ManyToOne(() => Functions, (functions) => functions.userFunctions)
   @JoinColumn([{ name: "function_id", referencedColumnName: "id" }])
-  function: Functions;
+  function!: Functions;
 
   @ManyToOne(() => Users, (users) => users.userFunctions)
   @JoinColumn([{ name: "user_id", referencedColumnName: "id" }])
-  user: Users;
+  user!: Users;
 }

@@ -74,7 +74,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     private extractExceptionInfo(
         exception: unknown,
-        request: Request,
+        _request: Request,
     ): {
         status: number;
         message: string | string[];
@@ -401,7 +401,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     private formatUniqueConstraintMessage(
         constraint: string | null,
-        table: string | null,
+        _table: string | null,
     ): string {
         if (constraint) {
             // Try to extract field name from constraint (e.g., "users_username_uk" -> "username")

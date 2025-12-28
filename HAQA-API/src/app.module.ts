@@ -42,13 +42,20 @@ import { LoggerService } from '@/logger';
 				
 				// Console stream - pretty printing for development, raw for production
 				if (isDevelopment) {
+					// Detect Windows platform for console output optimization
+					const isWindows = process.platform === 'win32';
 					streams.push({
 						level: logLevel,
 						stream: require('pino-pretty')({
 							colorize: true,
-							singleLine: false,
+							// Fix for Windows cmd: use singleLine to prevent line elision issues
+							singleLine: isWindows,
 							translateTime: 'SYS:standard',
 							ignore: 'pid,hostname',
+							hideObject: false,
+							errorLikeObjectKeys: 'err,error',
+							// Note: File logs use raw JSON and are never truncated
+							// Console output shows full data without elision
 						}),
 					});
 				} else {
@@ -106,26 +113,52 @@ import { LoggerService } from '@/logger';
 										target: 'pino-pretty',
 										options: {
 											colorize: true,
-											singleLine: false,
+											// Fix for Windows cmd: use singleLine to prevent line elision issues
+											singleLine: process.platform === 'win32',
 											translateTime: 'SYS:standard',
 											ignore: 'pid,hostname',
+											hideObject: false,
+											errorLikeObjectKeys: 'err,error',
+											// Note: File logs use raw JSON and are never truncated
+											// Console output shows full data without elision
 										},
 									},
 								}
 							: {}),
 						serializers: {
-							req: (req: any) => ({
-								id: req.id,
-								method: req.method,
-								url: req.url,
-								query: req.query,
-								params: req.params,
-								remoteAddress: req.remoteAddress,
-								remotePort: req.remotePort,
-							}),
-							res: (res: any) => ({
-								statusCode: res.statusCode,
-							}),
+							// Request serializer - includes full request data (not truncated)
+							req: (req: any) => {
+								// Include all relevant request fields without truncation
+								const serialized: any = {
+									id: req.id,
+									method: req.method,
+									url: req.url,
+									query: req.query,
+									params: req.params,
+									remoteAddress: req.remoteAddress,
+									remotePort: req.remotePort,
+								};
+								// Optionally include headers (excluding sensitive ones via redact)
+								if (req.headers) {
+									serialized.headers = req.headers;
+								}
+								return serialized;
+							},
+							// Response serializer - includes full response data (not truncated)
+							res: (res: any) => {
+								const serialized: any = {
+									statusCode: res.statusCode,
+								};
+								// Optionally include response headers
+								if (res.getHeaders) {
+									try {
+										serialized.headers = res.getHeaders();
+									} catch {
+										// Ignore if headers can't be retrieved
+									}
+								}
+								return serialized;
+							},
 						},
 						customProps: (req: any) => {
 							const props: Record<string, any> = {
@@ -148,7 +181,9 @@ import { LoggerService } from '@/logger';
 			inject: [ConfigService],
 		}),
 		RedisModule.forRootAsync({
-			useFactory: (config: ConfigService) => {
+			inject: [ConfigService],
+			useFactory: (...args: any[]) => {
+				const config = args[0] as ConfigService;
 				const redisConfig = config.get('redis');
 				return {
 					config: {
@@ -160,7 +195,6 @@ import { LoggerService } from '@/logger';
 					},
 				};
 			},
-			inject: [ConfigService],
 		}),
 
 		/**

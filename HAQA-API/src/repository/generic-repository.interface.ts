@@ -1,6 +1,6 @@
 import { DeepPartial, FindOptionsWhere, FindOptionsOrder } from 'typeorm';
 
-export type PrimaryKeyInput<T = any> = string | number | Record<string, any>;
+export type PrimaryKeyInput<_T = any> = string | number | Record<string, any>;
 
 export interface IRepository<T> {
     create(data: DeepPartial<T>): Promise<T>;
