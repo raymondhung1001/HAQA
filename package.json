@@ -8,7 +8,7 @@
     "haqa-app"
   ],
   "scripts": {
-    "dev:api": "bun run --filter haqa-api start:dev",
+    "dev:api": "cd HAQA-API && bun run start:dev",
     "dev:app": "cd HAQA-APP && bun run dev",
     "dev:all": "bun run --filter haqa-api start:dev & bun run --filter haqa-app dev",
     "build": "bun run --filter haqa-api build",
