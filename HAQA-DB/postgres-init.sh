@@ -7,34 +7,66 @@ mkdir -p /tmp/processed-sql
 TEMPLATE_DIR="/opt/sql-templates"
 PROCESSED_DIR="/tmp/processed-sql"
 
+# Process SQL templates with environment variable substitution
 for f in "$TEMPLATE_DIR"/*.sql; do
   filename=$(basename "$f")
   echo "Processing $filename..."
   
   sed "s|##APP_USER_PASSWORD##|${APP_USER_PASSWORD}|g" "$f" > "$PROCESSED_DIR/$filename"
 done
-echo "SQL templates processed successfully."
+log "SQL templates processed successfully."
 
-echo "Waiting for PostgreSQL to be ready..."
-until pg_isready -U postgres; do
-  sleep 1
+log "Waiting for PostgreSQL to be ready..."
+RETRIES=30
+until pg_isready -U postgres || [ $RETRIES -eq 0 ]; do
+    log "Waiting for PostgreSQL... ($RETRIES retries left)"
+    sleep 1
+    RETRIES=$((RETRIES-1))
 done
 
-echo "PostgreSQL is ready. Running initialization scripts..."
+if [ $RETRIES -eq 0 ]; then
+    log "ERROR: PostgreSQL did not become ready in time"
+    exit 1
+fi
+
+log "PostgreSQL is ready. Running initialization scripts..."
 
 PSQL="psql -v ON_ERROR_STOP=1 -U postgres -d $POSTGRES_DB"
 
-$PSQL -f "$PROCESSED_DIR/001-db-init.sql"
+# Function to run SQL file with error handling
+run_sql_file() {
+    local file="$1"
+    local description="$2"
+    
+    if [ ! -f "$file" ]; then
+        log "WARNING: SQL file $file not found, skipping..."
+        return 0
+    fi
+    
+    log "Running $description..."
+    if $PSQL -f "$file"; then
+        log "✓ $description completed successfully"
+    else
+        log "ERROR: Failed to execute $description"
+        exit 1
+    fi
+}
 
-# Install pg_uuidv7 extension after schema is created (if the SQL file exists)
-if [ -f "$PROCESSED_DIR/000-install-pg-uuidv7.sql" ]; then
-    $PSQL -f "$PROCESSED_DIR/000-install-pg-uuidv7.sql"
-fi
-$PSQL -f "$PROCESSED_DIR/002-sequence-creation.sql"
-$PSQL -f "$PROCESSED_DIR/003-table-creation.sql"
-$PSQL -f "$PROCESSED_DIR/004-index-creation.sql"
-$PSQL -f "$PROCESSED_DIR/005-function-creation.sql"
-$PSQL -f "$PROCESSED_DIR/999-grant-public-schema.sql"
-$PSQL -f "$PROCESSED_DIR/9999-data-preparation.sql"
+# Run initialization scripts in order
+run_sql_file "$PROCESSED_DIR/001-db-init.sql" "Database initialization"
 
-echo "Database initialization completed successfully."
+# Install pg_uuidv7 extension after schema is created
+run_sql_file "$PROCESSED_DIR/000-install-pg-uuidv7.sql" "pg_uuidv7 extension installation"
+
+run_sql_file "$PROCESSED_DIR/002-sequence-creation.sql" "Sequence creation"
+run_sql_file "$PROCESSED_DIR/003-table-creation.sql" "Table creation"
+run_sql_file "$PROCESSED_DIR/004-index-creation.sql" "Index creation"
+run_sql_file "$PROCESSED_DIR/005-function-creation.sql" "Function creation"
+run_sql_file "$PROCESSED_DIR/006-triggers-creation.sql" "Trigger creation"
+run_sql_file "$PROCESSED_DIR/007-constraints-validation.sql" "Validation constraints"
+run_sql_file "$PROCESSED_DIR/008-foreign-key-indexes.sql" "Foreign key indexes"
+run_sql_file "$PROCESSED_DIR/999-grant-public-schema.sql" "Grant permissions"
+run_sql_file "$PROCESSED_DIR/9999-data-preparation.sql" "Data preparation"
+
+log "Database initialization completed successfully."
+log "All tables, indexes, constraints, and triggers have been created."
