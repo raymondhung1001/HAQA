@@ -4,6 +4,7 @@ import { User, Shield, FileText, Settings } from 'lucide-react'
 import { StatCard } from '@/components/stat-card'
 import { ActionButton } from '@/components/action-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 
 export const Route = createFileRoute('/')({
@@ -38,7 +39,7 @@ export const Route = createFileRoute('/')({
 function DashboardPage() {
   return (
     <Navigation>
-      <div className="max-w-7xl mx-auto">
+      <Container size="2xl">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -109,7 +110,7 @@ function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </Container>
     </Navigation>
   )
 }
