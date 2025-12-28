@@ -29,7 +29,7 @@ BEGIN;
 
     CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow_version_id_start_time ON haqa_schema.workflow_executions(workflow_version_id, start_time DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON haqa_schema.workflow_executions(status) ON haqa_schema.workflow_executions(status);
+    CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON haqa_schema.workflow_executions(status);
 
     CREATE INDEX IF NOT EXISTS idx_node_execution_logs_execution_id_node_id ON haqa_schema.node_execution_logs(execution_id, node_id);
 

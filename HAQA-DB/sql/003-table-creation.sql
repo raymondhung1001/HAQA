@@ -90,16 +90,18 @@ BEGIN;
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT pk_workflows PRIMARY KEY (id, user_id),
+        CONSTRAINT pk_workflows PRIMARY KEY (id),
+        CONSTRAINT uk_workflows_user_id UNIQUE (id, user_id),
         CONSTRAINT fk_workflows_user FOREIGN KEY (user_id) REFERENCES haqa_schema.users(id)
     );
 
     CREATE TABLE IF NOT EXISTS haqa_schema.workflow_versions (
         id UUID NOT NULL,
-        workflow_id INTEGER NOT NULL,
+        workflow_id UUID NOT NULL,
         version_number INTEGER NOT NULL,
         ui_layout_json JSONB,
-        CONSTRAINT pk_workflows_versions PRIMARY KEY (id, workflow_id),
+        CONSTRAINT pk_workflows_versions PRIMARY KEY (id),
+        CONSTRAINT uk_workflows_versions_workflow_id_version_number UNIQUE (workflow_id, version_number),
         CONSTRAINT fk_versions_workflow FOREIGN KEY (workflow_id) REFERENCES haqa_schema.workflows(id)
     );
 
@@ -120,7 +122,8 @@ BEGIN;
         
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-        CONSTRAINT pk_workflow_nodes PRIMARY KEY (id, workflow_version_id),
+        CONSTRAINT pk_workflow_nodes PRIMARY KEY (id),
+        CONSTRAINT uk_workflow_nodes_version UNIQUE (id, workflow_version_id),
         CONSTRAINT fk_nodes_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id) ON DELETE CASCADE
     );
 
@@ -136,7 +139,8 @@ BEGIN;
         label VARCHAR(50),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-        CONSTRAINT pk_workflow_edges PRIMARY KEY (id, workflow_version_id),
+        CONSTRAINT pk_workflow_edges PRIMARY KEY (id),
+        CONSTRAINT uk_workflow_edges_version UNIQUE (id, workflow_version_id),
         CONSTRAINT fk_edges_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id) ON DELETE CASCADE,
         CONSTRAINT fk_edges_source FOREIGN KEY (source_node_id) REFERENCES haqa_schema.workflow_nodes(id),
         CONSTRAINT fk_edges_target FOREIGN KEY (target_node_id) REFERENCES haqa_schema.workflow_nodes(id)
@@ -152,10 +156,11 @@ BEGIN;
         
         global_context JSONB DEFAULT '{}'::jsonb,
         
-        CONSTRAINT pk_workflow_executions PRIMARY KEY (id, workflow_version_id),
+        CONSTRAINT pk_workflow_executions PRIMARY KEY (id),
+        CONSTRAINT uk_workflow_executions_version UNIQUE (id, workflow_version_id),
         CONSTRAINT fk_execution_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id),
         CONSTRAINT fk_execution_user FOREIGN KEY (triggered_by_user_id) REFERENCES haqa_schema.users(id)
-    )
+    );
     
     CREATE TABLE IF NOT EXISTS haqa_schema.node_execution_logs (
         id UUID NOT NULL,
@@ -171,7 +176,8 @@ BEGIN;
         start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         end_time TIMESTAMP WITH TIME ZONE,
         
-        CONSTRAINT pk_node_execution_logs PRIMARY KEY (id, execution_id, node_id),
+        CONSTRAINT pk_node_execution_logs PRIMARY KEY (id),
+        CONSTRAINT uk_node_execution_logs_execution_node UNIQUE (execution_id, node_id),
         CONSTRAINT fk_logs_execution FOREIGN KEY (execution_id) REFERENCES haqa_schema.workflow_executions(id),
         CONSTRAINT fk_logs_node FOREIGN KEY (node_id) REFERENCES haqa_schema.workflow_nodes(id)
     );
