@@ -25,6 +25,11 @@ echo "PostgreSQL is ready. Running initialization scripts..."
 PSQL="psql -v ON_ERROR_STOP=1 -U postgres -d $POSTGRES_DB"
 
 $PSQL -f "$PROCESSED_DIR/001-db-init.sql"
+
+# Install pg_uuidv7 extension after schema is created (if the SQL file exists)
+if [ -f "$PROCESSED_DIR/000-install-pg-uuidv7.sql" ]; then
+    $PSQL -f "$PROCESSED_DIR/000-install-pg-uuidv7.sql"
+fi
 $PSQL -f "$PROCESSED_DIR/002-sequence-creation.sql"
 $PSQL -f "$PROCESSED_DIR/003-table-creation.sql"
 $PSQL -f "$PROCESSED_DIR/004-index-creation.sql"

@@ -1,7 +1,9 @@
 services:
   db:
     user: postgres
-    image: postgres:17.0-alpine3.20
+    build:
+      context: ./HAQA-DB
+      dockerfile: Dockerfile
     container_name: HAQA-DB
     environment:
       POSTGRES_USER: postgres
