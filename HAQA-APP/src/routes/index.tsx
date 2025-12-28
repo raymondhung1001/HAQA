@@ -1,192 +1,161 @@
 import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
-import { LogIn, Loader2 } from 'lucide-react'
-import { useLogin } from '@/lib/auth-queries'
 import { apiClient } from '@/lib/api'
+import { useLogout } from '@/queries/auth-queries'
+import { LayoutDashboard, LogOut, User, Shield, FileText, Settings } from 'lucide-react'
+import { StatCard } from '@/components/stat-card'
+import { ActionButton } from '@/components/action-button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const Route = createFileRoute('/')({
-  beforeLoad: () => {
-    // If already authenticated, redirect to dashboard (only on client side)
-    if (typeof window !== 'undefined' && apiClient.isAuthenticated()) {
-      throw redirect({
-        to: '/dashboard',
-      })
+  beforeLoad: async () => {
+    // Check if user is authenticated (only on client side)
+    // This runs before the component renders, preventing any flash
+    if (typeof window !== 'undefined') {
+      // Fast synchronous check
+      const token = apiClient.getToken()
+      const expiresAt = apiClient.getTokenExpiresAt()
+      
+      if (!token || !expiresAt) {
+        throw redirect({
+          to: '/login',
+        })
+      }
+      
+      // Check if token is expired
+      const now = Date.now()
+      const expiresAtNum = parseInt(expiresAt, 10)
+      
+      if (isNaN(expiresAtNum) || expiresAtNum <= now) {
+        throw redirect({
+          to: '/login',
+        })
+      }
     }
   },
-  component: LoginPage,
+  component: DashboardPage,
 })
 
-function LoginPage() {
+function DashboardPage() {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
 
-  // Pre-fetch CSRF token when component mounts
-  useEffect(() => {
-    // Fetch CSRF token by making a GET request to ensure it's available
-    // This will set the cookie and make the token ready for the login request
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/`, {
-      method: 'GET',
-      credentials: 'include',
-    }).catch((error) => {
-      console.warn('Failed to pre-fetch CSRF token:', error)
-    })
-  }, [])
-
-  const loginMutation = useLogin({
-    onSuccess: async () => {
-      // Login successful - tokens are already set by apiClient.login()
-      // Wait a moment to ensure tokens are stored in localStorage
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Verify tokens are stored before navigating
-      if (typeof window !== 'undefined') {
-        const token = apiClient.getToken()
-        const expiresAt = apiClient.getTokenExpiresAt()
-        
-        console.log('[Login Success] Before navigation:', {
-          hasToken: !!token,
-          hasExpiresAt: !!expiresAt,
-          tokenLength: token?.length || 0,
-          expiresAt: expiresAt,
-          localStorageKeys: typeof window !== 'undefined' ? Object.keys(localStorage) : [],
-        })
-        
-        if (token && expiresAt) {
-          // Tokens are stored, navigate to dashboard
-          window.location.href = '/dashboard'
-        } else {
-          console.error('[Login Success] Tokens not stored!', {
-            token,
-            expiresAt,
-            localStorage: Object.keys(localStorage),
-          })
-          alert('Login successful but tokens were not stored. Please try again.')
-        }
-      }
-    },
-    onError: (error) => {
-      console.error('Login error:', error)
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      navigate({ to: '/login' })
     },
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    loginMutation.mutate({ username, password })
+  const handleLogout = () => {
+    logoutMutation.mutate()
   }
 
-  const error = loginMutation.error?.message || ''
-  const isLoading = loginMutation.isPending
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo/Title Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg mb-4">
-            <LogIn className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Header */}
+      <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg">
+                <LayoutDashboard className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  HAQA Dashboard
+                </h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Testing Execution Workflow System
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleLogout}
+                disabled={logoutMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <LogOut className="w-4 h-4" />
+                {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
+              </button>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            HAQA Testing Platform
-          </h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Welcome back!
+          </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Sign in to your account to continue
+            You have successfully logged in to the HAQA Testing Platform.
           </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-slate-700">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Field */}
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
-                placeholder="Enter your username"
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
-                placeholder="Enter your password"
-              />
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              </div>
-            )}
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700"
-                />
-                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                  Remember me
-                </span>
-              </label>
-              <a
-                href="#"
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-              >
-                Forgot password?
-              </a>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-5 h-5" />
-                  Sign In
-                </>
-              )}
-            </button>
-          </form>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            icon={<FileText className="w-6 h-6" />}
+            title="Test Cases"
+            value="0"
+            description="Total test cases"
+            color="blue"
+          />
+          <StatCard
+            icon={<Shield className="w-6 h-6" />}
+            title="Test Runs"
+            value="0"
+            description="Completed runs"
+            color="green"
+          />
+          <StatCard
+            icon={<User className="w-6 h-6" />}
+            title="Users"
+            value="1"
+            description="Active users"
+            color="purple"
+          />
+          <StatCard
+            icon={<Settings className="w-6 h-6" />}
+            title="Projects"
+            value="0"
+            description="Active projects"
+            color="orange"
+          />
         </div>
 
-        {/* Footer */}
-        <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          Testing Execution Workflow System
-        </p>
-      </div>
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <ActionButton
+                icon={<FileText className="w-5 h-5" />}
+                label="Create Test Case"
+                description="Add a new test case"
+                onClick={() => {}}
+              />
+              <ActionButton
+                icon={<Shield className="w-5 h-5" />}
+                label="Run Tests"
+                description="Execute test suite"
+                onClick={() => {}}
+              />
+              <ActionButton
+                icon={<Settings className="w-5 h-5" />}
+                label="Settings"
+                description="Configure system"
+                onClick={() => {}}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+      </main>
     </div>
   )
 }
+

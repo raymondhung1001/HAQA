@@ -13,6 +13,7 @@ export interface AuthTokenResponse {
 export interface LoginRequest {
   username: string
   password: string
+  rememberMe?: boolean
 }
 
 export interface RefreshTokenRequest {
@@ -26,9 +27,40 @@ class ApiClient {
   private baseUrl: string
   private refreshTokenPromise: Promise<AuthTokenResponse> | null = null
   private csrfToken: string | null = null
+  private storageListeners: Set<() => void> = new Set()
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl
+    this.setupStorageSync()
+  }
+
+  /**
+   * Setup storage event listeners to sync auth state across tabs
+   */
+  private setupStorageSync(): void {
+    if (!this.isBrowser()) return
+
+    // Listen for storage changes from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      // Only handle our auth-related keys
+      if (e.key === 'accessToken' || e.key === 'refreshToken' || e.key === 'tokenExpiresAt' || e.key === 'rememberMe') {
+        console.log('[StorageSync] Storage changed in another tab:', e.key)
+        // Trigger any registered listeners (e.g., for TanStack Query cache invalidation)
+        this.storageListeners.forEach(listener => listener())
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+  }
+
+  /**
+   * Register a listener to be called when auth state changes in other tabs
+   */
+  onAuthStateChange(listener: () => void): () => void {
+    this.storageListeners.add(listener)
+    return () => {
+      this.storageListeners.delete(listener)
+    }
   }
 
   /**
@@ -74,12 +106,75 @@ class ApiClient {
    * Get a cookie value by name
    */
   private getCookie(name: string): string | null {
+    if (!this.isBrowser()) return null
     const value = `; ${document.cookie}`
     const parts = value.split(`; ${name}=`)
     if (parts.length === 2) {
-      return parts.pop()?.split(';').shift() || null
+      const cookieValue = parts.pop()?.split(';').shift() || null
+      if (cookieValue) {
+        try {
+          return decodeURIComponent(cookieValue)
+        } catch (e) {
+          // If decoding fails, return the raw value (for backward compatibility)
+          return cookieValue
+        }
+      }
+      return null
     }
     return null
+  }
+
+  /**
+   * Set a cookie value
+   */
+  private setCookie(name: string, value: string, options?: {
+    expires?: Date
+    maxAge?: number
+    path?: string
+    domain?: string
+    secure?: boolean
+    sameSite?: 'strict' | 'lax' | 'none'
+  }): void {
+    if (!this.isBrowser()) return
+    
+    let cookieString = `${name}=${encodeURIComponent(value)}`
+    
+    if (options) {
+      if (options.expires) {
+        cookieString += `; expires=${options.expires.toUTCString()}`
+      }
+      if (options.maxAge !== undefined) {
+        cookieString += `; max-age=${options.maxAge}`
+      }
+      if (options.path) {
+        cookieString += `; path=${options.path}`
+      } else {
+        cookieString += `; path=/` // Default to root path
+      }
+      if (options.domain) {
+        cookieString += `; domain=${options.domain}`
+      }
+      if (options.secure) {
+        cookieString += `; secure`
+      }
+      if (options.sameSite) {
+        cookieString += `; samesite=${options.sameSite}`
+      }
+    } else {
+      cookieString += `; path=/`
+    }
+    
+    document.cookie = cookieString
+    console.log(`[setCookie] Set cookie: ${name}, value length: ${value.length}, expires: ${options?.expires?.toUTCString() || 'session'}`)
+  }
+
+  /**
+   * Delete a cookie
+   */
+  private deleteCookie(name: string, path: string = '/'): void {
+    if (!this.isBrowser()) return
+    // Set expiration date to the past to delete the cookie
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path};`
   }
 
   /**
@@ -96,17 +191,56 @@ class ApiClient {
   }
 
   /**
-   * Get the stored access token from localStorage
+   * Get cookie expiration based on remember me preference
    */
-  getToken(): string | null {
-    if (!this.isBrowser()) return null
-    return localStorage.getItem('accessToken')
+  private getCookieExpiration(rememberMe: boolean): Date | undefined {
+    if (rememberMe) {
+      // If remember me is checked, set cookie to expire in 30 days
+      const expirationDate = new Date()
+      expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000)) // 30 days
+      return expirationDate
+    }
+    // If remember me is not checked, use session cookie (expires when browser closes)
+    // However, to ensure cookies work across tabs, we'll use a short expiration (1 day)
+    // This is a compromise - session cookies don't always work reliably across tabs
+    const expirationDate = new Date()
+    expirationDate.setTime(expirationDate.getTime() + (24 * 60 * 60 * 1000)) // 1 day
+    return expirationDate
   }
 
   /**
-   * Set the access token in localStorage
+   * Get the storage instance based on rememberMe preference
    */
-  setToken(token: string): void {
+  private getStorage(rememberMe: boolean): Storage {
+    return rememberMe ? localStorage : sessionStorage
+  }
+
+  /**
+   * Get the stored access token from localStorage or sessionStorage
+   */
+  getToken(): string | null {
+    if (!this.isBrowser()) return null
+    
+    // Check localStorage first (for rememberMe)
+    const localToken = localStorage.getItem('accessToken')
+    if (localToken) {
+      return localToken
+    }
+    
+    // Check sessionStorage (for non-rememberMe)
+    const sessionToken = sessionStorage.getItem('accessToken')
+    if (sessionToken) {
+      return sessionToken
+    }
+    
+    // Fallback to cookie for backward compatibility
+    return this.getCookie('accessToken')
+  }
+
+  /**
+   * Set the access token in localStorage (rememberMe) or sessionStorage (no rememberMe)
+   */
+  setToken(token: string, rememberMe: boolean = false): void {
     if (!this.isBrowser()) {
       console.warn('[setToken] Not in browser environment')
       return
@@ -116,8 +250,16 @@ class ApiClient {
       return
     }
     try {
-      localStorage.setItem('accessToken', token)
-      console.log('[setToken] Token stored successfully, length:', token.length)
+      const storage = this.getStorage(rememberMe)
+      
+      // Clear from both storages first to avoid conflicts
+      localStorage.removeItem('accessToken')
+      sessionStorage.removeItem('accessToken')
+      
+      // Store in the appropriate storage
+      storage.setItem('accessToken', token)
+      
+      console.log('[setToken] Token stored successfully in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe, 'length:', token.length)
     } catch (error) {
       console.error('[setToken] Error storing token:', error)
       throw error
@@ -125,24 +267,46 @@ class ApiClient {
   }
 
   /**
-   * Get the stored refresh token from localStorage
+   * Get the stored refresh token from localStorage or sessionStorage
    */
   getRefreshToken(): string | null {
     if (!this.isBrowser()) return null
-    return localStorage.getItem('refreshToken')
+    
+    // Check localStorage first (for rememberMe)
+    const localToken = localStorage.getItem('refreshToken')
+    if (localToken) {
+      return localToken
+    }
+    
+    // Check sessionStorage (for non-rememberMe)
+    const sessionToken = sessionStorage.getItem('refreshToken')
+    if (sessionToken) {
+      return sessionToken
+    }
+    
+    // Fallback to cookie for backward compatibility
+    return this.getCookie('refreshToken')
   }
 
   /**
-   * Set the refresh token in localStorage
+   * Set the refresh token in localStorage (rememberMe) or sessionStorage (no rememberMe)
    */
-  setRefreshToken(token: string): void {
+  setRefreshToken(token: string, rememberMe: boolean = false): void {
     if (!this.isBrowser()) {
       console.warn('[setRefreshToken] Not in browser environment')
       return
     }
     try {
-      localStorage.setItem('refreshToken', token)
-      console.log('[setRefreshToken] Refresh token stored successfully')
+      const storage = this.getStorage(rememberMe)
+      
+      // Clear from both storages first to avoid conflicts
+      localStorage.removeItem('refreshToken')
+      sessionStorage.removeItem('refreshToken')
+      
+      // Store in the appropriate storage
+      storage.setItem('refreshToken', token)
+      
+      console.log('[setRefreshToken] Refresh token stored successfully in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe)
     } catch (error) {
       console.error('[setRefreshToken] Error storing refresh token:', error)
       throw error
@@ -150,17 +314,25 @@ class ApiClient {
   }
 
   /**
-   * Set the token expiration time
+   * Set the token expiration time in localStorage (rememberMe) or sessionStorage (no rememberMe)
    */
-  setTokenExpiresAt(expiresAt: number): void {
+  setTokenExpiresAt(expiresAt: number, rememberMe: boolean = false): void {
     if (!this.isBrowser()) {
       console.warn('[setTokenExpiresAt] Not in browser environment')
       return
     }
     try {
       const expiresAtStr = String(expiresAt)
-      localStorage.setItem('tokenExpiresAt', expiresAtStr)
-      console.log('[setTokenExpiresAt] Expiration time stored:', expiresAtStr)
+      const storage = this.getStorage(rememberMe)
+      
+      // Clear from both storages first to avoid conflicts
+      localStorage.removeItem('tokenExpiresAt')
+      sessionStorage.removeItem('tokenExpiresAt')
+      
+      // Store in the appropriate storage
+      storage.setItem('tokenExpiresAt', expiresAtStr)
+      
+      console.log('[setTokenExpiresAt] Expiration time stored in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe, ':', expiresAtStr)
     } catch (error) {
       console.error('[setTokenExpiresAt] Error storing expiration time:', error)
       throw error
@@ -168,21 +340,52 @@ class ApiClient {
   }
 
   /**
-   * Get the token expiration time
+   * Get the token expiration time from localStorage or sessionStorage
    */
   getTokenExpiresAt(): string | null {
     if (!this.isBrowser()) return null
-    return localStorage.getItem('tokenExpiresAt')
+    
+    // Check localStorage first (for rememberMe)
+    const localExpiresAt = localStorage.getItem('tokenExpiresAt')
+    if (localExpiresAt) {
+      return localExpiresAt
+    }
+    
+    // Check sessionStorage (for non-rememberMe)
+    const sessionExpiresAt = sessionStorage.getItem('tokenExpiresAt')
+    if (sessionExpiresAt) {
+      return sessionExpiresAt
+    }
+    
+    // Fallback to cookie for backward compatibility
+    return this.getCookie('tokenExpiresAt')
   }
 
   /**
-   * Clear all stored tokens
+   * Clear all stored tokens from localStorage, sessionStorage, and cookies
    */
   clearTokens(): void {
     if (!this.isBrowser()) return
+    
+    // Clear from localStorage
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('tokenExpiresAt')
+    localStorage.removeItem('rememberMe')
+    
+    // Clear from sessionStorage
+    sessionStorage.removeItem('accessToken')
+    sessionStorage.removeItem('refreshToken')
+    sessionStorage.removeItem('tokenExpiresAt')
+    sessionStorage.removeItem('rememberMe')
+    
+    // Clear from cookies (for backward compatibility)
+    this.deleteCookie('accessToken')
+    this.deleteCookie('refreshToken')
+    this.deleteCookie('tokenExpiresAt')
+    this.deleteCookie('rememberMe')
+    
+    console.log('[clearTokens] All tokens cleared from localStorage, sessionStorage, and cookies')
   }
 
   /**
@@ -193,6 +396,11 @@ class ApiClient {
     if (this.refreshTokenPromise) {
       return this.refreshTokenPromise
     }
+
+    // Get rememberMe preference from storage (default to false if not found)
+    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
+    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
+    const rememberMe = rememberMeLocal || rememberMeSession
 
     const refreshToken = this.getRefreshToken()
     if (!refreshToken) {
@@ -237,10 +445,10 @@ class ApiClient {
         // Extract the actual auth data from the response
         const data: AuthTokenResponse = responseData?.data || responseData
 
-        // Store new tokens
-        this.setToken(data.accessToken)
-        this.setRefreshToken(data.refreshToken)
-        this.setTokenExpiresAt(data.expiresAt)
+        // Store new tokens (preserving rememberMe preference)
+        this.setToken(data.accessToken, rememberMe)
+        this.setRefreshToken(data.refreshToken, rememberMe)
+        this.setTokenExpiresAt(data.expiresAt, rememberMe)
 
         return data
       } finally {
@@ -332,11 +540,17 @@ class ApiClient {
    * Login and get authentication tokens
    */
   async login(credentials: LoginRequest): Promise<AuthTokenResponse> {
+    // Get rememberMe preference (default to false if not specified)
+    const rememberMe = credentials.rememberMe === true
+
+    // Remove rememberMe from credentials before sending to API
+    const { rememberMe: _, ...apiCredentials } = credentials
+
     const response = await this.request<any>(
       '/token',
       {
         method: 'POST',
-        body: JSON.stringify(credentials),
+        body: JSON.stringify(apiCredentials),
       },
       false // Don't retry login on 401
     )
@@ -365,6 +579,8 @@ class ApiClient {
       currentTime: Date.now(),
       timeUntilExpiry: authData.expiresAt - Date.now(),
       isBrowser: this.isBrowser(),
+      rememberMe,
+      storageType: rememberMe ? 'localStorage' : 'sessionStorage',
     })
     
     // Ensure we're in browser before storing
@@ -374,29 +590,41 @@ class ApiClient {
     }
     
     try {
-      this.setToken(authData.accessToken)
-      this.setRefreshToken(authData.refreshToken)
-      this.setTokenExpiresAt(authData.expiresAt)
+      // Store rememberMe preference in localStorage so we can preserve it on refresh
+      // This helps us know which storage to use when reading tokens
+      if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true')
+        sessionStorage.removeItem('rememberMe')
+      } else {
+        sessionStorage.setItem('rememberMe', 'false')
+        localStorage.removeItem('rememberMe')
+      }
       
-      // Verify tokens were stored
-      const storedToken = this.getToken()
-      const storedExpiresAt = this.getTokenExpiresAt()
+      this.setToken(authData.accessToken, rememberMe)
+      this.setRefreshToken(authData.refreshToken, rememberMe)
+      this.setTokenExpiresAt(authData.expiresAt, rememberMe)
+      
+      // Verify tokens were stored correctly
+      const retrievedToken = this.getToken()
+      const retrievedRefreshToken = this.getRefreshToken()
+      const retrievedExpiresAt = this.getTokenExpiresAt()
+      
       console.log('[Login] Verification:', {
-        storedToken: storedToken ? `${storedToken.substring(0, 20)}...` : 'null',
-        storedTokenLength: storedToken?.length || 0,
-        storedExpiresAt: storedExpiresAt,
-        storedExpiresAtType: typeof storedExpiresAt,
+        rememberMe,
+        storageType: rememberMe ? 'localStorage' : 'sessionStorage',
+        retrievedToken: retrievedToken ? `${retrievedToken.substring(0, 20)}...` : 'null',
+        retrievedTokenLength: retrievedToken?.length || 0,
+        retrievedRefreshToken: retrievedRefreshToken ? 'present' : 'null',
+        retrievedExpiresAt: retrievedExpiresAt,
         isAuthenticated: this.isAuthenticated(),
-        localStorageKeys: typeof window !== 'undefined' ? Object.keys(localStorage) : [],
       })
       
-      // Double-check by reading directly from localStorage
-      const directToken = localStorage.getItem('accessToken')
-      const directExpiresAt = localStorage.getItem('tokenExpiresAt')
-      console.log('[Login] Direct localStorage check:', {
-        directToken: directToken ? `${directToken.substring(0, 20)}...` : 'null',
-        directExpiresAt: directExpiresAt,
-      })
+      if (!retrievedToken || !retrievedExpiresAt) {
+        console.error('[Login] ERROR: Tokens not stored correctly!', {
+          retrievedToken: !!retrievedToken,
+          retrievedExpiresAt: !!retrievedExpiresAt,
+        })
+      }
     } catch (error) {
       console.error('[Login] Error storing tokens:', error)
       throw error
@@ -409,6 +637,11 @@ class ApiClient {
    * Refresh authentication tokens (public method for manual refresh)
    */
   async refreshToken(refreshToken: string): Promise<AuthTokenResponse> {
+    // Get rememberMe preference from storage (default to false if not found)
+    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
+    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
+    const rememberMe = rememberMeLocal || rememberMeSession
+
     // Get CSRF token for the refresh request
     const csrfToken = await this.getCsrfToken()
     const headers: Record<string, string> = {
@@ -443,10 +676,10 @@ class ApiClient {
     // Extract the actual auth data from the response
     const data: AuthTokenResponse = responseData?.data || responseData
 
-    // Store tokens
-    this.setToken(data.accessToken)
-    this.setRefreshToken(data.refreshToken)
-    this.setTokenExpiresAt(data.expiresAt)
+    // Store tokens (preserving rememberMe preference)
+    this.setToken(data.accessToken, rememberMe)
+    this.setRefreshToken(data.refreshToken, rememberMe)
+    this.setTokenExpiresAt(data.expiresAt, rememberMe)
 
     return data
   }
@@ -460,46 +693,113 @@ class ApiClient {
 
   /**
    * Check if user is authenticated
+   * This is a fast synchronous check for route guards
    */
   isAuthenticated(): boolean {
-    if (!this.isBrowser()) return false
-    
-    const token = this.getToken()
-    const expiresAt = this.getTokenExpiresAt()
-    
-    if (!token) {
-      console.debug('[Auth] No token found')
+    if (!this.isBrowser()) {
       return false
     }
     
-    if (!expiresAt) {
-      console.debug('[Auth] No expiration time found')
-      return false
-    }
+    try {
+      // Fast synchronous check - localStorage/sessionStorage are synchronous
+      const token = this.getToken()
+      const expiresAt = this.getTokenExpiresAt()
+      
+      if (!token || !expiresAt) {
+        return false
+      }
 
-    // Check if token is expired
-    const now = Date.now()
-    const expiresAtNum = parseInt(expiresAt, 10)
-    
-    if (isNaN(expiresAtNum)) {
-      // Invalid expiration time, clear tokens
-      console.warn('[Auth] Invalid expiration time:', expiresAt)
-      this.clearTokens()
-      return false
-    }
-    
-    // Check if token is expired
-    // expiresAt is in milliseconds (timestamp)
-    const timeUntilExpiry = expiresAtNum - now
-    if (timeUntilExpiry <= 0) {
-      // Token is expired, clear tokens
-      console.debug('[Auth] Token expired. Expired', Math.abs(timeUntilExpiry), 'ms ago')
-      this.clearTokens()
-      return false
-    }
+      // Check if token is expired
+      const now = Date.now()
+      const expiresAtNum = parseInt(expiresAt, 10)
+      
+      if (isNaN(expiresAtNum)) {
+        // Invalid expiration time, clear tokens
+        this.clearTokens()
+        return false
+      }
+      
+      // Check if token is expired
+      // expiresAt is in milliseconds (timestamp)
+      const timeUntilExpiry = expiresAtNum - now
+      if (timeUntilExpiry <= 0) {
+        // Token is expired
+        const rememberMe = localStorage.getItem('rememberMe') === 'true' || sessionStorage.getItem('rememberMe') === 'true'
+        const refreshToken = this.getRefreshToken()
+        
+        // If we have a refresh token and rememberMe is true, we might be able to refresh
+        // But for route guards, we'll return false and let the refresh happen on the next API call
+        if (!refreshToken || !rememberMe) {
+          this.clearTokens()
+        }
+        return false
+      }
 
-    console.debug('[Auth] Token valid. Expires in', Math.floor(timeUntilExpiry / 1000), 'seconds')
-    return true
+      return true
+    } catch (error) {
+      console.error('[isAuthenticated] Error checking authentication:', error)
+      return false
+    }
+  }
+  
+  /**
+   * Detailed authentication check with logging (for debugging)
+   */
+  isAuthenticatedDetailed(): boolean {
+    if (!this.isBrowser()) {
+      console.log('[isAuthenticated] Not in browser environment')
+      return false
+    }
+    
+    try {
+      const token = this.getToken()
+      const expiresAt = this.getTokenExpiresAt()
+      const rememberMe = localStorage.getItem('rememberMe') === 'true' || sessionStorage.getItem('rememberMe') === 'true'
+      const hasLocalToken = !!localStorage.getItem('accessToken')
+      const hasSessionToken = !!sessionStorage.getItem('accessToken')
+      
+      console.log('[isAuthenticated] Checking authentication:', {
+        hasToken: !!token,
+        hasExpiresAt: !!expiresAt,
+        rememberMe,
+        storageType: hasLocalToken ? 'localStorage' : hasSessionToken ? 'sessionStorage' : 'cookie',
+        tokenValue: token ? `${token.substring(0, 20)}...` : 'null',
+        expiresAtValue: expiresAt || 'null',
+        hasLocalToken,
+        hasSessionToken,
+      })
+      
+      if (!token || !expiresAt) {
+        return false
+      }
+
+      const now = Date.now()
+      const expiresAtNum = parseInt(expiresAt, 10)
+      
+      if (isNaN(expiresAtNum)) {
+        console.warn('[Auth] Invalid expiration time:', expiresAt)
+        this.clearTokens()
+        return false
+      }
+      
+      const timeUntilExpiry = expiresAtNum - now
+      if (timeUntilExpiry <= 0) {
+        const refreshToken = this.getRefreshToken()
+        if (refreshToken && rememberMe) {
+          console.log('[Auth] Token expired but rememberMe is true and refresh token exists.')
+          return false
+        }
+        console.log('[Auth] Token expired. Expired', Math.abs(timeUntilExpiry), 'ms ago')
+        this.clearTokens()
+        return false
+      }
+
+      console.log('[Auth] Token valid. Expires in', Math.floor(timeUntilExpiry / 1000), 'seconds')
+      return true
+    } catch (error) {
+      console.error('[isAuthenticated] Error checking authentication:', error)
+      return false
+    }
   }
 }
 

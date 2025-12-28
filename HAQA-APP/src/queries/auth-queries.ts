@@ -1,5 +1,5 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react-query'
-import { apiClient, type LoginRequest, type AuthTokenResponse } from './api'
+import { apiClient, type LoginRequest, type AuthTokenResponse } from '@/lib/api'
 
 /**
  * Login mutation hook
