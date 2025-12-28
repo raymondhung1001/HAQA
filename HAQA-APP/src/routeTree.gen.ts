@@ -9,65 +9,120 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as SplatRouteImport } from './routes/$'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as appIndexRouteImport } from './routes/(app)/index'
+import { Route as authLoginRouteImport } from './routes/(auth)/login'
+import { Route as appUsersRouteImport } from './routes/(app)/users'
+import { Route as appTestRunsRouteImport } from './routes/(app)/test-runs'
+import { Route as appTestCasesRouteImport } from './routes/(app)/test-cases'
+import { Route as appSettingsRouteImport } from './routes/(app)/settings'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
+const appIndexRoute = appIndexRouteImport.update({
+  id: '/(app)/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authLoginRoute = authLoginRouteImport.update({
+  id: '/(auth)/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const appUsersRoute = appUsersRouteImport.update({
+  id: '/(app)/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const appTestRunsRoute = appTestRunsRouteImport.update({
+  id: '/(app)/test-runs',
+  path: '/test-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const appTestCasesRoute = appTestCasesRouteImport.update({
+  id: '/(app)/test-cases',
+  path: '/test-cases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const appSettingsRoute = appSettingsRouteImport.update({
+  id: '/(app)/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/login': typeof LoginRoute
+  '/settings': typeof appSettingsRoute
+  '/test-cases': typeof appTestCasesRoute
+  '/test-runs': typeof appTestRunsRoute
+  '/users': typeof appUsersRoute
+  '/login': typeof authLoginRoute
+  '/': typeof appIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/login': typeof LoginRoute
+  '/settings': typeof appSettingsRoute
+  '/test-cases': typeof appTestCasesRoute
+  '/test-runs': typeof appTestRunsRoute
+  '/users': typeof appUsersRoute
+  '/login': typeof authLoginRoute
+  '/': typeof appIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/login': typeof LoginRoute
+  '/(app)/settings': typeof appSettingsRoute
+  '/(app)/test-cases': typeof appTestCasesRoute
+  '/(app)/test-runs': typeof appTestRunsRoute
+  '/(app)/users': typeof appUsersRoute
+  '/(auth)/login': typeof authLoginRoute
+  '/(app)/': typeof appIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/login'
+  fullPaths:
+    | '/$'
+    | '/settings'
+    | '/test-cases'
+    | '/test-runs'
+    | '/users'
+    | '/login'
+    | '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/login'
-  id: '__root__' | '/' | '/$' | '/login'
+  to:
+    | '/$'
+    | '/settings'
+    | '/test-cases'
+    | '/test-runs'
+    | '/users'
+    | '/login'
+    | '/'
+  id:
+    | '__root__'
+    | '/$'
+    | '/(app)/settings'
+    | '/(app)/test-cases'
+    | '/(app)/test-runs'
+    | '/(app)/users'
+    | '/(auth)/login'
+    | '/(app)/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
-  LoginRoute: typeof LoginRoute
+  appSettingsRoute: typeof appSettingsRoute
+  appTestCasesRoute: typeof appTestCasesRoute
+  appTestRunsRoute: typeof appTestRunsRoute
+  appUsersRoute: typeof appUsersRoute
+  authLoginRoute: typeof authLoginRoute
+  appIndexRoute: typeof appIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$': {
       id: '/$'
       path: '/$'
@@ -75,20 +130,59 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/(app)/': {
+      id: '/(app)/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof appIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/login': {
+      id: '/(auth)/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof authLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(app)/users': {
+      id: '/(app)/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof appUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(app)/test-runs': {
+      id: '/(app)/test-runs'
+      path: '/test-runs'
+      fullPath: '/test-runs'
+      preLoaderRoute: typeof appTestRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(app)/test-cases': {
+      id: '/(app)/test-cases'
+      path: '/test-cases'
+      fullPath: '/test-cases'
+      preLoaderRoute: typeof appTestCasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(app)/settings': {
+      id: '/(app)/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof appSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
-  LoginRoute: LoginRoute,
+  appSettingsRoute: appSettingsRoute,
+  appTestCasesRoute: appTestCasesRoute,
+  appTestRunsRoute: appTestRunsRoute,
+  appUsersRoute: appUsersRoute,
+  authLoginRoute: authLoginRoute,
+  appIndexRoute: appIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

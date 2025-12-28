@@ -4,7 +4,7 @@ import { LogIn, Loader2 } from 'lucide-react'
 import { useLogin } from '@/queries/auth-queries'
 import { apiClient } from '@/lib/api'
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute('/(auth)/login')({
   beforeLoad: async () => {
     // If already authenticated, redirect to home (dashboard) (only on client side)
     // This runs before the component renders, preventing any flash

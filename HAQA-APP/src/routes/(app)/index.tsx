@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/(app)/')({
   beforeLoad: async () => {
     // Check if user is authenticated (only on client side)
     // This runs before the component renders, preventing any flash
