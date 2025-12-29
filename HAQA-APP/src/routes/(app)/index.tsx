@@ -1,5 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { apiClient } from '@/lib/api'
+import { createFileRoute } from '@tanstack/react-router'
 import { User, Shield, FileText, Settings } from 'lucide-react'
 import { StatCard } from '@/components/stat-card'
 import { ActionButton } from '@/components/action-button'
@@ -8,31 +7,6 @@ import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 
 export const Route = createFileRoute('/(app)/')({
-  beforeLoad: async () => {
-    // Check if user is authenticated (only on client side)
-    // This runs before the component renders, preventing any flash
-    if (typeof window !== 'undefined') {
-      // Fast synchronous check
-      const token = apiClient.getToken()
-      const expiresAt = apiClient.getTokenExpiresAt()
-      
-      if (!token || !expiresAt) {
-        throw redirect({
-          to: '/login',
-        })
-      }
-      
-      // Check if token is expired
-      const now = Date.now()
-      const expiresAtNum = parseInt(expiresAt, 10)
-      
-      if (isNaN(expiresAtNum) || expiresAtNum <= now) {
-        throw redirect({
-          to: '/login',
-        })
-      }
-    }
-  },
   component: DashboardPage,
 })
 

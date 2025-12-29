@@ -1,33 +1,10 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { apiClient } from '@/lib/api'
+import { createFileRoute } from '@tanstack/react-router'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Shield } from 'lucide-react'
 
 export const Route = createFileRoute('/(app)/test-runs')({
-  beforeLoad: async () => {
-    // Check if user is authenticated (only on client side)
-    if (typeof window !== 'undefined') {
-      const token = apiClient.getToken()
-      const expiresAt = apiClient.getTokenExpiresAt()
-      
-      if (!token || !expiresAt) {
-        throw redirect({
-          to: '/login',
-        })
-      }
-      
-      const now = Date.now()
-      const expiresAtNum = parseInt(expiresAt, 10)
-      
-      if (isNaN(expiresAtNum) || expiresAtNum <= now) {
-        throw redirect({
-          to: '/login',
-        })
-      }
-    }
-  },
   component: TestRunsPage,
 })
 

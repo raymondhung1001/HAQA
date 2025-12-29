@@ -239,8 +239,11 @@ class ApiClient {
 
   /**
    * Set the access token in localStorage (rememberMe) or sessionStorage (no rememberMe)
+   * @param token - The access token to store
+   * @param rememberMe - Whether to use localStorage (true) or sessionStorage (false)
+   * @param updateIssueTime - Whether to update the token issue time (default: true, set to false on refresh)
    */
-  setToken(token: string, rememberMe: boolean = false): void {
+  setToken(token: string, rememberMe: boolean = false, updateIssueTime: boolean = true): void {
     if (!this.isBrowser()) {
       console.warn('[setToken] Not in browser environment')
       return
@@ -258,6 +261,17 @@ class ApiClient {
       
       // Store in the appropriate storage
       storage.setItem('accessToken', token)
+      
+      // Store token issue time (when token was first created/issued)
+      // Only update if this is a new token (not a refresh)
+      // This is used to check if token is > 30 days old
+      if (updateIssueTime) {
+        const tokenIssueTime = Date.now()
+        const tokenIssueTimeStr = String(tokenIssueTime)
+        localStorage.removeItem('tokenIssueTime')
+        sessionStorage.removeItem('tokenIssueTime')
+        storage.setItem('tokenIssueTime', tokenIssueTimeStr)
+      }
       
       console.log('[setToken] Token stored successfully in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe, 'length:', token.length)
     } catch (error) {
@@ -362,6 +376,53 @@ class ApiClient {
   }
 
   /**
+   * Get the token issue time (when token was first created/issued)
+   * Returns null if not found
+   */
+  getTokenIssueTime(): number | null {
+    if (!this.isBrowser()) return null
+    
+    // Check localStorage first (for rememberMe)
+    const localIssueTime = localStorage.getItem('tokenIssueTime')
+    if (localIssueTime) {
+      const issueTimeNum = parseInt(localIssueTime, 10)
+      return isNaN(issueTimeNum) ? null : issueTimeNum
+    }
+    
+    // Check sessionStorage (for non-rememberMe)
+    const sessionIssueTime = sessionStorage.getItem('tokenIssueTime')
+    if (sessionIssueTime) {
+      const issueTimeNum = parseInt(sessionIssueTime, 10)
+      return isNaN(issueTimeNum) ? null : issueTimeNum
+    }
+    
+    return null
+  }
+
+  /**
+   * Set the token issue time (when token was first created/issued)
+   * Uses the same storage as the token (based on rememberMe preference)
+   */
+  setTokenIssueTime(issueTime: number): void {
+    if (!this.isBrowser()) return
+    
+    // Get rememberMe preference from storage (default to false if not found)
+    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
+    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
+    const rememberMe = rememberMeLocal || rememberMeSession
+    
+    const storage = this.getStorage(rememberMe)
+    const issueTimeStr = String(issueTime)
+    
+    // Clear from both storages first to avoid conflicts
+    localStorage.removeItem('tokenIssueTime')
+    sessionStorage.removeItem('tokenIssueTime')
+    
+    // Store in the appropriate storage
+    storage.setItem('tokenIssueTime', issueTimeStr)
+  }
+
+  /**
    * Clear all stored tokens from localStorage, sessionStorage, and cookies
    */
   clearTokens(): void {
@@ -371,12 +432,14 @@ class ApiClient {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('tokenExpiresAt')
+    localStorage.removeItem('tokenIssueTime')
     localStorage.removeItem('rememberMe')
     
     // Clear from sessionStorage
     sessionStorage.removeItem('accessToken')
     sessionStorage.removeItem('refreshToken')
     sessionStorage.removeItem('tokenExpiresAt')
+    sessionStorage.removeItem('tokenIssueTime')
     sessionStorage.removeItem('rememberMe')
     
     // Clear from cookies (for backward compatibility)
@@ -404,6 +467,8 @@ class ApiClient {
 
     const refreshToken = this.getRefreshToken()
     if (!refreshToken) {
+      // No refresh token available, clear all tokens and throw error
+      this.clearTokens()
       throw new Error('No refresh token available')
     }
 
@@ -427,7 +492,8 @@ class ApiClient {
         })
 
         if (!response.ok) {
-          // If refresh fails, clear tokens and throw error
+          // If refresh fails, clear all tokens from localStorage/sessionStorage and throw error
+          console.error('[refreshAccessToken] Refresh failed with status:', response.status)
           this.clearTokens()
           let errorMessage = 'Failed to refresh token'
           try {
@@ -446,11 +512,18 @@ class ApiClient {
         const data: AuthTokenResponse = responseData?.data || responseData
 
         // Store new tokens (preserving rememberMe preference)
-        this.setToken(data.accessToken, rememberMe)
+        // Don't update issue time on refresh - keep original login time
+        this.setToken(data.accessToken, rememberMe, false)
         this.setRefreshToken(data.refreshToken, rememberMe)
         this.setTokenExpiresAt(data.expiresAt, rememberMe)
 
         return data
+      } catch (error) {
+        // If any error occurs during refresh (network error, parsing error, etc.)
+        // clear all tokens from localStorage/sessionStorage
+        console.error('[refreshAccessToken] Error during token refresh:', error)
+        this.clearTokens()
+        throw error
       } finally {
         // Clear the promise so future requests can trigger a new refresh
         this.refreshTokenPromise = null
@@ -514,9 +587,24 @@ class ApiClient {
             headers,
             credentials: 'include',
           })
+          
+          // If we still get 401 after refresh, return the error response
+          // Don't redirect - let the calling code handle it
+          if (response.status === 401) {
+            console.warn('[request] Still got 401 after token refresh, returning error response')
+            // Don't clear tokens here - let the calling code decide what to do
+            // Just return the error response
+          }
+        } else {
+          // No new token after refresh, clear tokens and throw error
+          console.error('[request] No token available after refresh')
+          this.clearTokens()
+          throw new Error('Session expired. Please login again.')
         }
       } catch (refreshError) {
-        // If refresh fails, clear tokens and throw the original error
+        // If refresh fails, clear tokens but don't redirect
+        // Let the calling code handle the error
+        console.error('[request] Token refresh failed during API request:', refreshError)
         this.clearTokens()
         throw new Error('Session expired. Please login again.')
       }
@@ -677,7 +765,8 @@ class ApiClient {
     const data: AuthTokenResponse = responseData?.data || responseData
 
     // Store tokens (preserving rememberMe preference)
-    this.setToken(data.accessToken, rememberMe)
+    // Don't update issue time on refresh - keep original login time
+    this.setToken(data.accessToken, rememberMe, false)
     this.setRefreshToken(data.refreshToken, rememberMe)
     this.setTokenExpiresAt(data.expiresAt, rememberMe)
 
