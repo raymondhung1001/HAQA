@@ -16,9 +16,6 @@ export interface LoginRequest {
   rememberMe?: boolean
 }
 
-export interface RefreshTokenRequest {
-  refreshToken: string
-}
 
 /**
  * API client for making HTTP requests
@@ -26,7 +23,6 @@ export interface RefreshTokenRequest {
 class ApiClient {
   private baseUrl: string
   private refreshTokenPromise: Promise<AuthTokenResponse> | null = null
-  private csrfToken: string | null = null
   private storageListeners: Set<() => void> = new Set()
 
   constructor(baseUrl: string) {
@@ -70,7 +66,6 @@ class ApiClient {
     // Try to read from cookie first (set by server with httpOnly: false)
     const cookieToken = this.getCookie('XSRF-TOKEN')
     if (cookieToken) {
-      this.csrfToken = cookieToken
       return cookieToken
     }
 
@@ -85,14 +80,12 @@ class ApiClient {
       // Try to get from response header
       const headerToken = response.headers.get('X-CSRF-Token')
       if (headerToken) {
-        this.csrfToken = headerToken
         return headerToken
       }
 
       // Try to read from cookie after the request
       const cookieTokenAfter = this.getCookie('XSRF-TOKEN')
       if (cookieTokenAfter) {
-        this.csrfToken = cookieTokenAfter
         return cookieTokenAfter
       }
     } catch (error) {
@@ -124,49 +117,6 @@ class ApiClient {
     return null
   }
 
-  /**
-   * Set a cookie value
-   */
-  private setCookie(name: string, value: string, options?: {
-    expires?: Date
-    maxAge?: number
-    path?: string
-    domain?: string
-    secure?: boolean
-    sameSite?: 'strict' | 'lax' | 'none'
-  }): void {
-    if (!this.isBrowser()) return
-    
-    let cookieString = `${name}=${encodeURIComponent(value)}`
-    
-    if (options) {
-      if (options.expires) {
-        cookieString += `; expires=${options.expires.toUTCString()}`
-      }
-      if (options.maxAge !== undefined) {
-        cookieString += `; max-age=${options.maxAge}`
-      }
-      if (options.path) {
-        cookieString += `; path=${options.path}`
-      } else {
-        cookieString += `; path=/` // Default to root path
-      }
-      if (options.domain) {
-        cookieString += `; domain=${options.domain}`
-      }
-      if (options.secure) {
-        cookieString += `; secure`
-      }
-      if (options.sameSite) {
-        cookieString += `; samesite=${options.sameSite}`
-      }
-    } else {
-      cookieString += `; path=/`
-    }
-    
-    document.cookie = cookieString
-    console.log(`[setCookie] Set cookie: ${name}, value length: ${value.length}, expires: ${options?.expires?.toUTCString() || 'session'}`)
-  }
 
   /**
    * Delete a cookie
@@ -190,23 +140,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * Get cookie expiration based on remember me preference
-   */
-  private getCookieExpiration(rememberMe: boolean): Date | undefined {
-    if (rememberMe) {
-      // If remember me is checked, set cookie to expire in 30 days
-      const expirationDate = new Date()
-      expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000)) // 30 days
-      return expirationDate
-    }
-    // If remember me is not checked, use session cookie (expires when browser closes)
-    // However, to ensure cookies work across tabs, we'll use a short expiration (1 day)
-    // This is a compromise - session cookies don't always work reliably across tabs
-    const expirationDate = new Date()
-    expirationDate.setTime(expirationDate.getTime() + (24 * 60 * 60 * 1000)) // 1 day
-    return expirationDate
-  }
 
   /**
    * Get the storage instance based on rememberMe preference
@@ -831,65 +764,6 @@ class ApiClient {
     }
   }
   
-  /**
-   * Detailed authentication check with logging (for debugging)
-   */
-  isAuthenticatedDetailed(): boolean {
-    if (!this.isBrowser()) {
-      console.log('[isAuthenticated] Not in browser environment')
-      return false
-    }
-    
-    try {
-      const token = this.getToken()
-      const expiresAt = this.getTokenExpiresAt()
-      const rememberMe = localStorage.getItem('rememberMe') === 'true' || sessionStorage.getItem('rememberMe') === 'true'
-      const hasLocalToken = !!localStorage.getItem('accessToken')
-      const hasSessionToken = !!sessionStorage.getItem('accessToken')
-      
-      console.log('[isAuthenticated] Checking authentication:', {
-        hasToken: !!token,
-        hasExpiresAt: !!expiresAt,
-        rememberMe,
-        storageType: hasLocalToken ? 'localStorage' : hasSessionToken ? 'sessionStorage' : 'cookie',
-        tokenValue: token ? `${token.substring(0, 20)}...` : 'null',
-        expiresAtValue: expiresAt || 'null',
-        hasLocalToken,
-        hasSessionToken,
-      })
-      
-      if (!token || !expiresAt) {
-        return false
-      }
-
-      const now = Date.now()
-      const expiresAtNum = parseInt(expiresAt, 10)
-      
-      if (isNaN(expiresAtNum)) {
-        console.warn('[Auth] Invalid expiration time:', expiresAt)
-        this.clearTokens()
-        return false
-      }
-      
-      const timeUntilExpiry = expiresAtNum - now
-      if (timeUntilExpiry <= 0) {
-        const refreshToken = this.getRefreshToken()
-        if (refreshToken && rememberMe) {
-          console.log('[Auth] Token expired but rememberMe is true and refresh token exists.')
-          return false
-        }
-        console.log('[Auth] Token expired. Expired', Math.abs(timeUntilExpiry), 'ms ago')
-        this.clearTokens()
-        return false
-      }
-
-      console.log('[Auth] Token valid. Expires in', Math.floor(timeUntilExpiry / 1000), 'seconds')
-      return true
-    } catch (error) {
-      console.error('[isAuthenticated] Error checking authentication:', error)
-      return false
-    }
-  }
 }
 
 // Export singleton instance
