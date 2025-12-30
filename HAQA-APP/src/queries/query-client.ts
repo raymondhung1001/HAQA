@@ -1,5 +1,4 @@
 import { QueryClient } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api'
 
 /**
  * Create a new QueryClient instance with default options
@@ -17,21 +16,6 @@ export const queryClient = new QueryClient({
   },
 })
 
-// Sync authentication state across tabs
-// When auth state changes in another tab (via localStorage), invalidate queries
-if (typeof window !== 'undefined') {
-  // Listen for storage events from other tabs
-  window.addEventListener('storage', (e: StorageEvent) => {
-    if (e.key === 'accessToken' || e.key === 'refreshToken' || e.key === 'tokenExpiresAt' || e.key === 'rememberMe') {
-      console.log('[QueryClient] Auth state changed in another tab, invalidating queries')
-      queryClient.invalidateQueries()
-    }
-  })
-
-  // Also listen via the apiClient's event system
-  apiClient.onAuthStateChange(() => {
-    console.log('[QueryClient] Auth state changed, invalidating queries')
-    queryClient.invalidateQueries()
-  })
-}
-
+// Note: With HttpOnly cookies, we cannot detect auth state changes across tabs
+// via storage events since tokens are not accessible to JavaScript.
+// Auth state changes will be detected on the next API call or route navigation.

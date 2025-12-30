@@ -9,21 +9,14 @@ export const Route = createFileRoute('/(auth)/login')({
     // If already authenticated, redirect to home (dashboard) (only on client side)
     // This runs before the component renders, preventing any flash
     if (typeof window !== 'undefined') {
-      // Use a synchronous check - localStorage/sessionStorage are synchronous
-      const token = apiClient.getToken()
-      const expiresAt = apiClient.getTokenExpiresAt()
+      // Check authentication via API call (HttpOnly cookies)
+      const isAuthenticated = await apiClient.checkAuth()
       
-      if (token && expiresAt) {
-        // Check if token is expired
-        const now = Date.now()
-        const expiresAtNum = parseInt(expiresAt, 10)
-        
-        if (!isNaN(expiresAtNum) && expiresAtNum > now) {
-          // Token is valid, redirect immediately to home
-          throw redirect({
-            to: '/',
-          })
-        }
+      if (isAuthenticated) {
+        // User is authenticated, redirect to home
+        throw redirect({
+          to: '/',
+        })
       }
     }
   },
@@ -42,45 +35,30 @@ function LoginPage() {
     fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/`, {
       method: 'GET',
       credentials: 'include',
-    }).catch((error) => {
-      console.warn('Failed to pre-fetch CSRF token:', error)
+    }).catch(() => {
+      // Silently fail - CSRF token fetch error
     })
   }, [])
 
   const loginMutation = useLogin({
     onSuccess: async () => {
-      // Login successful - tokens are already set by apiClient.login()
-      // Wait a moment to ensure tokens are stored (in localStorage or sessionStorage based on rememberMe)
+      // Login successful - tokens are stored in HttpOnly cookies by the server
+      // Verify authentication status before navigating
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      // Verify tokens are stored before navigating
-      if (typeof window !== 'undefined') {
-        const token = apiClient.getToken()
-        const expiresAt = apiClient.getTokenExpiresAt()
-        
-        console.log('[Login Success] Before navigation:', {
-          hasToken: !!token,
-          hasExpiresAt: !!expiresAt,
-          tokenLength: token?.length || 0,
-          expiresAt: expiresAt,
-          localStorageKeys: typeof window !== 'undefined' ? Object.keys(localStorage) : [],
-        })
-        
-        if (token && expiresAt) {
-          // Tokens are stored, navigate to home (dashboard)
-          window.location.href = '/'
-        } else {
-          console.error('[Login Success] Tokens not stored!', {
-            token,
-            expiresAt,
-            localStorage: Object.keys(localStorage),
-          })
-          alert('Login successful but tokens were not stored. Please try again.')
-        }
+      // Check if authentication is valid
+      const isAuthenticated = await apiClient.checkAuth()
+      
+      if (isAuthenticated) {
+        // Authentication successful, navigate to home (dashboard)
+        window.location.href = '/'
+      } else {
+        // Authentication failed - tokens not set properly
+        alert('Login successful but authentication failed. Please try again.')
       }
     },
-    onError: (error) => {
-      console.error('Login error:', error)
+    onError: () => {
+      // Error is handled by the mutation error state
     },
   })
 
@@ -206,4 +184,3 @@ function LoginPage() {
     </div>
   )
 }
-

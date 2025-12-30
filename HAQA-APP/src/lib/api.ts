@@ -16,47 +16,26 @@ export interface LoginRequest {
   rememberMe?: boolean
 }
 
+interface QueuedRequest<T> {
+  resolve: (value: T) => void
+  reject: (error: Error) => void
+  request: () => Promise<T>
+}
 
 /**
  * API client for making HTTP requests
+ * Uses HttpOnly cookies for secure token storage (set by server)
  */
 class ApiClient {
   private baseUrl: string
   private refreshTokenPromise: Promise<AuthTokenResponse> | null = null
-  private storageListeners: Set<() => void> = new Set()
+  private requestQueue: QueuedRequest<any>[] = []
+  private isRefreshing: boolean = false
+  private authCheckCache: { isValid: boolean; timestamp: number } | null = null
+  private readonly AUTH_CHECK_CACHE_TTL = 5000 // 5 seconds cache for auth checks
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl
-    this.setupStorageSync()
-  }
-
-  /**
-   * Setup storage event listeners to sync auth state across tabs
-   */
-  private setupStorageSync(): void {
-    if (!this.isBrowser()) return
-
-    // Listen for storage changes from other tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      // Only handle our auth-related keys
-      if (e.key === 'accessToken' || e.key === 'refreshToken' || e.key === 'tokenExpiresAt' || e.key === 'rememberMe') {
-        console.log('[StorageSync] Storage changed in another tab:', e.key)
-        // Trigger any registered listeners (e.g., for TanStack Query cache invalidation)
-        this.storageListeners.forEach(listener => listener())
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-  }
-
-  /**
-   * Register a listener to be called when auth state changes in other tabs
-   */
-  onAuthStateChange(listener: () => void): () => void {
-    this.storageListeners.add(listener)
-    return () => {
-      this.storageListeners.delete(listener)
-    }
   }
 
   /**
@@ -89,14 +68,14 @@ class ApiClient {
         return cookieTokenAfter
       }
     } catch (error) {
-      console.warn('Failed to fetch CSRF token:', error)
+      // Silently fail - CSRF token fetch error
     }
 
     return null
   }
 
   /**
-   * Get a cookie value by name
+   * Get a cookie value by name (only works for non-HttpOnly cookies)
    */
   private getCookie(name: string): string | null {
     if (!this.isBrowser()) return null
@@ -108,7 +87,6 @@ class ApiClient {
         try {
           return decodeURIComponent(cookieValue)
         } catch (e) {
-          // If decoding fails, return the raw value (for backward compatibility)
           return cookieValue
         }
       }
@@ -116,7 +94,6 @@ class ApiClient {
     }
     return null
   }
-
 
   /**
    * Delete a cookie
@@ -132,260 +109,115 @@ class ApiClient {
    */
   private isBrowser(): boolean {
     try {
-      return typeof window !== 'undefined' && 
-             typeof localStorage !== 'undefined' &&
-             window.localStorage !== null
+      return typeof window !== 'undefined'
     } catch (e) {
       return false
     }
   }
 
-
   /**
-   * Get the storage instance based on rememberMe preference
+   * Check authentication status via API call
+   * Uses a short cache to avoid excessive API calls
    */
-  private getStorage(rememberMe: boolean): Storage {
-    return rememberMe ? localStorage : sessionStorage
-  }
-
-  /**
-   * Get the stored access token from localStorage or sessionStorage
-   */
-  getToken(): string | null {
-    if (!this.isBrowser()) return null
-    
-    // Check localStorage first (for rememberMe)
-    const localToken = localStorage.getItem('accessToken')
-    if (localToken) {
-      return localToken
-    }
-    
-    // Check sessionStorage (for non-rememberMe)
-    const sessionToken = sessionStorage.getItem('accessToken')
-    if (sessionToken) {
-      return sessionToken
-    }
-    
-    // Fallback to cookie for backward compatibility
-    return this.getCookie('accessToken')
-  }
-
-  /**
-   * Set the access token in localStorage (rememberMe) or sessionStorage (no rememberMe)
-   * @param token - The access token to store
-   * @param rememberMe - Whether to use localStorage (true) or sessionStorage (false)
-   * @param updateIssueTime - Whether to update the token issue time (default: true, set to false on refresh)
-   */
-  setToken(token: string, rememberMe: boolean = false, updateIssueTime: boolean = true): void {
-    if (!this.isBrowser()) {
-      console.warn('[setToken] Not in browser environment')
-      return
-    }
-    if (!token) {
-      console.warn('[setToken] Token is empty or undefined')
-      return
-    }
-    try {
-      const storage = this.getStorage(rememberMe)
-      
-      // Clear from both storages first to avoid conflicts
-      localStorage.removeItem('accessToken')
-      sessionStorage.removeItem('accessToken')
-      
-      // Store in the appropriate storage
-      storage.setItem('accessToken', token)
-      
-      // Store token issue time (when token was first created/issued)
-      // Only update if this is a new token (not a refresh)
-      // This is used to check if token is > 30 days old
-      if (updateIssueTime) {
-        const tokenIssueTime = Date.now()
-        const tokenIssueTimeStr = String(tokenIssueTime)
-        localStorage.removeItem('tokenIssueTime')
-        sessionStorage.removeItem('tokenIssueTime')
-        storage.setItem('tokenIssueTime', tokenIssueTimeStr)
+  async checkAuth(): Promise<boolean> {
+    // Check cache first
+    if (this.authCheckCache) {
+      const now = Date.now()
+      if (now - this.authCheckCache.timestamp < this.AUTH_CHECK_CACHE_TTL) {
+        return this.authCheckCache.isValid
       }
-      
-      console.log('[setToken] Token stored successfully in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe, 'length:', token.length)
-    } catch (error) {
-      console.error('[setToken] Error storing token:', error)
-      throw error
     }
-  }
 
-  /**
-   * Get the stored refresh token from localStorage or sessionStorage
-   */
-  getRefreshToken(): string | null {
-    if (!this.isBrowser()) return null
-    
-    // Check localStorage first (for rememberMe)
-    const localToken = localStorage.getItem('refreshToken')
-    if (localToken) {
-      return localToken
-    }
-    
-    // Check sessionStorage (for non-rememberMe)
-    const sessionToken = sessionStorage.getItem('refreshToken')
-    if (sessionToken) {
-      return sessionToken
-    }
-    
-    // Fallback to cookie for backward compatibility
-    return this.getCookie('refreshToken')
-  }
-
-  /**
-   * Set the refresh token in localStorage (rememberMe) or sessionStorage (no rememberMe)
-   */
-  setRefreshToken(token: string, rememberMe: boolean = false): void {
-    if (!this.isBrowser()) {
-      console.warn('[setRefreshToken] Not in browser environment')
-      return
-    }
     try {
-      const storage = this.getStorage(rememberMe)
-      
-      // Clear from both storages first to avoid conflicts
-      localStorage.removeItem('refreshToken')
-      sessionStorage.removeItem('refreshToken')
-      
-      // Store in the appropriate storage
-      storage.setItem('refreshToken', token)
-      
-      console.log('[setRefreshToken] Refresh token stored successfully in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe)
+      const response = await fetch(`${this.baseUrl}/auth/check`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      const isValid = response.ok
+      this.authCheckCache = {
+        isValid,
+        timestamp: Date.now(),
+      }
+      return isValid
     } catch (error) {
-      console.error('[setRefreshToken] Error storing refresh token:', error)
-      throw error
+      this.authCheckCache = {
+        isValid: false,
+        timestamp: Date.now(),
+      }
+      return false
     }
   }
 
   /**
-   * Set the token expiration time in localStorage (rememberMe) or sessionStorage (no rememberMe)
+   * Clear auth check cache
    */
-  setTokenExpiresAt(expiresAt: number, rememberMe: boolean = false): void {
-    if (!this.isBrowser()) {
-      console.warn('[setTokenExpiresAt] Not in browser environment')
-      return
-    }
-    try {
-      const expiresAtStr = String(expiresAt)
-      const storage = this.getStorage(rememberMe)
-      
-      // Clear from both storages first to avoid conflicts
-      localStorage.removeItem('tokenExpiresAt')
-      sessionStorage.removeItem('tokenExpiresAt')
-      
-      // Store in the appropriate storage
-      storage.setItem('tokenExpiresAt', expiresAtStr)
-      
-      console.log('[setTokenExpiresAt] Expiration time stored in', rememberMe ? 'localStorage' : 'sessionStorage', 'rememberMe:', rememberMe, ':', expiresAtStr)
-    } catch (error) {
-      console.error('[setTokenExpiresAt] Error storing expiration time:', error)
-      throw error
-    }
+  private clearAuthCache(): void {
+    this.authCheckCache = null
   }
 
   /**
-   * Get the token expiration time from localStorage or sessionStorage
+   * Process queued requests after token refresh completes
    */
-  getTokenExpiresAt(): string | null {
-    if (!this.isBrowser()) return null
-    
-    // Check localStorage first (for rememberMe)
-    const localExpiresAt = localStorage.getItem('tokenExpiresAt')
-    if (localExpiresAt) {
-      return localExpiresAt
+  private async processRequestQueue(): Promise<void> {
+    const queue = [...this.requestQueue]
+    this.requestQueue = []
+
+    for (const queuedRequest of queue) {
+      try {
+        const result = await queuedRequest.request()
+        queuedRequest.resolve(result)
+      } catch (error) {
+        queuedRequest.reject(error as Error)
+      }
     }
-    
-    // Check sessionStorage (for non-rememberMe)
-    const sessionExpiresAt = sessionStorage.getItem('tokenExpiresAt')
-    if (sessionExpiresAt) {
-      return sessionExpiresAt
-    }
-    
-    // Fallback to cookie for backward compatibility
-    return this.getCookie('tokenExpiresAt')
   }
 
   /**
-   * Get the token issue time (when token was first created/issued)
-   * Returns null if not found
+   * Add request to queue if refresh is in progress
    */
-  getTokenIssueTime(): number | null {
-    if (!this.isBrowser()) return null
-    
-    // Check localStorage first (for rememberMe)
-    const localIssueTime = localStorage.getItem('tokenIssueTime')
-    if (localIssueTime) {
-      const issueTimeNum = parseInt(localIssueTime, 10)
-      return isNaN(issueTimeNum) ? null : issueTimeNum
+  private async queueRequestIfRefreshing<T>(requestFn: () => Promise<T>): Promise<T> {
+    if (this.isRefreshing && this.refreshTokenPromise) {
+      return new Promise<T>((resolve, reject) => {
+        this.requestQueue.push({
+          resolve,
+          reject,
+          request: requestFn,
+        })
+      })
     }
-    
-    // Check sessionStorage (for non-rememberMe)
-    const sessionIssueTime = sessionStorage.getItem('tokenIssueTime')
-    if (sessionIssueTime) {
-      const issueTimeNum = parseInt(sessionIssueTime, 10)
-      return isNaN(issueTimeNum) ? null : issueTimeNum
-    }
-    
-    return null
+    return requestFn()
   }
 
   /**
-   * Set the token issue time (when token was first created/issued)
-   * Uses the same storage as the token (based on rememberMe preference)
-   */
-  setTokenIssueTime(issueTime: number): void {
-    if (!this.isBrowser()) return
-    
-    // Get rememberMe preference from storage (default to false if not found)
-    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
-    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
-    const rememberMe = rememberMeLocal || rememberMeSession
-    
-    const storage = this.getStorage(rememberMe)
-    const issueTimeStr = String(issueTime)
-    
-    // Clear from both storages first to avoid conflicts
-    localStorage.removeItem('tokenIssueTime')
-    sessionStorage.removeItem('tokenIssueTime')
-    
-    // Store in the appropriate storage
-    storage.setItem('tokenIssueTime', issueTimeStr)
-  }
-
-  /**
-   * Clear all stored tokens from localStorage, sessionStorage, and cookies
+   * Clear all stored tokens and cookies
+   * Note: HttpOnly cookies can only be cleared by server, but we clear any non-HttpOnly cookies
    */
   clearTokens(): void {
     if (!this.isBrowser()) return
-    
-    // Clear from localStorage
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('tokenExpiresAt')
-    localStorage.removeItem('tokenIssueTime')
-    localStorage.removeItem('rememberMe')
-    
-    // Clear from sessionStorage
-    sessionStorage.removeItem('accessToken')
-    sessionStorage.removeItem('refreshToken')
-    sessionStorage.removeItem('tokenExpiresAt')
-    sessionStorage.removeItem('tokenIssueTime')
-    sessionStorage.removeItem('rememberMe')
-    
-    // Clear from cookies (for backward compatibility)
+
+    // Clear any non-HttpOnly cookies (if any)
     this.deleteCookie('accessToken')
     this.deleteCookie('refreshToken')
     this.deleteCookie('tokenExpiresAt')
     this.deleteCookie('rememberMe')
-    
-    console.log('[clearTokens] All tokens cleared from localStorage, sessionStorage, and cookies')
+    this.deleteCookie('isAuthenticated')
+
+    // Clear auth cache
+    this.clearAuthCache()
+
+    // Call logout endpoint to clear HttpOnly cookies on server
+    fetch(`${this.baseUrl}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {
+      // Silently fail - server might not have this endpoint
+    })
   }
 
   /**
    * Refresh the access token using the refresh token
+   * Tokens are stored in HttpOnly cookies by the server
    */
   async refreshAccessToken(): Promise<AuthTokenResponse> {
     // If there's already a refresh in progress, wait for it
@@ -393,17 +225,8 @@ class ApiClient {
       return this.refreshTokenPromise
     }
 
-    // Get rememberMe preference from storage (default to false if not found)
-    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
-    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
-    const rememberMe = rememberMeLocal || rememberMeSession
-
-    const refreshToken = this.getRefreshToken()
-    if (!refreshToken) {
-      // No refresh token available, clear all tokens and throw error
-      this.clearTokens()
-      throw new Error('No refresh token available')
-    }
+    // Mark as refreshing
+    this.isRefreshing = true
 
     // Create the refresh promise
     this.refreshTokenPromise = (async () => {
@@ -420,13 +243,10 @@ class ApiClient {
         const response = await fetch(`${this.baseUrl}/token/refresh`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ refreshToken }),
-          credentials: 'include',
+          credentials: 'include', // Refresh token is in HttpOnly cookie
         })
 
         if (!response.ok) {
-          // If refresh fails, clear all tokens from localStorage/sessionStorage and throw error
-          console.error('[refreshAccessToken] Refresh failed with status:', response.status)
           this.clearTokens()
           let errorMessage = 'Failed to refresh token'
           try {
@@ -444,22 +264,20 @@ class ApiClient {
         // Extract the actual auth data from the response
         const data: AuthTokenResponse = responseData?.data || responseData
 
-        // Store new tokens (preserving rememberMe preference)
-        // Don't update issue time on refresh - keep original login time
-        this.setToken(data.accessToken, rememberMe, false)
-        this.setRefreshToken(data.refreshToken, rememberMe)
-        this.setTokenExpiresAt(data.expiresAt, rememberMe)
+        // Clear auth cache after refresh
+        this.clearAuthCache()
 
         return data
       } catch (error) {
-        // If any error occurs during refresh (network error, parsing error, etc.)
-        // clear all tokens from localStorage/sessionStorage
-        console.error('[refreshAccessToken] Error during token refresh:', error)
         this.clearTokens()
         throw error
       } finally {
-        // Clear the promise so future requests can trigger a new refresh
+        // Clear the promise and process queued requests
         this.refreshTokenPromise = null
+        this.isRefreshing = false
+        
+        // Process queued requests
+        await this.processRequestQueue()
       }
     })()
 
@@ -468,6 +286,7 @@ class ApiClient {
 
   /**
    * Make an API request with automatic token refresh on 401
+   * Tokens are automatically sent via HttpOnly cookies
    */
   async request<T>(
     endpoint: string,
@@ -475,69 +294,61 @@ class ApiClient {
     retryOn401: boolean = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
-    const token = this.getToken()
+    const method = options.method || 'GET'
+
+    // If refresh is in progress, queue this request
+    if (this.isRefreshing) {
+      return this.queueRequestIfRefreshing(() => this.request<T>(endpoint, options, retryOn401))
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     }
 
-    // Add authorization header if token exists
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
     // Add CSRF token for state-changing methods (POST, PUT, PATCH, DELETE)
-    // Skip CSRF if Bearer token is present (API authentication)
-    const method = options.method || 'GET'
     const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())
-    if (isStateChanging && !token) {
-      // Only add CSRF token if we don't have a Bearer token
+    if (isStateChanging) {
       const csrfToken = await this.getCsrfToken()
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken
       }
     }
 
+    // Make the request - tokens are automatically sent via HttpOnly cookies
     let response = await fetch(url, {
       ...options,
       headers,
-      credentials: 'include', // Include cookies for CSRF token
+      credentials: 'include', // Include cookies (HttpOnly tokens)
     })
 
     // If we get a 401 and retry is enabled, try to refresh the token
-    if (response.status === 401 && retryOn401 && token) {
+    if (response.status === 401 && retryOn401) {
       try {
+        // Clear auth cache
+        this.clearAuthCache()
+
         // Attempt to refresh the token
         await this.refreshAccessToken()
 
-        // Retry the original request with the new token
-        const newToken = this.getToken()
-        if (newToken) {
-          headers['Authorization'] = `Bearer ${newToken}`
-          response = await fetch(url, {
-            ...options,
-            headers,
-            credentials: 'include',
-          })
-          
-          // If we still get 401 after refresh, return the error response
-          // Don't redirect - let the calling code handle it
-          if (response.status === 401) {
-            console.warn('[request] Still got 401 after token refresh, returning error response')
-            // Don't clear tokens here - let the calling code decide what to do
-            // Just return the error response
-          }
-        } else {
-          // No new token after refresh, clear tokens and throw error
-          console.error('[request] No token available after refresh')
+        // Retry the original request
+        // If refresh is still in progress, queue this retry
+        if (this.isRefreshing) {
+          return this.queueRequestIfRefreshing(() => this.request<T>(endpoint, options, false))
+        }
+
+        response = await fetch(url, {
+          ...options,
+          headers,
+          credentials: 'include',
+        })
+
+        // If we still get 401 after refresh, throw error
+        if (response.status === 401) {
           this.clearTokens()
           throw new Error('Session expired. Please login again.')
         }
       } catch (refreshError) {
-        // If refresh fails, clear tokens but don't redirect
-        // Let the calling code handle the error
-        console.error('[request] Token refresh failed during API request:', refreshError)
         this.clearTokens()
         throw new Error('Session expired. Please login again.')
       }
@@ -559,11 +370,9 @@ class ApiClient {
 
   /**
    * Login and get authentication tokens
+   * Server will set tokens in HttpOnly cookies
    */
   async login(credentials: LoginRequest): Promise<AuthTokenResponse> {
-    // Get rememberMe preference (default to false if not specified)
-    const rememberMe = credentials.rememberMe === true
-
     // Remove rememberMe from credentials before sending to API
     const { rememberMe: _, ...apiCredentials } = credentials
 
@@ -581,129 +390,45 @@ class ApiClient {
     const authData: AuthTokenResponse = response?.data || response
 
     // Validate response data
-    if (!authData || !authData.accessToken || !authData.refreshToken) {
-      console.error('[Login] Invalid response:', { response, authData })
-      throw new Error('Invalid login response: missing tokens')
+    // Note: With HttpOnly cookies, tokens may be in cookies only, not in response body
+    // But we still need expiresAt to know when to refresh
+    if (!authData) {
+      throw new Error('Invalid login response: no data received')
     }
     
+    // Tokens might be in HttpOnly cookies only, so they may be missing from response
+    // But we need expiresAt to track expiration
     if (!authData.expiresAt || typeof authData.expiresAt !== 'number') {
-      console.error('[Login] Invalid expiration time:', authData.expiresAt)
       throw new Error('Invalid login response: missing or invalid expiration time')
     }
-    
-    // Store tokens
-    console.log('[Login] Storing tokens:', {
-      hasAccessToken: !!authData.accessToken,
-      hasRefreshToken: !!authData.refreshToken,
+
+    // If tokens are missing from response, create a placeholder response
+    // The actual tokens are in HttpOnly cookies set by the server
+    const result: AuthTokenResponse = {
+      accessToken: authData.accessToken || '', // May be empty if in cookie only
+      refreshToken: authData.refreshToken || '', // May be empty if in cookie only
+      expiresIn: authData.expiresIn || Math.floor((authData.expiresAt - Date.now()) / 1000),
       expiresAt: authData.expiresAt,
-      expiresAtType: typeof authData.expiresAt,
-      currentTime: Date.now(),
-      timeUntilExpiry: authData.expiresAt - Date.now(),
-      isBrowser: this.isBrowser(),
-      rememberMe,
-      storageType: rememberMe ? 'localStorage' : 'sessionStorage',
-    })
-    
-    // Ensure we're in browser before storing
-    if (!this.isBrowser()) {
-      console.error('[Login] Not in browser environment, cannot store tokens')
-      throw new Error('Cannot store tokens: not in browser environment')
-    }
-    
-    try {
-      // Store rememberMe preference in localStorage so we can preserve it on refresh
-      // This helps us know which storage to use when reading tokens
-      if (rememberMe) {
-        localStorage.setItem('rememberMe', 'true')
-        sessionStorage.removeItem('rememberMe')
-      } else {
-        sessionStorage.setItem('rememberMe', 'false')
-        localStorage.removeItem('rememberMe')
-      }
-      
-      this.setToken(authData.accessToken, rememberMe)
-      this.setRefreshToken(authData.refreshToken, rememberMe)
-      this.setTokenExpiresAt(authData.expiresAt, rememberMe)
-      
-      // Verify tokens were stored correctly
-      const retrievedToken = this.getToken()
-      const retrievedRefreshToken = this.getRefreshToken()
-      const retrievedExpiresAt = this.getTokenExpiresAt()
-      
-      console.log('[Login] Verification:', {
-        rememberMe,
-        storageType: rememberMe ? 'localStorage' : 'sessionStorage',
-        retrievedToken: retrievedToken ? `${retrievedToken.substring(0, 20)}...` : 'null',
-        retrievedTokenLength: retrievedToken?.length || 0,
-        retrievedRefreshToken: retrievedRefreshToken ? 'present' : 'null',
-        retrievedExpiresAt: retrievedExpiresAt,
-        isAuthenticated: this.isAuthenticated(),
-      })
-      
-      if (!retrievedToken || !retrievedExpiresAt) {
-        console.error('[Login] ERROR: Tokens not stored correctly!', {
-          retrievedToken: !!retrievedToken,
-          retrievedExpiresAt: !!retrievedExpiresAt,
-        })
-      }
-    } catch (error) {
-      console.error('[Login] Error storing tokens:', error)
-      throw error
+      tokenType: authData.tokenType || 'Bearer',
     }
 
-    return authData
+    // Clear auth cache after login
+    this.clearAuthCache()
+
+    // Note: Tokens are stored in HttpOnly cookies by the server
+    // We don't need to store them client-side
+
+    return result
   }
 
   /**
    * Refresh authentication tokens (public method for manual refresh)
+   * Tokens are stored in HttpOnly cookies by the server
+   * Refresh token is automatically sent via HttpOnly cookie
    */
-  async refreshToken(refreshToken: string): Promise<AuthTokenResponse> {
-    // Get rememberMe preference from storage (default to false if not found)
-    const rememberMeLocal = localStorage.getItem('rememberMe') === 'true'
-    const rememberMeSession = sessionStorage.getItem('rememberMe') === 'true'
-    const rememberMe = rememberMeLocal || rememberMeSession
-
-    // Get CSRF token for the refresh request
-    const csrfToken = await this.getCsrfToken()
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken
-    }
-
-    const response = await fetch(`${this.baseUrl}/token/refresh`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ refreshToken }),
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
-      this.clearTokens()
-      let errorMessage = 'Failed to refresh token'
-      try {
-        const errorData = await response.json()
-        errorMessage = errorData.message || errorData.error || errorMessage
-      } catch {
-        errorMessage = response.statusText || `HTTP ${response.status}`
-      }
-      throw new Error(errorMessage)
-    }
-
-    const responseData = await response.json()
-    
-    // The API wraps responses in a SuccessResponse format with a 'data' property
-    // Extract the actual auth data from the response
-    const data: AuthTokenResponse = responseData?.data || responseData
-
-    // Store tokens (preserving rememberMe preference)
-    // Don't update issue time on refresh - keep original login time
-    this.setToken(data.accessToken, rememberMe, false)
-    this.setRefreshToken(data.refreshToken, rememberMe)
-    this.setTokenExpiresAt(data.expiresAt, rememberMe)
-
-    return data
+  async refreshToken(): Promise<AuthTokenResponse> {
+    // Use the internal refresh method which handles HttpOnly cookies
+    return this.refreshAccessToken()
   }
 
   /**
@@ -715,57 +440,51 @@ class ApiClient {
 
   /**
    * Check if user is authenticated
-   * This is a fast synchronous check for route guards
+   * Makes an API call to verify authentication status
+   * Uses a short cache to avoid excessive calls
    */
-  isAuthenticated(): boolean {
-    if (!this.isBrowser()) {
-      return false
-    }
-    
-    try {
-      // Fast synchronous check - localStorage/sessionStorage are synchronous
-      const token = this.getToken()
-      const expiresAt = this.getTokenExpiresAt()
-      
-      if (!token || !expiresAt) {
-        return false
-      }
-
-      // Check if token is expired
-      const now = Date.now()
-      const expiresAtNum = parseInt(expiresAt, 10)
-      
-      if (isNaN(expiresAtNum)) {
-        // Invalid expiration time, clear tokens
-        this.clearTokens()
-        return false
-      }
-      
-      // Check if token is expired
-      // expiresAt is in milliseconds (timestamp)
-      const timeUntilExpiry = expiresAtNum - now
-      if (timeUntilExpiry <= 0) {
-        // Token is expired
-        const rememberMe = localStorage.getItem('rememberMe') === 'true' || sessionStorage.getItem('rememberMe') === 'true'
-        const refreshToken = this.getRefreshToken()
-        
-        // If we have a refresh token and rememberMe is true, we might be able to refresh
-        // But for route guards, we'll return false and let the refresh happen on the next API call
-        if (!refreshToken || !rememberMe) {
-          this.clearTokens()
-        }
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error('[isAuthenticated] Error checking authentication:', error)
-      return false
-    }
+  async isAuthenticated(): Promise<boolean> {
+    return this.checkAuth()
   }
-  
+
+  /**
+   * Get token (for backward compatibility)
+   * Returns null since tokens are in HttpOnly cookies and not accessible to JavaScript
+   * This is the security feature - tokens cannot be stolen via XSS
+   */
+  getToken(): string | null {
+    // Tokens are in HttpOnly cookies, not accessible to JavaScript
+    // This is intentional for security
+    return null
+  }
+
+  /**
+   * Get token expiration (for backward compatibility)
+   * Returns null since tokens are in HttpOnly cookies
+   * Expiration is validated server-side
+   */
+  getTokenExpiresAt(): string | null {
+    // Tokens are in HttpOnly cookies, not accessible to JavaScript
+    return null
+  }
+
+  /**
+   * Get token issue time (for backward compatibility)
+   * Returns null since tokens are in HttpOnly cookies
+   */
+  getTokenIssueTime(): number | null {
+    // Tokens are in HttpOnly cookies, not accessible to JavaScript
+    return null
+  }
+
+  /**
+   * Set token issue time (for backward compatibility)
+   * No-op since tokens are in HttpOnly cookies
+   */
+  setTokenIssueTime(_issueTime: number): void {
+    // Tokens are in HttpOnly cookies, managed by server
+  }
 }
 
 // Export singleton instance
 export const apiClient = new ApiClient(API_BASE_URL)
-

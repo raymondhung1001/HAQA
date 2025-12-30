@@ -24,15 +24,16 @@ export function useLogin(
 
 /**
  * Refresh token mutation hook
+ * Refresh token is automatically sent via HttpOnly cookie
  */
 export function useRefreshToken(
   options?: Omit<
-    UseMutationOptions<AuthTokenResponse, Error, string, unknown>,
+    UseMutationOptions<AuthTokenResponse, Error, void, unknown>,
     'mutationFn'
   >
 ) {
   return useMutation({
-    mutationFn: (refreshToken: string) => apiClient.refreshToken(refreshToken),
+    mutationFn: () => apiClient.refreshToken(),
     ...options,
   })
 }
