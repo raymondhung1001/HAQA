@@ -484,6 +484,38 @@ class ApiClient {
   setTokenIssueTime(_issueTime: number): void {
     // Tokens are in HttpOnly cookies, managed by server
   }
+
+  /**
+   * Test Cases API methods (using Workflows)
+   */
+  async createTestCase(data: {
+    name: string
+    description?: string
+    isActive?: boolean
+  }) {
+    return this.request<any>('/test-cases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async searchTestCases(params?: {
+    query?: string
+    isActive?: boolean
+    userId?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.query) queryParams.append('query', params.query)
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
+    if (params?.userId) queryParams.append('userId', params.userId.toString())
+
+    const queryString = queryParams.toString()
+    const endpoint = queryString ? `/test-cases?${queryString}` : '/test-cases'
+
+    return this.request<any>(endpoint, {
+      method: 'GET',
+    })
+  }
 }
 
 // Export singleton instance
