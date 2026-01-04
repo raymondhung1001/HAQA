@@ -13,7 +13,7 @@ export class WorkflowsRepository extends GenericRepository<Workflows> implements
         super(repository);
     }
 
-    async search(query: string, isActive?: boolean, userId?: number): Promise<Workflows[]> {
+    async search(query: string, isActive?: boolean, userId?: number, page: number = 1, limit: number = 10, sortBy: 'createdAt' | 'updatedAt' = 'createdAt'): Promise<{ data: Workflows[]; total: number; page: number; limit: number; totalPages: number }> {
         const queryBuilder = this.repository.createQueryBuilder('workflow');
 
         if (query) {
@@ -31,9 +31,26 @@ export class WorkflowsRepository extends GenericRepository<Workflows> implements
             queryBuilder.andWhere('workflow.userId = :userId', { userId });
         }
 
-        queryBuilder.orderBy('workflow.createdAt', 'DESC');
+        queryBuilder.orderBy(`workflow.${sortBy}`, 'DESC');
 
-        return await queryBuilder.getMany();
+        // Get total count before pagination
+        const total = await queryBuilder.getCount();
+
+        // Apply pagination
+        const skip = (page - 1) * limit;
+        queryBuilder.skip(skip).take(limit);
+
+        const data = await queryBuilder.getMany();
+
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages,
+        };
     }
 }
 

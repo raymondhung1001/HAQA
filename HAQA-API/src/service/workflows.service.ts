@@ -14,6 +14,9 @@ export interface SearchWorkflowsDto {
     query?: string;
     isActive?: boolean;
     userId?: number;
+    page?: number;
+    limit?: number;
+    sortBy?: 'createdAt' | 'updatedAt';
 }
 
 @Injectable()
@@ -35,11 +38,18 @@ export class WorkflowsService {
         return await this.workflowsRepository.create(workflowData);
     }
 
-    async search(searchDto: SearchWorkflowsDto): Promise<Workflows[]> {
+    async search(searchDto: SearchWorkflowsDto) {
+        const page = searchDto.page && searchDto.page > 0 ? searchDto.page : 1;
+        const limit = searchDto.limit && searchDto.limit > 0 ? Math.min(searchDto.limit, 100) : 10; // Max 100 items per page
+        const sortBy = searchDto.sortBy || 'createdAt';
+        
         return await this.workflowsRepository.search(
             searchDto.query || '',
             searchDto.isActive,
-            searchDto.userId
+            searchDto.userId,
+            page,
+            limit,
+            sortBy
         );
     }
 

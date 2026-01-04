@@ -488,7 +488,7 @@ class ApiClient {
   /**
    * Test Cases API methods (using Workflows)
    */
-  async createTestCase(data: {
+  async createTestFlow(data: {
     name: string
     description?: string
     isActive?: boolean
@@ -499,15 +499,21 @@ class ApiClient {
     })
   }
 
-  async searchTestCases(params?: {
+  async searchTestFlows(params?: {
     query?: string
     isActive?: boolean
     userId?: number
+    page?: number
+    limit?: number
+    sortBy?: 'createdAt' | 'updatedAt'
   }) {
     const queryParams = new URLSearchParams()
     if (params?.query) queryParams.append('query', params.query)
     if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
     if (params?.userId) queryParams.append('userId', params.userId.toString())
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
 
     const queryString = queryParams.toString()
     const endpoint = queryString ? `/test-flow?${queryString}` : '/test-flow'

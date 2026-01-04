@@ -18,6 +18,9 @@ const createWorkflowSchema = z.object({
 const searchWorkflowsSchema = z.object({
     query: z.string().optional(),
     isActive: z.boolean().optional(),
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    sortBy: z.enum(['createdAt', 'updatedAt']).optional(),
 });
 
 type CreateWorkflowRequest = z.infer<typeof createWorkflowSchema>;

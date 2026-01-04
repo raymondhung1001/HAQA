@@ -14,6 +14,7 @@ import { Route as appIndexRouteImport } from './routes/(app)/index'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as appUsersRouteImport } from './routes/(app)/users'
 import { Route as appTestRunsRouteImport } from './routes/(app)/test-runs'
+import { Route as appTestFlowCreateRouteImport } from './routes/(app)/test-flow-create'
 import { Route as appTestFlowRouteImport } from './routes/(app)/test-flow'
 import { Route as appSettingsRouteImport } from './routes/(app)/settings'
 import { Route as appLayoutRouteImport } from './routes/(app)/_layout'
@@ -43,6 +44,11 @@ const appTestRunsRoute = appTestRunsRouteImport.update({
   path: '/test-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const appTestFlowCreateRoute = appTestFlowCreateRouteImport.update({
+  id: '/(app)/test-flow-create',
+  path: '/test-flow-create',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const appTestFlowRoute = appTestFlowRouteImport.update({
   id: '/(app)/test-flow',
   path: '/test-flow',
@@ -62,6 +68,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
   '/test-flow': typeof appTestFlowRoute
+  '/test-flow-create': typeof appTestFlowCreateRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
   '/test-flow': typeof appTestFlowRoute
+  '/test-flow-create': typeof appTestFlowCreateRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/(app)/_layout': typeof appLayoutRoute
   '/(app)/settings': typeof appSettingsRoute
   '/(app)/test-flow': typeof appTestFlowRoute
+  '/(app)/test-flow-create': typeof appTestFlowCreateRoute
   '/(app)/test-runs': typeof appTestRunsRoute
   '/(app)/users': typeof appUsersRoute
   '/(auth)/login': typeof authLoginRoute
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/settings'
     | '/test-flow'
+    | '/test-flow-create'
     | '/test-runs'
     | '/users'
     | '/login'
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/settings'
     | '/test-flow'
+    | '/test-flow-create'
     | '/test-runs'
     | '/users'
     | '/login'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/(app)/_layout'
     | '/(app)/settings'
     | '/(app)/test-flow'
+    | '/(app)/test-flow-create'
     | '/(app)/test-runs'
     | '/(app)/users'
     | '/(auth)/login'
@@ -123,6 +135,7 @@ export interface RootRouteChildren {
   appLayoutRoute: typeof appLayoutRoute
   appSettingsRoute: typeof appSettingsRoute
   appTestFlowRoute: typeof appTestFlowRoute
+  appTestFlowCreateRoute: typeof appTestFlowCreateRoute
   appTestRunsRoute: typeof appTestRunsRoute
   appUsersRoute: typeof appUsersRoute
   authLoginRoute: typeof authLoginRoute
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appTestRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/(app)/test-flow-create': {
+      id: '/(app)/test-flow-create'
+      path: '/test-flow-create'
+      fullPath: '/test-flow-create'
+      preLoaderRoute: typeof appTestFlowCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/(app)/test-flow': {
       id: '/(app)/test-flow'
       path: '/test-flow'
@@ -195,6 +215,7 @@ const rootRouteChildren: RootRouteChildren = {
   appLayoutRoute: appLayoutRoute,
   appSettingsRoute: appSettingsRoute,
   appTestFlowRoute: appTestFlowRoute,
+  appTestFlowCreateRoute: appTestFlowCreateRoute,
   appTestRunsRoute: appTestRunsRoute,
   appUsersRoute: appUsersRoute,
   authLoginRoute: authLoginRoute,

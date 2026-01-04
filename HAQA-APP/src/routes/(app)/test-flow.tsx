@@ -1,110 +1,63 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-} from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Search, Plus, X } from 'lucide-react'
-import { apiClient } from '@/lib/api'
+import { Select } from '@/components/ui/select'
+import { FileText, Search, Plus, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { useSearchTestFlows } from '@/queries/test-flow-queries'
+import { TestFlowCard } from '@/components/test-flow-card'
+import { useDebounce } from '@/lib/hooks'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
 })
 
-interface Workflow {
-  id: string
-  name: string
-  description?: string
-  isActive?: boolean
-  userId?: number
-  createdAt?: string
-  updatedAt?: string
-}
-
-const initialNodes = [
-  {
-    id: '1',
-    type: 'input',
-    data: { label: 'Start' },
-    position: { x: 250, y: 5 },
-  },
-]
-
-const initialEdges: any[] = []
-
 function TestFlowsPage() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    isActive: true,
-  })
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-  const queryClient = useQueryClient()
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt'>('createdAt')
+  const navigate = useNavigate()
 
-  // Search query
-  const { data: searchResults, isLoading } = useQuery({
-    queryKey: ['testCases', searchQuery],
-    queryFn: async () => {
-      const response = await apiClient.searchTestCases({
-        query: searchQuery || undefined,
-      })
-      // Response is wrapped in SuccessResponse format: { success: true, data: [...], ... }
-      return (response?.data || []) as Workflow[]
-    },
-    enabled: true,
+  // Debounce search query to avoid too many API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 500)
+
+  // Reset to page 1 when search query changes
+  const { data: searchResults, isLoading } = useSearchTestFlows({
+    query: debouncedSearchQuery || undefined,
+    page,
+    limit,
+    sortBy,
   })
 
-  // Create mutation
-  const createMutation = useMutation({
-    mutationFn: async (data: {
-      name: string
-      description?: string
-      isActive?: boolean
-    }) => {
-      const response = await apiClient.createTestCase(data)
-      // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
-      return (response?.data || response) as Workflow
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['testCases'] })
-      setShowCreateForm(false)
-      setFormData({
-        name: '',
-        description: '',
-        isActive: true,
-      })
-      setNodes(initialNodes)
-      setEdges(initialEdges)
-    },
-  })
+  const workflows = searchResults?.data || []
+  const totalPages = searchResults?.totalPages || 0
+  const total = searchResults?.total || 0
 
-  const handleCreate = () => {
-    if (!formData.name.trim()) {
-      alert('Please enter a workflow name')
-      return
+  // Reset to page 1 when debounced search query changes
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearchQuery])
+
+  // Reset to page 1 when limit changes
+  useEffect(() => {
+    setPage(1)
+  }, [limit])
+
+  // Reset to page 1 when sortBy changes
+  useEffect(() => {
+    setPage(1)
+  }, [sortBy])
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage)
+      // Scroll to top when page changes
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-
-    createMutation.mutate({
-      name: formData.name,
-      description: formData.description || undefined,
-      isActive: formData.isActive,
-    })
   }
-
-  const workflows = searchResults || []
 
   return (
     <Navigation>
@@ -117,177 +70,156 @@ function TestFlowsPage() {
                 <CardTitle className="text-2xl">Test Flow</CardTitle>
               </div>
               <Button
-                onClick={() => setShowCreateForm(!showCreateForm)}
-                variant={showCreateForm ? 'outline' : 'default'}
+                onClick={() => navigate({ to: '/test-flow-create' as any })}
               >
-                {showCreateForm ? (
-                  <>
-                    <X className="w-4 h-4" />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Create Test Flow
-                  </>
-                )}
+                <Plus className="w-4 h-4" />
+                Create Test Flow
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Search Section */}
-            <div className="mb-4">
-              <div className="relative">
+            {/* Search, Sort, and Items per page in one row */}
+            <div className="mb-4 flex items-center gap-4">
+              {/* Search Input */}
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Search test flow..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setPage(1) // Reset to first page when searching
+                  }}
                   className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+
+              {/* Sort By Filter */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort by:</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={sortBy === 'createdAt' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSortBy('createdAt')}
+                  >
+                    Latest Created
+                  </Button>
+                  <Button
+                    variant={sortBy === 'updatedAt' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSortBy('updatedAt')}
+                  >
+                    Recently Updated
+                  </Button>
+                </div>
+              </div>
+
+              {/* Items per page */}
+              <div className="flex items-center gap-2 shrink-0">
+                <label htmlFor="page-size" className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  Items per page:
+                </label>
+                <Select
+                  id="page-size"
+                  value={limit}
+                  onChange={(e) => setLimit(Number(e.target.value))}
+                  className="w-20"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </Select>
+              </div>
             </div>
 
-            {/* Create Form */}
-            {showCreateForm && (
-              <Card className="mb-4 border-2">
-                <CardHeader>
-                  <CardTitle>Create New Test Case</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Enter test case name"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) =>
-                        setFormData({ ...formData, description: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      rows={3}
-                      placeholder="Enter test case description"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Workflow Flow (Visual Editor)
-                    </label>
-                    <div className="border rounded-md" style={{ height: '400px' }}>
-                      <ReactFlow
-                        nodes={nodes}
-                        edges={edges}
-                        onNodesChange={onNodesChange}
-                        onEdgesChange={onEdgesChange}
-                        fitView
-                      >
-                        <Background />
-                        <Controls />
-                        <MiniMap />
-                      </ReactFlow>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Drag nodes to create your workflow. Connect nodes to define the sequence.
-                      Note: The workflow structure will be saved when you create workflow versions.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(e) =>
-                          setFormData({ ...formData, isActive: e.target.checked })
-                        }
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm font-medium">Active</span>
-                    </label>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleCreate}
-                      disabled={createMutation.isPending}
-                    >
-                      {createMutation.isPending ? 'Creating...' : 'Create Workflow'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCreateForm(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Results Count */}
+            <div className="mb-4">
+              {!isLoading && total > 0 ? (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} test flows
+                </div>
+              ) : null}
+            </div>
 
             {/* Search Results */}
-            <div>
-              {isLoading ? (
-                <p className="text-gray-600 dark:text-gray-400">
-                  Loading workflows...
-                </p>
-              ) : workflows.length === 0 ? (
-                <p className="text-gray-600 dark:text-gray-400">
-                  {searchQuery
-                    ? 'No test flow found matching your search.'
-                    : 'No test flow found. Create your first test flow!'}
-                </p>
-              ) : (
-                <div className="space-y-4">
+            {isLoading ? (
+              <p className="text-gray-600 dark:text-gray-400">
+                Loading test flows...
+              </p>
+            ) : workflows.length === 0 ? (
+              <p className="text-gray-600 dark:text-gray-400">
+                {debouncedSearchQuery
+                  ? 'No test flow found matching your search.'
+                  : 'No test flow found. Create your first test flow!'}
+              </p>
+            ) : (
+              <>
+                <div className="space-y-4 mb-6">
                   {workflows.map((workflow) => (
-                    <Card key={workflow.id}>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{workflow.name}</CardTitle>
-                          <span
-                            className={`px-2 py-1 text-xs rounded-full ${
-                              workflow.isActive
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                            }`}
-                          >
-                            {workflow.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {workflow.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            {workflow.description}
-                          </p>
-                        )}
-                        {workflow.createdAt && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Created: {new Date(workflow.createdAt).toLocaleDateString()}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
+                    <TestFlowCard key={workflow.id} workflow={workflow} />
                   ))}
                 </div>
-              )}
-            </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Page {page} of {totalPages}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(page - 1)}
+                        disabled={page === 1 || isLoading}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum: number
+                          if (totalPages <= 5) {
+                            pageNum = i + 1
+                          } else if (page <= 3) {
+                            pageNum = i + 1
+                          } else if (page >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i
+                          } else {
+                            pageNum = page - 2 + i
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={page === pageNum ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handlePageChange(pageNum)}
+                              disabled={isLoading}
+                              className="min-w-[2.5rem]"
+                            >
+                              {pageNum}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(page + 1)}
+                        disabled={page === totalPages || isLoading}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </Container>
