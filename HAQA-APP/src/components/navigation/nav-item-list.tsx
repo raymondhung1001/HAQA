@@ -4,6 +4,7 @@ export interface NavItemData {
   icon: React.ReactNode
   label: string
   path: string
+  subtitle?: string
 }
 
 interface NavItemListProps {

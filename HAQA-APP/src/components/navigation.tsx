@@ -34,6 +34,7 @@ export function Navigation({ children }: NavigationProps) {
   const activePath = location.pathname
   const activeNavItem = navItems.find((item) => activePath === item.path)
   const pageTitle = activeNavItem?.label || 'Dashboard'
+  const pageSubtitle = activeNavItem?.subtitle
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -58,7 +59,7 @@ export function Navigation({ children }: NavigationProps) {
       />
 
       <div className="lg:pl-64">
-        <PageHeader title={pageTitle} />
+        <PageHeader title={pageTitle} subtitle={pageSubtitle} />
         <main className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           {children}
         </main>

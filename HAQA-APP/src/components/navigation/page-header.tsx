@@ -3,7 +3,7 @@ interface PageHeaderProps {
   subtitle?: string
 }
 
-export function PageHeader({ title, subtitle = 'Manage your testing workflow' }: PageHeaderProps) {
+export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
     <header className="hidden lg:block bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm sticky top-0 z-30">
       <div className="px-6 py-6">
@@ -12,9 +12,11 @@ export function PageHeader({ title, subtitle = 'Manage your testing workflow' }:
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">
               {title}
             </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {subtitle}
-            </p>
+            {subtitle && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {subtitle}
+              </p>
+            )}
           </div>
         </div>
       </div>
