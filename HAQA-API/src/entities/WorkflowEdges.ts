@@ -10,54 +10,48 @@ import { WorkflowVersions } from "./WorkflowVersions";
 @Entity("workflow_edges", { schema: "haqa_schema" })
 export class WorkflowEdges {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("uuid", { name: "workflow_version_id" })
-  workflowVersionId!: string;
-
-  @Column("uuid", { name: "source_node_id" })
-  sourceNodeId!: string;
-
-  @Column("uuid", { name: "target_node_id" })
-  targetNodeId!: string;
+  workflowVersionId: string;
 
   @Column("character varying", {
     name: "source_handle",
     nullable: true,
     length: 50,
   })
-  sourceHandle!: string | null;
+  sourceHandle: string | null;
 
   @Column("character varying", {
     name: "target_handle",
     nullable: true,
     length: 50,
   })
-  targetHandle!: string | null;
+  targetHandle: string | null;
 
   @Column("character varying", { name: "label", nullable: true, length: 50 })
-  label!: string | null;
+  label: string | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt!: Date | null;
+  createdAt: Date | null;
 
   @ManyToOne(
     () => WorkflowNodes,
     (workflowNodes) => workflowNodes.workflowEdges
   )
   @JoinColumn([{ name: "source_node_id", referencedColumnName: "id" }])
-  sourceNode!: WorkflowNodes;
+  sourceNode: WorkflowNodes;
 
   @ManyToOne(
     () => WorkflowNodes,
     (workflowNodes) => workflowNodes.workflowEdges2
   )
   @JoinColumn([{ name: "target_node_id", referencedColumnName: "id" }])
-  targetNode!: WorkflowNodes;
+  targetNode: WorkflowNodes;
 
   @ManyToOne(
     () => WorkflowVersions,
@@ -65,5 +59,5 @@ export class WorkflowEdges {
     { onDelete: "CASCADE" }
   )
   @JoinColumn([{ name: "workflow_version_id", referencedColumnName: "id" }])
-  workflowVersion!: WorkflowVersions;
+  workflowVersion: WorkflowVersions;
 }

@@ -18,10 +18,10 @@ import { WorkflowVersions } from "./WorkflowVersions";
 @Entity("workflow_nodes", { schema: "haqa_schema" })
 export class WorkflowNodes {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("uuid", { name: "workflow_version_id" })
-  workflowVersionId!: string;
+  workflowVersionId: string;
 
   @Column("enum", {
     name: "node_type",
@@ -36,7 +36,7 @@ export class WorkflowNodes {
       "wait",
     ],
   })
-  nodeType!:
+  nodeType:
     | "start"
     | "end"
     | "script"
@@ -47,48 +47,48 @@ export class WorkflowNodes {
     | "wait";
 
   @Column("character varying", { name: "label", nullable: true, length: 100 })
-  label!: string | null;
+  label: string | null;
 
   @Column("enum", {
     name: "script_language",
     nullable: true,
     enum: ["javascript", "python", "bash"],
   })
-  scriptLanguage!: "javascript" | "python" | "bash" | null;
+  scriptLanguage: "javascript" | "python" | "bash" | null;
 
   @Column("text", { name: "script_content", nullable: true })
-  scriptContent!: string | null;
+  scriptContent: string | null;
 
   @Column("jsonb", { name: "script_dependencies", nullable: true, default: {} })
-  scriptDependencies!: object | null;
+  scriptDependencies: object | null;
 
   @Column("jsonb", { name: "config", nullable: true, default: {} })
-  config!: object | null;
+  config: object | null;
 
   @Column("integer", { name: "position_x", nullable: true })
-  positionX!: number | null;
+  positionX: number | null;
 
   @Column("integer", { name: "position_y", nullable: true })
-  positionY!: number | null;
+  positionY: number | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt!: Date | null;
+  createdAt: Date | null;
 
   @OneToMany(
     () => NodeExecutionLogs,
     (nodeExecutionLogs) => nodeExecutionLogs.node
   )
-  nodeExecutionLogs!: NodeExecutionLogs[];
+  nodeExecutionLogs: NodeExecutionLogs[];
 
   @OneToMany(() => WorkflowEdges, (workflowEdges) => workflowEdges.sourceNode)
-  workflowEdges!: WorkflowEdges[];
+  workflowEdges: WorkflowEdges[];
 
   @OneToMany(() => WorkflowEdges, (workflowEdges) => workflowEdges.targetNode)
-  workflowEdges2!: WorkflowEdges[];
+  workflowEdges2: WorkflowEdges[];
 
   @ManyToOne(
     () => WorkflowVersions,
@@ -96,5 +96,5 @@ export class WorkflowNodes {
     { onDelete: "CASCADE" }
   )
   @JoinColumn([{ name: "workflow_version_id", referencedColumnName: "id" }])
-  workflowVersion!: WorkflowVersions;
+  workflowVersion: WorkflowVersions;
 }

@@ -15,45 +15,45 @@ import { Users } from "./Users";
 @Entity("workflows", { schema: "haqa_schema" })
 export class Workflows {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("integer", { name: "user_id" })
-  userId!: number;
+  userId: number;
 
   @Column("character varying", { name: "name", length: 150 })
-  name!: string;
+  name: string;
 
   @Column("text", { name: "description", nullable: true })
-  description!: string | null;
+  description: string | null;
 
   @Column("boolean", {
     name: "is_active",
     nullable: true,
     default: () => "true",
   })
-  isActive!: boolean | null;
+  isActive: boolean | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt!: Date | null;
+  createdAt: Date | null;
 
   @Column("timestamp with time zone", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt!: Date | null;
+  updatedAt: Date | null;
 
   @OneToMany(
     () => WorkflowVersions,
     (workflowVersions) => workflowVersions.workflow
   )
-  workflowVersions!: WorkflowVersions[];
+  workflowVersions: WorkflowVersions[];
 
   @ManyToOne(() => Users, (users) => users.workflows)
   @JoinColumn([{ name: "user_id", referencedColumnName: "id" }])
-  user!: Users;
+  user: Users;
 }

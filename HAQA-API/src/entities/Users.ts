@@ -20,67 +20,67 @@ import { Workflows } from "./Workflows";
 @Entity("users", { schema: "haqa_schema" })
 export class Users {
   @PrimaryGeneratedColumn({ type: "integer", name: "id" })
-  id!: number;
+  id: number;
 
   @Column("character varying", { name: "username", length: 100 })
-  username!: string;
+  username: string;
 
   @Column("character varying", { name: "email", length: 255 })
-  email!: string;
+  email: string;
 
   @Column("character varying", { name: "password_hash", length: 255 })
-  passwordHash!: string;
+  passwordHash: string;
 
   @Column("character varying", {
     name: "first_name",
     nullable: true,
     length: 100,
   })
-  firstName!: string | null;
+  firstName: string | null;
 
   @Column("character varying", {
     name: "last_name",
     nullable: true,
     length: 100,
   })
-  lastName!: string | null;
+  lastName: string | null;
 
   @Column("boolean", {
     name: "is_active",
     nullable: true,
     default: () => "true",
   })
-  isActive!: boolean | null;
+  isActive: boolean | null;
 
   @Column("timestamp with time zone", { name: "last_login", nullable: true })
-  lastLogin!: Date | null;
+  lastLogin: Date | null;
 
   @Column("timestamp with time zone", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt!: Date | null;
+  createdAt: Date | null;
 
   @Column("timestamp with time zone", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt!: Date | null;
+  updatedAt: Date | null;
 
   @OneToMany(() => UserFunctions, (userFunctions) => userFunctions.user)
-  userFunctions!: UserFunctions[];
+  userFunctions: UserFunctions[];
 
   @OneToMany(() => UserRoles, (userRoles) => userRoles.user)
-  userRoles!: UserRoles[];
+  userRoles: UserRoles[];
 
   @OneToMany(
     () => WorkflowExecutions,
     (workflowExecutions) => workflowExecutions.triggeredByUser
   )
-  workflowExecutions!: WorkflowExecutions[];
+  workflowExecutions: WorkflowExecutions[];
 
   @OneToMany(() => Workflows, (workflows) => workflows.user)
-  workflows!: Workflows[];
+  workflows: Workflows[];
 }

@@ -23,13 +23,10 @@ import { WorkflowVersions } from "./WorkflowVersions";
 @Entity("workflow_executions", { schema: "haqa_schema" })
 export class WorkflowExecutions {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("uuid", { name: "workflow_version_id" })
-  workflowVersionId!: string;
-
-  @Column("integer", { name: "triggered_by_user_id", nullable: true })
-  triggeredByUserId!: number | null;
+  workflowVersionId: string;
 
   @Column("character varying", {
     name: "status",
@@ -37,35 +34,35 @@ export class WorkflowExecutions {
     length: 20,
     default: () => "'PENDING'",
   })
-  status!: string | null;
+  status: string | null;
 
   @Column("timestamp with time zone", {
     name: "start_time",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  startTime!: Date | null;
+  startTime: Date | null;
 
   @Column("timestamp with time zone", { name: "end_time", nullable: true })
-  endTime!: Date | null;
+  endTime: Date | null;
 
   @Column("jsonb", { name: "global_context", nullable: true, default: {} })
-  globalContext!: object | null;
+  globalContext: object | null;
 
   @OneToMany(
     () => NodeExecutionLogs,
     (nodeExecutionLogs) => nodeExecutionLogs.execution
   )
-  nodeExecutionLogs!: NodeExecutionLogs[];
+  nodeExecutionLogs: NodeExecutionLogs[];
 
   @ManyToOne(() => Users, (users) => users.workflowExecutions)
   @JoinColumn([{ name: "triggered_by_user_id", referencedColumnName: "id" }])
-  triggeredByUser!: Users;
+  triggeredByUser: Users;
 
   @ManyToOne(
     () => WorkflowVersions,
     (workflowVersions) => workflowVersions.workflowExecutions
   )
   @JoinColumn([{ name: "workflow_version_id", referencedColumnName: "id" }])
-  workflowVersion!: WorkflowVersions;
+  workflowVersion: WorkflowVersions;
 }

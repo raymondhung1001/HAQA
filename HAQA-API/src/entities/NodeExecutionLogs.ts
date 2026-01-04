@@ -14,50 +14,50 @@ import { WorkflowNodes } from "./WorkflowNodes";
 @Entity("node_execution_logs", { schema: "haqa_schema" })
 export class NodeExecutionLogs {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("uuid", { name: "execution_id" })
-  executionId!: string;
+  executionId: string;
 
   @Column("uuid", { name: "node_id" })
-  nodeId!: string;
+  nodeId: string;
 
   @Column("character varying", { name: "status", nullable: true, length: 20 })
-  status!: string | null;
+  status: string | null;
 
   @Column("text", { name: "console_output", nullable: true })
-  consoleOutput!: string | null;
+  consoleOutput: string | null;
 
   @Column("text", { name: "error_output", nullable: true })
-  errorOutput!: string | null;
+  errorOutput: string | null;
 
   @Column("jsonb", { name: "evaluation_snapshot", nullable: true })
-  evaluationSnapshot!: object | null;
+  evaluationSnapshot: object | null;
 
   @Column("jsonb", { name: "result_data", nullable: true })
-  resultData!: object | null;
+  resultData: object | null;
 
   @Column("timestamp with time zone", {
     name: "start_time",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  startTime!: Date | null;
+  startTime: Date | null;
 
   @Column("timestamp with time zone", { name: "end_time", nullable: true })
-  endTime!: Date | null;
+  endTime: Date | null;
 
   @ManyToOne(
     () => WorkflowExecutions,
     (workflowExecutions) => workflowExecutions.nodeExecutionLogs
   )
   @JoinColumn([{ name: "execution_id", referencedColumnName: "id" }])
-  execution!: WorkflowExecutions;
+  execution: WorkflowExecutions;
 
   @ManyToOne(
     () => WorkflowNodes,
     (workflowNodes) => workflowNodes.nodeExecutionLogs
   )
   @JoinColumn([{ name: "node_id", referencedColumnName: "id" }])
-  node!: WorkflowNodes;
+  node: WorkflowNodes;
 }

@@ -25,36 +25,36 @@ import { Workflows } from "./Workflows";
 @Entity("workflow_versions", { schema: "haqa_schema" })
 export class WorkflowVersions {
   @Column("uuid", { primary: true, name: "id" })
-  id!: string;
+  id: string;
 
   @Column("uuid", { name: "workflow_id" })
-  workflowId!: string;
+  workflowId: string;
 
   @Column("integer", { name: "version_number" })
-  versionNumber!: number;
+  versionNumber: number;
 
   @Column("jsonb", { name: "ui_layout_json", nullable: true })
-  uiLayoutJson!: object | null;
+  uiLayoutJson: object | null;
 
   @OneToMany(
     () => WorkflowEdges,
     (workflowEdges) => workflowEdges.workflowVersion
   )
-  workflowEdges!: WorkflowEdges[];
+  workflowEdges: WorkflowEdges[];
 
   @OneToMany(
     () => WorkflowExecutions,
     (workflowExecutions) => workflowExecutions.workflowVersion
   )
-  workflowExecutions!: WorkflowExecutions[];
+  workflowExecutions: WorkflowExecutions[];
 
   @OneToMany(
     () => WorkflowNodes,
     (workflowNodes) => workflowNodes.workflowVersion
   )
-  workflowNodes!: WorkflowNodes[];
+  workflowNodes: WorkflowNodes[];
 
   @ManyToOne(() => Workflows, (workflows) => workflows.workflowVersions)
   @JoinColumn([{ name: "workflow_id", referencedColumnName: "id" }])
-  workflow!: Workflows;
+  workflow: Workflows;
 }

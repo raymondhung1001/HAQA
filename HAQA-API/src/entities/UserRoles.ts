@@ -7,26 +7,26 @@ import { Users } from "./Users";
 @Entity("user_roles", { schema: "haqa_schema" })
 export class UserRoles {
   @Column("integer", { primary: true, name: "user_id" })
-  userId!: number;
+  userId: number;
 
   @Column("integer", { primary: true, name: "role_id" })
-  roleId!: number;
+  roleId: number;
 
   @Column("timestamp with time zone", {
     name: "granted_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  grantedAt!: Date | null;
+  grantedAt: Date | null;
 
   @Column("timestamp with time zone", { name: "expires_at", nullable: true })
-  expiresAt!: Date | null;
+  expiresAt: Date | null;
 
   @ManyToOne(() => Roles, (roles) => roles.userRoles)
   @JoinColumn([{ name: "role_id", referencedColumnName: "id" }])
-  role!: Roles;
+  role: Roles;
 
   @ManyToOne(() => Users, (users) => users.userRoles)
   @JoinColumn([{ name: "user_id", referencedColumnName: "id" }])
-  user!: Users;
+  user: Users;
 }
