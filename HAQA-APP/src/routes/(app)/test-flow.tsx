@@ -5,10 +5,11 @@ import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
-import { FileText, Search, Plus, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { FileText, Search, Plus, Filter } from 'lucide-react'
 import { useSearchTestFlows } from '@/queries/test-flow-queries'
 import { TestFlowCard } from '@/components/test-flow-card'
 import { useDebounce } from '@/lib/hooks'
+import { Pagination } from '@/components/ui/pagination'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
@@ -33,8 +34,8 @@ function TestFlowsPage() {
   })
 
   const workflows = searchResults?.data || []
-  const totalPages = searchResults?.totalPages || 0
   const total = searchResults?.total || 0
+  const totalPages = searchResults?.totalPages || Math.ceil(total / limit) || 1
 
   // Reset to page 1 when debounced search query changes
   useEffect(() => {
@@ -52,11 +53,9 @@ function TestFlowsPage() {
   }, [sortBy])
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-      // Scroll to top when page changes
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    setPage(newPage)
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -150,73 +149,30 @@ function TestFlowsPage() {
               <p className="text-gray-600 dark:text-gray-400">
                 Loading test flows...
               </p>
-            ) : workflows.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                {debouncedSearchQuery
-                  ? 'No test flow found matching your search.'
-                  : 'No test flow found. Create your first test flow!'}
-              </p>
             ) : (
               <>
-                <div className="space-y-4 mb-6">
-                  {workflows.map((workflow) => (
-                    <TestFlowCard key={workflow.id} workflow={workflow} />
-                  ))}
-                </div>
+                {workflows.length === 0 ? (
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {debouncedSearchQuery
+                      ? 'No test flow found matching your search.'
+                      : 'No test flow found. Create your first test flow!'}
+                  </p>
+                ) : (
+                  <div className="space-y-4 mb-6">
+                    {workflows.map((workflow) => (
+                      <TestFlowCard key={workflow.id} workflow={workflow} />
+                    ))}
+                  </div>
+                )}
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Page {page} of {totalPages}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageChange(page - 1)}
-                        disabled={page === 1 || isLoading}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        Previous
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum: number
-                          if (totalPages <= 5) {
-                            pageNum = i + 1
-                          } else if (page <= 3) {
-                            pageNum = i + 1
-                          } else if (page >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i
-                          } else {
-                            pageNum = page - 2 + i
-                          }
-                          return (
-                            <Button
-                              key={pageNum}
-                              variant={page === pageNum ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => handlePageChange(pageNum)}
-                              disabled={isLoading}
-                              className="min-w-[2.5rem]"
-                            >
-                              {pageNum}
-                            </Button>
-                          )
-                        })}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageChange(page + 1)}
-                        disabled={page === totalPages || isLoading}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+                {!isLoading && (
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    isLoading={isLoading}
+                  />
                 )}
               </>
             )}
