@@ -16,6 +16,7 @@ import { Route as appUsersRouteImport } from './routes/(app)/users'
 import { Route as appTestRunsRouteImport } from './routes/(app)/test-runs'
 import { Route as appTestCasesRouteImport } from './routes/(app)/test-cases'
 import { Route as appSettingsRouteImport } from './routes/(app)/settings'
+import { Route as appLayoutRouteImport } from './routes/(app)/_layout'
 
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
@@ -52,6 +53,10 @@ const appSettingsRoute = appSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const appLayoutRoute = appLayoutRouteImport.update({
+  id: '/(app)/_layout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
@@ -74,6 +79,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/$': typeof SplatRoute
+  '/(app)/_layout': typeof appLayoutRoute
   '/(app)/settings': typeof appSettingsRoute
   '/(app)/test-cases': typeof appTestCasesRoute
   '/(app)/test-runs': typeof appTestRunsRoute
@@ -103,6 +109,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/$'
+    | '/(app)/_layout'
     | '/(app)/settings'
     | '/(app)/test-cases'
     | '/(app)/test-runs'
@@ -113,6 +120,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
+  appLayoutRoute: typeof appLayoutRoute
   appSettingsRoute: typeof appSettingsRoute
   appTestCasesRoute: typeof appTestCasesRoute
   appTestRunsRoute: typeof appTestRunsRoute
@@ -172,11 +180,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/(app)/_layout': {
+      id: '/(app)/_layout'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof appLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
+  appLayoutRoute: appLayoutRoute,
   appSettingsRoute: appSettingsRoute,
   appTestCasesRoute: appTestCasesRoute,
   appTestRunsRoute: appTestRunsRoute,
