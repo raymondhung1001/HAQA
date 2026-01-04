@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Query, Body } from "@nestjs/common";
+import { Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 
 import { WorkflowsService, CreateWorkflowDto, SearchWorkflowsDto } from "@/service/workflows.service";
 import { CurrentUser } from "@/decorators";
 import { Users } from "@/entities/Users";
 import { BodySchema, QuerySchema } from "@/pipe";
+import { JwtAuthGuard } from "@/guards";
 
 // Define Zod schema for create workflow (test case) validation
 const createWorkflowSchema = z.object({
@@ -17,13 +18,13 @@ const createWorkflowSchema = z.object({
 const searchWorkflowsSchema = z.object({
     query: z.string().optional(),
     isActive: z.boolean().optional(),
-    userId: z.number().int().positive().optional(),
 });
 
 type CreateWorkflowRequest = z.infer<typeof createWorkflowSchema>;
 type SearchWorkflowsRequest = z.infer<typeof searchWorkflowsSchema>;
 
-@Controller('test-cases')
+@Controller('test-flow')
+@UseGuards(JwtAuthGuard)
 export class TestCasesController {
 
     constructor(private readonly workflowsService: WorkflowsService) { }
@@ -42,9 +43,15 @@ export class TestCasesController {
 
     @Get()
     async search(
-        @QuerySchema(searchWorkflowsSchema) searchDto: SearchWorkflowsRequest
+        @QuerySchema(searchWorkflowsSchema) searchDto: SearchWorkflowsRequest,
+        @CurrentUser() user: Users
     ) {
-        const workflows = await this.workflowsService.search(searchDto);
+        // Always filter by the current user's ID
+        const workflows = await this.workflowsService.search({
+            ...searchDto,
+            userId: user.id,
+        });
         return workflows;
     }
 }
+

@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button'
 import { FileText, Search, Plus, X } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 
-export const Route = createFileRoute('/(app)/test-cases')({
-  component: TestCasesPage,
+export const Route = createFileRoute('/(app)/test-flow')({
+  component: TestFlowsPage,
 })
 
 interface Workflow {
@@ -42,7 +42,7 @@ const initialNodes = [
 
 const initialEdges: any[] = []
 
-function TestCasesPage() {
+function TestFlowsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [formData, setFormData] = useState({
@@ -114,7 +114,7 @@ function TestCasesPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="w-6 h-6" />
-                <CardTitle className="text-2xl">Test Cases</CardTitle>
+                <CardTitle className="text-2xl">Test Flow</CardTitle>
               </div>
               <Button
                 onClick={() => setShowCreateForm(!showCreateForm)}
@@ -128,7 +128,7 @@ function TestCasesPage() {
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />
-                    Create Test Case
+                    Create Test Flow
                   </>
                 )}
               </Button>
@@ -141,7 +141,7 @@ function TestCasesPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
-                  placeholder="Search test cases..."
+                  placeholder="Search test flow..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -250,8 +250,8 @@ function TestCasesPage() {
               ) : workflows.length === 0 ? (
                 <p className="text-gray-600 dark:text-gray-400">
                   {searchQuery
-                    ? 'No workflows found matching your search.'
-                    : 'No workflows found. Create your first workflow!'}
+                    ? 'No test flow found matching your search.'
+                    : 'No test flow found. Create your first test flow!'}
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -294,4 +294,5 @@ function TestCasesPage() {
     </Navigation>
   )
 }
+
 

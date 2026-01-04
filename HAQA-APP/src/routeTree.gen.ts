@@ -14,7 +14,7 @@ import { Route as appIndexRouteImport } from './routes/(app)/index'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as appUsersRouteImport } from './routes/(app)/users'
 import { Route as appTestRunsRouteImport } from './routes/(app)/test-runs'
-import { Route as appTestCasesRouteImport } from './routes/(app)/test-cases'
+import { Route as appTestFlowRouteImport } from './routes/(app)/test-flow'
 import { Route as appSettingsRouteImport } from './routes/(app)/settings'
 import { Route as appLayoutRouteImport } from './routes/(app)/_layout'
 
@@ -43,9 +43,9 @@ const appTestRunsRoute = appTestRunsRouteImport.update({
   path: '/test-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const appTestCasesRoute = appTestCasesRouteImport.update({
-  id: '/(app)/test-cases',
-  path: '/test-cases',
+const appTestFlowRoute = appTestFlowRouteImport.update({
+  id: '/(app)/test-flow',
+  path: '/test-flow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const appSettingsRoute = appSettingsRouteImport.update({
@@ -61,7 +61,7 @@ const appLayoutRoute = appLayoutRouteImport.update({
 export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
-  '/test-cases': typeof appTestCasesRoute
+  '/test-flow': typeof appTestFlowRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
@@ -70,7 +70,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
-  '/test-cases': typeof appTestCasesRoute
+  '/test-flow': typeof appTestFlowRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
@@ -81,7 +81,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/(app)/_layout': typeof appLayoutRoute
   '/(app)/settings': typeof appSettingsRoute
-  '/(app)/test-cases': typeof appTestCasesRoute
+  '/(app)/test-flow': typeof appTestFlowRoute
   '/(app)/test-runs': typeof appTestRunsRoute
   '/(app)/users': typeof appUsersRoute
   '/(auth)/login': typeof authLoginRoute
@@ -92,7 +92,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/$'
     | '/settings'
-    | '/test-cases'
+    | '/test-flow'
     | '/test-runs'
     | '/users'
     | '/login'
@@ -101,7 +101,7 @@ export interface FileRouteTypes {
   to:
     | '/$'
     | '/settings'
-    | '/test-cases'
+    | '/test-flow'
     | '/test-runs'
     | '/users'
     | '/login'
@@ -111,7 +111,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/(app)/_layout'
     | '/(app)/settings'
-    | '/(app)/test-cases'
+    | '/(app)/test-flow'
     | '/(app)/test-runs'
     | '/(app)/users'
     | '/(auth)/login'
@@ -122,7 +122,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   appLayoutRoute: typeof appLayoutRoute
   appSettingsRoute: typeof appSettingsRoute
-  appTestCasesRoute: typeof appTestCasesRoute
+  appTestFlowRoute: typeof appTestFlowRoute
   appTestRunsRoute: typeof appTestRunsRoute
   appUsersRoute: typeof appUsersRoute
   authLoginRoute: typeof authLoginRoute
@@ -166,11 +166,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appTestRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/(app)/test-cases': {
-      id: '/(app)/test-cases'
-      path: '/test-cases'
-      fullPath: '/test-cases'
-      preLoaderRoute: typeof appTestCasesRouteImport
+    '/(app)/test-flow': {
+      id: '/(app)/test-flow'
+      path: '/test-flow'
+      fullPath: '/test-flow'
+      preLoaderRoute: typeof appTestFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/(app)/settings': {
@@ -194,7 +194,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   appLayoutRoute: appLayoutRoute,
   appSettingsRoute: appSettingsRoute,
-  appTestCasesRoute: appTestCasesRoute,
+  appTestFlowRoute: appTestFlowRoute,
   appTestRunsRoute: appTestRunsRoute,
   appUsersRoute: appUsersRoute,
   authLoginRoute: authLoginRoute,

@@ -15,8 +15,8 @@ export const navItems: NavItemData[] = [
   },
   {
     icon: <FileText className="w-5 h-5" />,
-    label: 'Test Cases',
-    path: '/test-cases',
+    label: 'Test Flow',
+    path: '/test-flow',
   },
   {
     icon: <Shield className="w-5 h-5" />,

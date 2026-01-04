@@ -493,7 +493,7 @@ class ApiClient {
     description?: string
     isActive?: boolean
   }) {
-    return this.request<any>('/test-cases', {
+    return this.request<any>('/test-flow', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -510,7 +510,7 @@ class ApiClient {
     if (params?.userId) queryParams.append('userId', params.userId.toString())
 
     const queryString = queryParams.toString()
-    const endpoint = queryString ? `/test-cases?${queryString}` : '/test-cases'
+    const endpoint = queryString ? `/test-flow?${queryString}` : '/test-flow'
 
     return this.request<any>(endpoint, {
       method: 'GET',
