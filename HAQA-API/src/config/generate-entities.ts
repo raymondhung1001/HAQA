@@ -1,29 +1,41 @@
 import { appConfiguration } from './';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
 /**
+ * Database configuration interface for entity generation
+ */
+interface DatabaseConfig {
+    host: string;
+    port: number;
+    database: string;
+    username: string;
+    password: string;
+}
+
+/**
  * Validates that all required database configuration properties are present and valid
  */
-const validateDbConfig = (dbConfig: any): void => {
+function validateDbConfig(dbConfig: unknown): asserts dbConfig is DatabaseConfig {
     if (!dbConfig || typeof dbConfig !== 'object') {
         throw new Error('Database configuration is missing or invalid');
     }
 
+    const config = dbConfig as Record<string, unknown>;
     const errors: string[] = [];
 
     // Validate string fields
     const stringFields = ['host', 'database', 'username', 'password'];
     for (const field of stringFields) {
-        const value = dbConfig[field];
+        const value = config[field];
         if (!value || typeof value !== 'string' || value.trim().length === 0) {
             errors.push(field);
         }
     }
 
     // Validate port (must be a positive number)
-    const port = dbConfig.port;
+    const port = config.port;
     if (typeof port !== 'number' || isNaN(port) || port <= 0 || port > 65535) {
         errors.push('port');
     }
@@ -31,6 +43,26 @@ const validateDbConfig = (dbConfig: any): void => {
     if (errors.length > 0) {
         throw new Error(
             `Missing or invalid database configuration fields: ${errors.join(', ')}`
+        );
+    }
+}
+
+/**
+ * Validates that the output path is within the project directory for security
+ */
+const validateOutputPath = (outputPath: string): void => {
+    const projectRoot = process.cwd();
+    const resolvedOutput = path.resolve(outputPath);
+    const resolvedRoot = path.resolve(projectRoot);
+
+    // Use path.relative to check if output is within project root
+    // If output is outside, relative will contain '..' or be absolute
+    const relative = path.relative(resolvedRoot, resolvedOutput);
+
+    // Check if path is outside project root (contains '..' or is absolute)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error(
+            `Output path "${resolvedOutput}" is outside the project root "${resolvedRoot}"`
         );
     }
 };
@@ -41,10 +73,38 @@ const validateDbConfig = (dbConfig: any): void => {
 const ensureOutputDirectory = async (outputPath: string): Promise<void> => {
     try {
         await fs.access(outputPath);
-    } catch {
+        // Verify it's actually a directory
+        const stats = await fs.stat(outputPath);
+        if (!stats.isDirectory()) {
+            throw new Error(`Output path "${outputPath}" exists but is not a directory`);
+        }
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('not a directory')) {
+            throw error;
+        }
         // Directory doesn't exist, create it
-        await fs.mkdir(outputPath, { recursive: true });
+        try {
+            await fs.mkdir(outputPath, { recursive: true });
+        } catch (mkdirError) {
+            throw new Error(
+                `Failed to create output directory "${outputPath}": ${mkdirError instanceof Error ? mkdirError.message : String(mkdirError)}`
+            );
+        }
     }
+};
+
+/**
+ * Creates a loggable version of command arguments (masks password)
+ */
+const createLoggableArgs = (args: string[]): string[] => {
+    const loggableArgs = [...args];
+    const passwordIndex = loggableArgs.findIndex((_, index) => 
+        index > 0 && loggableArgs[index - 1] === '-x'
+    );
+    if (passwordIndex !== -1) {
+        loggableArgs[passwordIndex] = '********';
+    }
+    return loggableArgs;
 };
 
 /**
@@ -52,7 +112,7 @@ const ensureOutputDirectory = async (outputPath: string): Promise<void> => {
  * Uses spawn instead of execSync for better security (prevents command injection)
  */
 const executeGenerator = async (
-    dbConfig: { host: string; port: number; database: string; username: string; password: string },
+    dbConfig: DatabaseConfig,
     outputPath: string
 ): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -75,28 +135,64 @@ const executeGenerator = async (
         ];
 
         // Log the command (without password) for debugging
-        const loggableArgs = args.map((arg, index) => {
-            const prevArg = args[index - 1];
-            return prevArg === '-x' ? '********' : arg;
-        });
+        const loggableArgs = createLoggableArgs(args);
         console.log('Executing: npx', loggableArgs.join(' '));
 
         // Use spawn for better security and control
-        const childProcess = spawn('npx', args, {
+        const childProcess: ChildProcess = spawn('npx', args, {
             stdio: 'inherit',
             shell: process.platform === 'win32', // Use shell on Windows for npx
             cwd: process.cwd(),
         });
 
+        // Handle process interruption signals
+        const signalHandler = (signal: NodeJS.Signals) => {
+            if (!childProcess.killed) {
+                childProcess.kill(signal);
+            }
+        };
+
+        process.on('SIGINT', signalHandler);
+        process.on('SIGTERM', signalHandler);
+
+        // Clean up signal handlers (shared utility)
+        const removeSignalHandlers = () => {
+            process.removeListener('SIGINT', signalHandler);
+            process.removeListener('SIGTERM', signalHandler);
+        };
+
+        // Wrap resolve/reject to clean up signal handlers
+        const wrappedResolve = () => {
+            removeSignalHandlers();
+            resolve();
+        };
+
+        const wrappedReject = (error: Error) => {
+            removeSignalHandlers();
+            reject(error);
+        };
+
         childProcess.on('error', (error) => {
-            reject(new Error(`Failed to start typeorm-model-generator: ${error.message}`));
+            wrappedReject(
+                new Error(
+                    `Failed to start typeorm-model-generator: ${error.message}. ` +
+                    `Make sure npx is available in your PATH.`
+                )
+            );
         });
 
         childProcess.on('exit', (code, signal) => {
             if (code === 0) {
-                resolve();
+                wrappedResolve();
+            } else if (code === null) {
+                // Process was killed by signal
+                wrappedReject(
+                    new Error(
+                        `typeorm-model-generator was terminated by signal: ${signal || 'unknown'}`
+                    )
+                );
             } else {
-                reject(
+                wrappedReject(
                     new Error(
                         `typeorm-model-generator exited with code ${code}${signal ? ` and signal ${signal}` : ''}`
                     )
@@ -127,6 +223,9 @@ const generateEntities = async (): Promise<void> => {
 
         // Define output path - relative to project root
         const outputPath = path.resolve(process.cwd(), 'src/entities');
+
+        // Validate output path is within project directory
+        validateOutputPath(outputPath);
 
         // Ensure output directory exists
         await ensureOutputDirectory(outputPath);
