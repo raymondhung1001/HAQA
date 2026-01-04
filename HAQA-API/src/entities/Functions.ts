@@ -12,8 +12,8 @@ import { UserFunctions } from "./UserFunctions";
 
 @Index("idx_functions_category_code", ["category", "code"], {})
 @Index("idx_functions_category", ["category"], {})
-@Index("idx_functions_code", ["code"], {})
 @Index("functions_code_unique", ["code"], { unique: true })
+@Index("idx_functions_code", ["code"], {})
 @Index("functions_pkey", ["id"], { unique: true })
 @Index("functions_name_unique", ["name"], { unique: true })
 @Entity("functions", { schema: "haqa_schema" })

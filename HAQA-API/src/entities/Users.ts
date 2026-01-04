@@ -7,14 +7,16 @@ import {
 } from "typeorm";
 import { UserFunctions } from "./UserFunctions";
 import { UserRoles } from "./UserRoles";
+import { WorkflowExecutions } from "./WorkflowExecutions";
+import { Workflows } from "./Workflows";
 
-@Index("idx_users_email", ["email"], {})
 @Index("users_email_uk", ["email"], { unique: true })
+@Index("idx_users_email", ["email"], {})
 @Index("idx_users_name", ["firstName", "lastName"], {})
 @Index("users_pkey", ["id"], { unique: true })
 @Index("idx_users_active", ["isActive"], {})
-@Index("idx_users_username", ["username"], {})
 @Index("users_username_uk", ["username"], { unique: true })
+@Index("idx_users_username", ["username"], {})
 @Entity("users", { schema: "haqa_schema" })
 export class Users {
   @PrimaryGeneratedColumn({ type: "integer", name: "id" })
@@ -72,4 +74,13 @@ export class Users {
 
   @OneToMany(() => UserRoles, (userRoles) => userRoles.user)
   userRoles!: UserRoles[];
+
+  @OneToMany(
+    () => WorkflowExecutions,
+    (workflowExecutions) => workflowExecutions.triggeredByUser
+  )
+  workflowExecutions!: WorkflowExecutions[];
+
+  @OneToMany(() => Workflows, (workflows) => workflows.user)
+  workflows!: Workflows[];
 }
