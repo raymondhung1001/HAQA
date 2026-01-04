@@ -4,9 +4,10 @@ import { PassportModule } from "@nestjs/passport";
 import { ConfigService } from "@nestjs/config";
 
 import { AuthService } from "./auth.service";
+import { WorkflowsService } from "./workflows.service";
 import { JwtStrategy } from "@/strategies/jwt.strategy";
 
-const services = [AuthService];
+const services = [AuthService, WorkflowsService];
 
 @Module({
     imports: [
