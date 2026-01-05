@@ -7,8 +7,8 @@ import {
 } from "typeorm";
 import { UserFunctions } from "./UserFunctions";
 import { UserRoles } from "./UserRoles";
-import { WorkflowExecutions } from "./WorkflowExecutions";
-import { Workflows } from "./Workflows";
+import { TestFlowExecutions } from "./TestFlowExecutions";
+import { TestFlows } from "./TestFlows";
 
 @Index("users_email_uk", ["email"], { unique: true })
 @Index("idx_users_email", ["email"], {})
@@ -76,11 +76,11 @@ export class Users {
   userRoles: UserRoles[];
 
   @OneToMany(
-    () => WorkflowExecutions,
-    (workflowExecutions) => workflowExecutions.triggeredByUser
+    () => TestFlowExecutions,
+    (testFlowExecutions) => testFlowExecutions.triggeredByUser
   )
-  workflowExecutions: WorkflowExecutions[];
+  testFlowExecutions: TestFlowExecutions[];
 
-  @OneToMany(() => Workflows, (workflows) => workflows.user)
-  workflows: Workflows[];
+  @OneToMany(() => TestFlows, (testFlows) => testFlows.user)
+  testFlows: TestFlows[];
 }

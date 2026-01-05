@@ -17,7 +17,7 @@ export const navItems: NavItemData[] = [
     icon: <FileText className="w-5 h-5" />,
     label: 'Test Flow',
     path: '/test-flow',
-    subtitle: 'Manage your testing workflow',
+    subtitle: 'Manage your test flows',
   },
   {
     icon: <Shield className="w-5 h-5" />,

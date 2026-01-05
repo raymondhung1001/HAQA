@@ -6,16 +6,16 @@ import { Functions } from "@/entities/Functions";
 import { Users } from "@/entities/Users";
 import { UserFunctions } from "@/entities/UserFunctions";
 import { UserRoles } from "@/entities/UserRoles";
-import { Workflows } from "@/entities/Workflows";
-import { WorkflowVersions } from "@/entities/WorkflowVersions";
-import { WorkflowNodes } from "@/entities/WorkflowNodes";
-import { WorkflowEdges } from "@/entities/WorkflowEdges";
-import { WorkflowExecutions } from "@/entities/WorkflowExecutions";
+import { TestFlows } from "@/entities/TestFlows";
+import { TestFlowVersions } from "@/entities/TestFlowVersions";
+import { TestFlowNodes } from "@/entities/TestFlowNodes";
+import { TestFlowEdges } from "@/entities/TestFlowEdges";
+import { TestFlowExecutions } from "@/entities/TestFlowExecutions";
 import { NodeExecutionLogs } from "@/entities/NodeExecutionLogs";
 
 import { UsersRepository } from "./impl/users.repository";
 import { AuthCacheRepository } from "./impl/auth-cache.repository";
-import { WorkflowsRepository } from "./impl/workflows.repository";
+import { TestFlowsRepository } from "./impl/test-flows.repository";
 import { ServiceModule } from "@/service/service.module";
 
 const entities = [
@@ -24,14 +24,14 @@ const entities = [
     Users,
     UserFunctions,
     UserRoles,
-    Workflows,
-    WorkflowVersions,
-    WorkflowNodes,
-    WorkflowEdges,
-    WorkflowExecutions,
+    TestFlows,
+    TestFlowVersions,
+    TestFlowNodes,
+    TestFlowEdges,
+    TestFlowExecutions,
     NodeExecutionLogs,
 ];
-const repositories = [UsersRepository, AuthCacheRepository, WorkflowsRepository];
+const repositories = [UsersRepository, AuthCacheRepository, TestFlowsRepository];
 
 @Global()
 @Module({

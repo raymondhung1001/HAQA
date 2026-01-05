@@ -65,7 +65,7 @@ BEGIN;
         CONSTRAINT fk_user_functions_function FOREIGN KEY (function_id) REFERENCES haqa_schema.functions(id)
     );
 
-    CREATE TYPE haqa_schema.workflow_node_type AS ENUM (
+    CREATE TYPE haqa_schema.test_flow_node_type AS ENUM (
         'start',
         'end',
         'script',     -- Custom Python/JS code
@@ -82,33 +82,33 @@ BEGIN;
         'bash'
     );
 
-    CREATE TABLE IF NOT EXISTS haqa_schema.workflows (
-        id UUID NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flows (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(),
         user_id INTEGER NOT NULL,
         name VARCHAR(150) NOT NULL,
         description TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT pk_workflows PRIMARY KEY (id),
-        CONSTRAINT uk_workflows_user_id UNIQUE (id, user_id),
-        CONSTRAINT fk_workflows_user FOREIGN KEY (user_id) REFERENCES haqa_schema.users(id)
+        CONSTRAINT pk_test_flows PRIMARY KEY (id),
+        CONSTRAINT uk_test_flows_user_id UNIQUE (id, user_id),
+        CONSTRAINT fk_test_flows_user FOREIGN KEY (user_id) REFERENCES haqa_schema.users(id)
     );
 
-    CREATE TABLE IF NOT EXISTS haqa_schema.workflow_versions (
-        id UUID NOT NULL,
-        workflow_id UUID NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_versions (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(),
+        test_flow_id UUID NOT NULL,
         version_number INTEGER NOT NULL,
         ui_layout_json JSONB,
-        CONSTRAINT pk_workflows_versions PRIMARY KEY (id),
-        CONSTRAINT uk_workflows_versions_workflow_id_version_number UNIQUE (workflow_id, version_number),
-        CONSTRAINT fk_versions_workflow FOREIGN KEY (workflow_id) REFERENCES haqa_schema.workflows(id)
+        CONSTRAINT pk_test_flow_versions PRIMARY KEY (id),
+        CONSTRAINT uk_test_flow_versions_test_flow_id_version_number UNIQUE (test_flow_id, version_number),
+        CONSTRAINT fk_versions_test_flow FOREIGN KEY (test_flow_id) REFERENCES haqa_schema.test_flows(id)
     );
 
-    CREATE TABLE IF NOT EXISTS haqa_schema.workflow_nodes (
-        id UUID NOT NULL, 
-        workflow_version_id UUID NOT NULL,
-        node_type haqa_schema.workflow_node_type NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_nodes (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(), 
+        test_flow_version_id UUID NOT NULL,
+        node_type haqa_schema.test_flow_node_type NOT NULL,
         label VARCHAR(100),
         
         script_language haqa_schema.script_language, 
@@ -122,14 +122,14 @@ BEGIN;
         
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-        CONSTRAINT pk_workflow_nodes PRIMARY KEY (id),
-        CONSTRAINT uk_workflow_nodes_version UNIQUE (id, workflow_version_id),
-        CONSTRAINT fk_nodes_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id) ON DELETE CASCADE
+        CONSTRAINT pk_test_flow_nodes PRIMARY KEY (id),
+        CONSTRAINT uk_test_flow_nodes_version UNIQUE (id, test_flow_version_id),
+        CONSTRAINT fk_nodes_version FOREIGN KEY (test_flow_version_id) REFERENCES haqa_schema.test_flow_versions(id) ON DELETE CASCADE
     );
 
-    CREATE TABLE IF NOT EXISTS haqa_schema.workflow_edges (
-        id UUID NOT NULL, 
-        workflow_version_id UUID NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_edges (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(), 
+        test_flow_version_id UUID NOT NULL,
         source_node_id UUID NOT NULL,
         target_node_id UUID NOT NULL,
         
@@ -139,16 +139,16 @@ BEGIN;
         label VARCHAR(50),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-        CONSTRAINT pk_workflow_edges PRIMARY KEY (id),
-        CONSTRAINT uk_workflow_edges_version UNIQUE (id, workflow_version_id),
-        CONSTRAINT fk_edges_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id) ON DELETE CASCADE,
-        CONSTRAINT fk_edges_source FOREIGN KEY (source_node_id) REFERENCES haqa_schema.workflow_nodes(id),
-        CONSTRAINT fk_edges_target FOREIGN KEY (target_node_id) REFERENCES haqa_schema.workflow_nodes(id)
+        CONSTRAINT pk_test_flow_edges PRIMARY KEY (id),
+        CONSTRAINT uk_test_flow_edges_version UNIQUE (id, test_flow_version_id),
+        CONSTRAINT fk_edges_version FOREIGN KEY (test_flow_version_id) REFERENCES haqa_schema.test_flow_versions(id) ON DELETE CASCADE,
+        CONSTRAINT fk_edges_source FOREIGN KEY (source_node_id) REFERENCES haqa_schema.test_flow_nodes(id),
+        CONSTRAINT fk_edges_target FOREIGN KEY (target_node_id) REFERENCES haqa_schema.test_flow_nodes(id)
     );
 
-    CREATE TABLE IF NOT EXISTS haqa_schema.workflow_executions (
-        id UUID NOT NULL,
-        workflow_version_id UUID NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_executions (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(),
+        test_flow_version_id UUID NOT NULL,
         triggered_by_user_id INTEGER,
         status VARCHAR(20) DEFAULT 'PENDING',
         start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -156,16 +156,16 @@ BEGIN;
         
         global_context JSONB DEFAULT '{}'::jsonb,
         
-        CONSTRAINT pk_workflow_executions PRIMARY KEY (id),
-        CONSTRAINT uk_workflow_executions_version UNIQUE (id, workflow_version_id),
-        CONSTRAINT fk_execution_version FOREIGN KEY (workflow_version_id) REFERENCES haqa_schema.workflow_versions(id),
+        CONSTRAINT pk_test_flow_executions PRIMARY KEY (id),
+        CONSTRAINT uk_test_flow_executions_version UNIQUE (id, test_flow_version_id),
+        CONSTRAINT fk_execution_version FOREIGN KEY (test_flow_version_id) REFERENCES haqa_schema.test_flow_versions(id),
         CONSTRAINT fk_execution_user FOREIGN KEY (triggered_by_user_id) REFERENCES haqa_schema.users(id)
     );
     
-    CREATE TABLE IF NOT EXISTS haqa_schema.node_execution_logs (
-        id UUID NOT NULL,
+    CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_node_execution_logs (
+        id UUID NOT NULL DEFAULT uuid_generate_v7(),
         execution_id UUID NOT NULL,
-        node_id UUID NOT NULL,
+        test_flow_node_id UUID NOT NULL,
         status VARCHAR(20),
         
         console_output TEXT,
@@ -176,10 +176,10 @@ BEGIN;
         start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         end_time TIMESTAMP WITH TIME ZONE,
         
-        CONSTRAINT pk_node_execution_logs PRIMARY KEY (id),
-        CONSTRAINT uk_node_execution_logs_execution_node UNIQUE (execution_id, node_id),
-        CONSTRAINT fk_logs_execution FOREIGN KEY (execution_id) REFERENCES haqa_schema.workflow_executions(id),
-        CONSTRAINT fk_logs_node FOREIGN KEY (node_id) REFERENCES haqa_schema.workflow_nodes(id)
+        CONSTRAINT pk_test_flow_node_execution_logs PRIMARY KEY (id),
+        CONSTRAINT uk_test_flow_node_execution_logs_execution_node UNIQUE (execution_id, test_flow_node_id),
+        CONSTRAINT fk_logs_test_flow_execution FOREIGN KEY (execution_id) REFERENCES haqa_schema.test_flow_executions(id),
+        CONSTRAINT fk_logs_test_flow_node FOREIGN KEY (test_flow_node_id) REFERENCES haqa_schema.test_flow_nodes(id)
     );
 
 COMMIT;

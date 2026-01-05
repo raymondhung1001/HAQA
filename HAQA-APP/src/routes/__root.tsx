@@ -17,7 +17,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'HAQA - Testing Execution Workflow System',
+        title: 'HAQA - Test Flow Execution System',
       },
     ],
     links: [

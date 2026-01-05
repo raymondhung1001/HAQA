@@ -19,18 +19,18 @@ BEGIN;
 
     CREATE INDEX IF NOT EXISTS idx_user_functions_user_expires ON haqa_schema.user_functions(user_id, function_id, expires_at);
 
-    CREATE INDEX IF NOT EXISTS idx_workflows_user_id_is_active ON haqa_schema.workflows(user_id, is_active);
+    CREATE INDEX IF NOT EXISTS idx_test_flows_user_id_is_active ON haqa_schema.test_flows(user_id, is_active);
 
-    CREATE INDEX IF NOT EXISTS idx_workflow_versions_workflow_id_version_number ON haqa_schema.workflow_versions(workflow_id, version_number DESC);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_versions_test_flow_id_version_number ON haqa_schema.test_flow_versions(test_flow_id, version_number DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_nodes_version_type ON haqa_schema.workflow_nodes(workflow_version_id, node_type);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_nodes_version_type ON haqa_schema.test_flow_nodes(test_flow_version_id, node_type);
 
-    CREATE INDEX IF NOT EXISTS idx_workflow_edges_workflow_version_id ON haqa_schema.workflow_edges(workflow_version_id);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_edges_test_flow_version_id ON haqa_schema.test_flow_edges(test_flow_version_id);
 
-    CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow_version_id_start_time ON haqa_schema.workflow_executions(workflow_version_id, start_time DESC);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_executions_test_flow_version_id_start_time ON haqa_schema.test_flow_executions(test_flow_version_id, start_time DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON haqa_schema.workflow_executions(status);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_executions_status ON haqa_schema.test_flow_executions(status);
 
-    CREATE INDEX IF NOT EXISTS idx_node_execution_logs_execution_id_node_id ON haqa_schema.node_execution_logs(execution_id, node_id);
+    CREATE INDEX IF NOT EXISTS idx_test_flow_node_execution_logs_execution_id_test_flow_node_id ON haqa_schema.test_flow_node_execution_logs(execution_id, test_flow_node_id);
 
 COMMIT;

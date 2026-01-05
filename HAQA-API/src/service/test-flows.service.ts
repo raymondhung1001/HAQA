@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { WorkflowsRepository } from '@/repository';
-import { Workflows } from '@/entities/Workflows';
+import { TestFlowsRepository } from '@/repository';
+import { TestFlows } from '@/entities/TestFlows';
 import { DeepPartial } from 'typeorm';
 import { randomUUID } from 'crypto';
 
-export interface CreateWorkflowDto {
+export interface CreateTestFlowDto {
     name: string;
     description?: string;
     isActive?: boolean;
 }
 
-export interface SearchWorkflowsDto {
+export interface SearchTestFlowsDto {
     query?: string;
     isActive?: boolean;
     userId?: number;
@@ -20,13 +20,13 @@ export interface SearchWorkflowsDto {
 }
 
 @Injectable()
-export class WorkflowsService {
+export class TestFlowsService {
     constructor(
-        private readonly workflowsRepository: WorkflowsRepository,
+        private readonly testFlowsRepository: TestFlowsRepository,
     ) {}
 
-    async create(data: CreateWorkflowDto, userId: number): Promise<Workflows> {
-        const workflowData: DeepPartial<Workflows> = {
+    async create(data: CreateTestFlowDto, userId: number): Promise<TestFlows> {
+        const testFlowData: DeepPartial<TestFlows> = {
             id: randomUUID(),
             ...data,
             userId,
@@ -35,15 +35,15 @@ export class WorkflowsService {
             updatedAt: new Date(),
         };
 
-        return await this.workflowsRepository.create(workflowData);
+        return await this.testFlowsRepository.create(testFlowData);
     }
 
-    async search(searchDto: SearchWorkflowsDto) {
+    async search(searchDto: SearchTestFlowsDto) {
         const page = searchDto.page && searchDto.page > 0 ? searchDto.page : 1;
         const limit = searchDto.limit && searchDto.limit > 0 ? Math.min(searchDto.limit, 100) : 10; // Max 100 items per page
         const sortBy = searchDto.sortBy || 'createdAt';
         
-        return await this.workflowsRepository.search(
+        return await this.testFlowsRepository.search(
             searchDto.query || '',
             searchDto.isActive,
             searchDto.userId,
@@ -53,12 +53,12 @@ export class WorkflowsService {
         );
     }
 
-    async findById(id: string): Promise<Workflows | null> {
-        return await this.workflowsRepository.findById(id);
+    async findById(id: string): Promise<TestFlows | null> {
+        return await this.testFlowsRepository.findById(id);
     }
 
-    async findAll(): Promise<Workflows[]> {
-        return await this.workflowsRepository.findAll();
+    async findAll(): Promise<TestFlows[]> {
+        return await this.testFlowsRepository.findAll();
     }
 }
 

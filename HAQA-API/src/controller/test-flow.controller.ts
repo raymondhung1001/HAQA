@@ -1,21 +1,21 @@
 import { Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 
-import { WorkflowsService, CreateWorkflowDto, SearchWorkflowsDto } from "@/service/workflows.service";
+import { TestFlowsService, CreateTestFlowDto, SearchTestFlowsDto } from "@/service/test-flows.service";
 import { CurrentUser } from "@/decorators";
 import { Users } from "@/entities/Users";
 import { BodySchema, QuerySchema } from "@/pipe";
 import { JwtAuthGuard } from "@/guards";
 
-// Define Zod schema for create workflow (test case) validation
-const createWorkflowSchema = z.object({
+// Define Zod schema for create test flow validation
+const createTestFlowSchema = z.object({
     name: z.string().min(1, 'Name is required').max(150, 'Name must be less than 150 characters'),
     description: z.string().optional(),
     isActive: z.boolean().optional(),
 });
 
-// Define Zod schema for search workflows (test cases) validation
-const searchWorkflowsSchema = z.object({
+// Define Zod schema for search test flows validation
+const searchTestFlowsSchema = z.object({
     query: z.string().optional(),
     isActive: z.boolean().optional(),
     page: z.coerce.number().int().positive().optional(),
@@ -23,38 +23,38 @@ const searchWorkflowsSchema = z.object({
     sortBy: z.enum(['createdAt', 'updatedAt']).optional(),
 });
 
-type CreateWorkflowRequest = z.infer<typeof createWorkflowSchema>;
-type SearchWorkflowsRequest = z.infer<typeof searchWorkflowsSchema>;
+type CreateTestFlowRequest = z.infer<typeof createTestFlowSchema>;
+type SearchTestFlowsRequest = z.infer<typeof searchTestFlowsSchema>;
 
 @Controller('test-flow')
 @UseGuards(JwtAuthGuard)
 export class TestCasesController {
 
-    constructor(private readonly workflowsService: WorkflowsService) { }
+    constructor(private readonly testFlowsService: TestFlowsService) { }
 
     @Post()
     async create(
-        @BodySchema(createWorkflowSchema) createDto: CreateWorkflowRequest,
+        @BodySchema(createTestFlowSchema) createDto: CreateTestFlowRequest,
         @CurrentUser() user: Users
     ) {
-        const workflow = await this.workflowsService.create(
+        const testFlow = await this.testFlowsService.create(
             createDto,
             user.id
         );
-        return workflow;
+        return testFlow;
     }
 
     @Get()
     async search(
-        @QuerySchema(searchWorkflowsSchema) searchDto: SearchWorkflowsRequest,
+        @QuerySchema(searchTestFlowsSchema) searchDto: SearchTestFlowsRequest,
         @CurrentUser() user: Users
     ) {
         // Always filter by the current user's ID
-        const workflows = await this.workflowsService.search({
+        const testFlows = await this.testFlowsService.search({
             ...searchDto,
             userId: user.id,
         });
-        return workflows;
+        return testFlows;
     }
 }
 

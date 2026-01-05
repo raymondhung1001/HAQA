@@ -25,8 +25,8 @@ CREATE TRIGGER update_functions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION haqa_schema.update_updated_at_column();
 
-CREATE TRIGGER update_workflows_updated_at
-    BEFORE UPDATE ON haqa_schema.workflows
+CREATE TRIGGER update_test_flows_updated_at
+    BEFORE UPDATE ON haqa_schema.test_flows
     FOR EACH ROW
     EXECUTE FUNCTION haqa_schema.update_updated_at_column();
 

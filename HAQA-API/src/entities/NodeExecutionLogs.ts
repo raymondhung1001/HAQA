@@ -1,17 +1,17 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
-import { WorkflowExecutions } from "./WorkflowExecutions";
-import { WorkflowNodes } from "./WorkflowNodes";
+import { TestFlowExecutions } from "./TestFlowExecutions";
+import { TestFlowNodes } from "./TestFlowNodes";
 
 @Index(
-  "idx_node_execution_logs_execution_id_node_id",
+  "idx_test_flow_node_execution_logs_execution_id_test_flow_node_id",
   ["executionId", "nodeId"],
   {}
 )
-@Index("uk_node_execution_logs_execution_node", ["executionId", "nodeId"], {
+@Index("uk_test_flow_node_execution_logs_execution_node", ["executionId", "nodeId"], {
   unique: true,
 })
-@Index("pk_node_execution_logs", ["id"], { unique: true })
-@Entity("node_execution_logs", { schema: "haqa_schema" })
+@Index("pk_test_flow_node_execution_logs", ["id"], { unique: true })
+@Entity("test_flow_node_execution_logs", { schema: "haqa_schema" })
 export class NodeExecutionLogs {
   @Column("uuid", { primary: true, name: "id" })
   id: string;
@@ -19,7 +19,7 @@ export class NodeExecutionLogs {
   @Column("uuid", { name: "execution_id" })
   executionId: string;
 
-  @Column("uuid", { name: "node_id" })
+  @Column("uuid", { name: "test_flow_node_id" })
   nodeId: string;
 
   @Column("character varying", { name: "status", nullable: true, length: 20 })
@@ -48,16 +48,16 @@ export class NodeExecutionLogs {
   endTime: Date | null;
 
   @ManyToOne(
-    () => WorkflowExecutions,
-    (workflowExecutions) => workflowExecutions.nodeExecutionLogs
+    () => TestFlowExecutions,
+    (testFlowExecutions) => testFlowExecutions.nodeExecutionLogs
   )
   @JoinColumn([{ name: "execution_id", referencedColumnName: "id" }])
-  execution: WorkflowExecutions;
+  execution: TestFlowExecutions;
 
   @ManyToOne(
-    () => WorkflowNodes,
-    (workflowNodes) => workflowNodes.nodeExecutionLogs
+    () => TestFlowNodes,
+    (testFlowNodes) => testFlowNodes.nodeExecutionLogs
   )
-  @JoinColumn([{ name: "node_id", referencedColumnName: "id" }])
-  node: WorkflowNodes;
+  @JoinColumn([{ name: "test_flow_node_id", referencedColumnName: "id" }])
+  testFlowNode: TestFlowNodes;
 }

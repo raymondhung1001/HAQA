@@ -486,7 +486,7 @@ class ApiClient {
   }
 
   /**
-   * Test Cases API methods (using Workflows)
+   * Test Cases API methods (using TestFlows)
    */
   async createTestFlow(data: {
     name: string

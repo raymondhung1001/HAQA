@@ -62,7 +62,7 @@ function CreateTestFlowPage() {
 
   const handleCreate = () => {
     if (!formData.name.trim()) {
-      alert('Please enter a workflow name')
+      alert('Please enter a test flow name')
       return
     }
 
@@ -129,7 +129,7 @@ function CreateTestFlowPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Workflow Flow (Visual Editor)
+                Test Flow (Visual Editor)
               </label>
               <div className="border rounded-md" style={{ height: '400px' }}>
                 <ReactFlow
@@ -145,8 +145,8 @@ function CreateTestFlowPage() {
                 </ReactFlow>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Drag nodes to create your workflow. Connect nodes to define the sequence.
-                Note: The workflow structure will be saved when you create workflow versions.
+                Drag nodes to create your test flow. Connect nodes to define the sequence.
+                Note: The test flow structure will be saved when you create test flow versions.
               </p>
             </div>
 
@@ -169,7 +169,7 @@ function CreateTestFlowPage() {
                 onClick={handleCreate}
                 disabled={createMutation.isPending}
               >
-                {createMutation.isPending ? 'Creating...' : 'Create Workflow'}
+                {createMutation.isPending ? 'Creating...' : 'Create Test Flow'}
               </Button>
               <Button
                 variant="outline"

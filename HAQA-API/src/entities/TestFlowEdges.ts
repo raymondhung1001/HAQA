@@ -1,19 +1,19 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
-import { WorkflowNodes } from "./WorkflowNodes";
-import { WorkflowVersions } from "./WorkflowVersions";
+import { TestFlowNodes } from "./TestFlowNodes";
+import { TestFlowVersions } from "./TestFlowVersions";
 
-@Index("pk_workflow_edges", ["id"], { unique: true })
-@Index("uk_workflow_edges_version", ["id", "workflowVersionId"], {
+@Index("pk_test_flow_edges", ["id"], { unique: true })
+@Index("uk_test_flow_edges_version", ["id", "testFlowVersionId"], {
   unique: true,
 })
-@Index("idx_workflow_edges_workflow_version_id", ["workflowVersionId"], {})
-@Entity("workflow_edges", { schema: "haqa_schema" })
-export class WorkflowEdges {
+@Index("idx_test_flow_edges_test_flow_version_id", ["testFlowVersionId"], {})
+@Entity("test_flow_edges", { schema: "haqa_schema" })
+export class TestFlowEdges {
   @Column("uuid", { primary: true, name: "id" })
   id: string;
 
-  @Column("uuid", { name: "workflow_version_id" })
-  workflowVersionId: string;
+  @Column("uuid", { name: "test_flow_version_id" })
+  testFlowVersionId: string;
 
   @Column("character varying", {
     name: "source_handle",
@@ -40,24 +40,25 @@ export class WorkflowEdges {
   createdAt: Date | null;
 
   @ManyToOne(
-    () => WorkflowNodes,
-    (workflowNodes) => workflowNodes.workflowEdges
+    () => TestFlowNodes,
+    (testFlowNodes) => testFlowNodes.testFlowEdges
   )
   @JoinColumn([{ name: "source_node_id", referencedColumnName: "id" }])
-  sourceNode: WorkflowNodes;
+  sourceNode: TestFlowNodes;
 
   @ManyToOne(
-    () => WorkflowNodes,
-    (workflowNodes) => workflowNodes.workflowEdges2
+    () => TestFlowNodes,
+    (testFlowNodes) => testFlowNodes.testFlowEdges2
   )
   @JoinColumn([{ name: "target_node_id", referencedColumnName: "id" }])
-  targetNode: WorkflowNodes;
+  targetNode: TestFlowNodes;
 
   @ManyToOne(
-    () => WorkflowVersions,
-    (workflowVersions) => workflowVersions.workflowEdges,
+    () => TestFlowVersions,
+    (testFlowVersions) => testFlowVersions.testFlowEdges,
     { onDelete: "CASCADE" }
   )
-  @JoinColumn([{ name: "workflow_version_id", referencedColumnName: "id" }])
-  workflowVersion: WorkflowVersions;
+  @JoinColumn([{ name: "test_flow_version_id", referencedColumnName: "id" }])
+  testFlowVersion: TestFlowVersions;
 }
+

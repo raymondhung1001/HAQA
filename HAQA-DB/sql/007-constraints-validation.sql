@@ -31,10 +31,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
-        WHERE conname = 'workflow_executions_status_check'
+        WHERE conname = 'test_flow_executions_status_check'
     ) THEN
-        ALTER TABLE haqa_schema.workflow_executions
-        ADD CONSTRAINT workflow_executions_status_check
+        ALTER TABLE haqa_schema.test_flow_executions
+        ADD CONSTRAINT test_flow_executions_status_check
         CHECK (status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'));
     END IF;
 END $$;
@@ -44,10 +44,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
-        WHERE conname = 'node_execution_logs_status_check'
+        WHERE conname = 'test_flow_node_execution_logs_status_check'
     ) THEN
-        ALTER TABLE haqa_schema.node_execution_logs
-        ADD CONSTRAINT node_execution_logs_status_check
+        ALTER TABLE haqa_schema.test_flow_node_execution_logs
+        ADD CONSTRAINT test_flow_node_execution_logs_status_check
         CHECK (status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'SKIPPED'));
     END IF;
 END $$;
@@ -57,10 +57,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
-        WHERE conname = 'workflow_executions_time_check'
+        WHERE conname = 'test_flow_executions_time_check'
     ) THEN
-        ALTER TABLE haqa_schema.workflow_executions
-        ADD CONSTRAINT workflow_executions_time_check
+        ALTER TABLE haqa_schema.test_flow_executions
+        ADD CONSTRAINT test_flow_executions_time_check
         CHECK (end_time IS NULL OR end_time >= start_time);
     END IF;
 END $$;
@@ -70,10 +70,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
-        WHERE conname = 'node_execution_logs_time_check'
+        WHERE conname = 'test_flow_node_execution_logs_time_check'
     ) THEN
-        ALTER TABLE haqa_schema.node_execution_logs
-        ADD CONSTRAINT node_execution_logs_time_check
+        ALTER TABLE haqa_schema.test_flow_node_execution_logs
+        ADD CONSTRAINT test_flow_node_execution_logs_time_check
         CHECK (end_time IS NULL OR end_time >= start_time);
     END IF;
 END $$;
@@ -83,10 +83,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
-        WHERE conname = 'workflow_versions_version_positive_check'
+        WHERE conname = 'test_flow_versions_version_positive_check'
     ) THEN
-        ALTER TABLE haqa_schema.workflow_versions
-        ADD CONSTRAINT workflow_versions_version_positive_check
+        ALTER TABLE haqa_schema.test_flow_versions
+        ADD CONSTRAINT test_flow_versions_version_positive_check
         CHECK (version_number > 0);
     END IF;
 END $$;

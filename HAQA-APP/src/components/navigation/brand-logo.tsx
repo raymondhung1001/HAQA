@@ -15,7 +15,7 @@ export function BrandLogo({ className }: BrandLogoProps) {
           HAQA
         </h1>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Testing Platform
+          Test Flow Execution Platform
         </p>
       </div>
     </div>

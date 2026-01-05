@@ -6,14 +6,14 @@ import {
   ManyToOne,
   OneToMany,
 } from "typeorm";
-import { WorkflowVersions } from "./WorkflowVersions";
+import { TestFlowVersions } from "./TestFlowVersions";
 import { Users } from "./Users";
 
-@Index("pk_workflows", ["id"], { unique: true })
-@Index("uk_workflows_user_id", ["id", "userId"], { unique: true })
-@Index("idx_workflows_user_id_is_active", ["isActive", "userId"], {})
-@Entity("workflows", { schema: "haqa_schema" })
-export class Workflows {
+@Index("pk_test_flows", ["id"], { unique: true })
+@Index("uk_test_flows_user_id", ["id", "userId"], { unique: true })
+@Index("idx_test_flows_user_id_is_active", ["isActive", "userId"], {})
+@Entity("test_flows", { schema: "haqa_schema" })
+export class TestFlows {
   @Column("uuid", { primary: true, name: "id" })
   id: string;
 
@@ -48,12 +48,13 @@ export class Workflows {
   updatedAt: Date | null;
 
   @OneToMany(
-    () => WorkflowVersions,
-    (workflowVersions) => workflowVersions.workflow
+    () => TestFlowVersions,
+    (testFlowVersions) => testFlowVersions.testFlow
   )
-  workflowVersions: WorkflowVersions[];
+  testFlowVersions: TestFlowVersions[];
 
-  @ManyToOne(() => Users, (users) => users.workflows)
+  @ManyToOne(() => Users, (users) => users.testFlows)
   @JoinColumn([{ name: "user_id", referencedColumnName: "id" }])
   user: Users;
 }
+

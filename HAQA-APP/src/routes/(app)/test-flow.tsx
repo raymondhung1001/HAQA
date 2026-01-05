@@ -33,7 +33,7 @@ function TestFlowsPage() {
     sortBy,
   })
 
-  const workflows = searchResults?.data || []
+  const testFlows = searchResults?.data || []
   const total = searchResults?.total || 0
   const totalPages = searchResults?.totalPages || Math.ceil(total / limit) || 1
 
@@ -151,7 +151,7 @@ function TestFlowsPage() {
               </p>
             ) : (
               <>
-                {workflows.length === 0 ? (
+                {testFlows.length === 0 ? (
                   <p className="text-gray-600 dark:text-gray-400">
                     {debouncedSearchQuery
                       ? 'No test flow found matching your search.'
@@ -159,8 +159,8 @@ function TestFlowsPage() {
                   </p>
                 ) : (
                   <div className="space-y-4 mb-6">
-                    {workflows.map((workflow) => (
-                      <TestFlowCard key={workflow.id} workflow={workflow} />
+                    {testFlows.map((testFlow) => (
+                      <TestFlowCard key={testFlow.id} testFlow={testFlow} />
                     ))}
                   </div>
                 )}

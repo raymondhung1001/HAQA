@@ -178,7 +178,7 @@ function LoginPage() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          Testing Execution Workflow System
+          Test Flow Execution System
         </p>
       </div>
     </div>
