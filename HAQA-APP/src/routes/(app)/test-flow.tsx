@@ -1,13 +1,15 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { FileText, Search, Plus, Filter } from 'lucide-react'
-import { useSearchTestFlows } from '@/queries/test-flow-queries'
+import { useSearchTestFlows, useSearchTestFlowsSuspense } from '@/queries/test-flow-queries'
 import { TestFlowCard } from '@/components/test-flow-card'
+import { TestFlowSkeleton } from '@/components/test-flow-skeleton'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { useDebounce } from '@/lib/hooks'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -26,16 +28,20 @@ function TestFlowsPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
 
   // Reset to page 1 when search query changes
-  const { data: searchResults, isLoading } = useSearchTestFlows({
+  const { data: searchResults, isLoading, error } = useSearchTestFlows({
     query: debouncedSearchQuery || undefined,
     page,
     limit,
     sortBy,
   })
 
-  const testFlows = searchResults?.data || []
-  const total = searchResults?.total || 0
-  const totalPages = searchResults?.totalPages || Math.ceil(total / limit) || 1
+  // Handle session expiration error
+  useEffect(() => {
+    if (error instanceof Error && error.message.includes('Session expired')) {
+      // Redirect to login on session expiration
+      navigate({ to: '/login' })
+    }
+  }, [error, navigate])
 
   // Reset to page 1 when debounced search query changes
   useEffect(() => {
@@ -136,51 +142,114 @@ function TestFlowsPage() {
             </div>
 
             {/* Results Count */}
-            <div className="mb-4">
-              {!isLoading && total > 0 ? (
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} test flows
-                </div>
-              ) : null}
-            </div>
+            <TestFlowResultsCount
+              searchResults={searchResults}
+              isLoading={isLoading}
+              page={page}
+              limit={limit}
+            />
 
             {/* Search Results */}
-            {isLoading ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                Loading test flows...
-              </p>
-            ) : (
-              <>
-                {testFlows.length === 0 ? (
-                  <p className="text-gray-600 dark:text-gray-400">
-                    {debouncedSearchQuery
-                      ? 'No test flow found matching your search.'
-                      : 'No test flow found. Create your first test flow!'}
-                  </p>
-                ) : (
-                  <div className="space-y-4 mb-6">
-                    {testFlows.map((testFlow) => (
-                      <TestFlowCard key={testFlow.id} testFlow={testFlow} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Pagination Controls */}
-                {!isLoading && (
-                  <Pagination
-                    currentPage={page}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                    isLoading={isLoading}
-                  />
-                )}
-              </>
-            )}
+            <ErrorBoundary
+              onError={(error) => {
+                // Handle session expiration errors
+                if (error.message.includes('Session expired')) {
+                  navigate({ to: '/login' })
+                }
+              }}
+            >
+              <Suspense fallback={<TestFlowSkeleton count={limit} />}>
+                <TestFlowResults
+                  debouncedSearchQuery={debouncedSearchQuery}
+                  page={page}
+                  limit={limit}
+                  sortBy={sortBy}
+                  onPageChange={handlePageChange}
+                />
+              </Suspense>
+            </ErrorBoundary>
           </CardContent>
         </Card>
       </Container>
     </Navigation>
   )
 }
+
+function TestFlowResultsCount({
+  searchResults,
+  isLoading,
+  page,
+  limit,
+}: {
+  searchResults?: { total: number } | null
+  isLoading: boolean
+  page: number
+  limit: number
+}) {
+  const total = searchResults?.total || 0
+  return (
+    <div className="mb-4">
+      {!isLoading && total > 0 ? (
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} test flows
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TestFlowResults({
+  debouncedSearchQuery,
+  page,
+  limit,
+  sortBy,
+  onPageChange,
+}: {
+  debouncedSearchQuery: string
+  page: number
+  limit: number
+  sortBy: 'createdAt' | 'updatedAt'
+  onPageChange: (page: number) => void
+}) {
+  // Use suspense query hook - this will automatically suspend when loading
+  // Errors will be thrown and should be caught by ErrorBoundary
+  const { data: searchResults, isFetching } = useSearchTestFlowsSuspense({
+    query: debouncedSearchQuery || undefined,
+    page,
+    limit,
+    sortBy,
+  })
+
+  const testFlows = searchResults?.data || []
+  const total = searchResults?.total || 0
+  const totalPages = searchResults?.totalPages || Math.ceil(total / limit) || 1
+
+  return (
+    <>
+      {testFlows.length === 0 ? (
+        <p className="text-gray-600 dark:text-gray-400">
+          {debouncedSearchQuery
+            ? 'No test flow found matching your search.'
+            : 'No test flow found. Create your first test flow!'}
+        </p>
+      ) : (
+        <div className="space-y-4 mb-6">
+          {testFlows.map((testFlow) => (
+            <TestFlowCard key={testFlow.id} testFlow={testFlow} />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      <Pagination
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        isLoading={isFetching}
+      />
+    </>
+  )
+}
+
 
 

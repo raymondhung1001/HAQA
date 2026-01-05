@@ -21,12 +21,14 @@ CREATE INDEX IF NOT EXISTS idx_test_flow_node_execution_logs_test_flow_node_id O
 CREATE INDEX IF NOT EXISTS idx_users_active_true ON haqa_schema.users(id) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_test_flows_active_true ON haqa_schema.test_flows(id) WHERE is_active = TRUE;
 
--- Index for expired role/function lookups
+-- Partial indexes for non-expiring roles/functions (expires_at IS NULL)
+-- Note: For expired check, queries should filter by expires_at > NOW() at query time
+-- The composite index on (user_id, role_id, expires_at) from 004-index-creation.sql will help with time-based queries
 CREATE INDEX IF NOT EXISTS idx_user_roles_not_expired ON haqa_schema.user_roles(user_id, role_id) 
-WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP;
+WHERE expires_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_user_functions_not_expired ON haqa_schema.user_functions(user_id, function_id) 
-WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP;
+WHERE expires_at IS NULL;
 
 COMMIT;
 

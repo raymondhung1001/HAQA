@@ -191,7 +191,8 @@ class ApiClient {
 
   /**
    * Clear all stored tokens and cookies
-   * Note: HttpOnly cookies can only be cleared by server, but we clear any non-HttpOnly cookies
+   * Note: HttpOnly cookies are managed by the server and will expire naturally
+   * We only clear non-HttpOnly cookies that might exist client-side
    */
   clearTokens(): void {
     if (!this.isBrowser()) return
@@ -206,13 +207,9 @@ class ApiClient {
     // Clear auth cache
     this.clearAuthCache()
 
-    // Call logout endpoint to clear HttpOnly cookies on server
-    fetch(`${this.baseUrl}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {
-      // Silently fail - server might not have this endpoint
-    })
+    // Note: HttpOnly cookies are managed server-side and will expire naturally
+    // No need to call a logout endpoint - the server will handle cookie expiration
+    // If a logout endpoint is needed in the future, it should be added to the API
   }
 
   /**

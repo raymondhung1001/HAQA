@@ -1,4 +1,4 @@
-import { useQuery, UseQueryOptions } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery, UseQueryOptions, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api'
 
 export interface Testflow {
@@ -51,6 +51,34 @@ export function useSearchTestFlows(
       return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
     },
     enabled: true,
+    ...options,
+  })
+}
+
+/**
+ * Search test flows query hook with Suspense support
+ * Note: This will throw errors that should be caught by ErrorBoundary
+ */
+export function useSearchTestFlowsSuspense(
+  params?: SearchTestFlowsParams,
+  options?: Omit<
+    UseSuspenseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, (string | number)[]>,
+    'queryKey' | 'queryFn'
+  >
+) {
+  return useSuspenseQuery({
+    queryKey: ['testFlows', params?.query || '', params?.page || 1, params?.limit || 10, params?.sortBy || 'createdAt'],
+    queryFn: async () => {
+      const response = await apiClient.searchTestFlows({
+        query: params?.query || undefined,
+        isActive: params?.isActive,
+        page: params?.page,
+        limit: params?.limit,
+        sortBy: params?.sortBy,
+      })
+      // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
+      return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
+    },
     ...options,
   })
 }
