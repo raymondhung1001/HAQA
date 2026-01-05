@@ -1,11 +1,12 @@
-import { useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
 import { useLogout } from '@/queries/auth-queries'
 import { DesktopSidebar } from './navigation/desktop-sidebar'
 import { MobileHeader } from './navigation/mobile-header'
 import { MobileSidebar } from './navigation/mobile-sidebar'
 import { PageHeader } from './navigation/page-header'
 import { navItems } from './navigation/nav-items'
+import { uiStore, uiActions } from '@/stores'
 
 interface NavigationProps {
   children: React.ReactNode
@@ -14,7 +15,7 @@ interface NavigationProps {
 export function Navigation({ children }: NavigationProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const uiState = useStore(uiStore)
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigate({ to: '/login' })
@@ -23,12 +24,12 @@ export function Navigation({ children }: NavigationProps) {
 
   const handleLogout = () => {
     logoutMutation.mutate()
-    setMobileMenuOpen(false)
+    uiActions.closeMobileMenu()
   }
 
   const handleNavClick = (path: string) => {
     navigate({ to: path })
-    setMobileMenuOpen(false)
+    uiActions.closeMobileMenu()
   }
 
   const activePath = location.pathname
@@ -46,11 +47,11 @@ export function Navigation({ children }: NavigationProps) {
         isLoggingOut={logoutMutation.isPending}
       />
 
-      <MobileHeader onMenuOpen={() => setMobileMenuOpen(true)} />
+      <MobileHeader onMenuOpen={() => uiActions.openMobileMenu()} />
 
       <MobileSidebar
-        open={mobileMenuOpen}
-        onOpenChange={setMobileMenuOpen}
+        open={uiState.mobileMenuOpen}
+        onOpenChange={uiActions.setMobileMenuOpen}
         navItems={navItems}
         activePath={activePath}
         onNavClick={handleNavClick}

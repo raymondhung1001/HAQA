@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useEffect, Suspense } from 'react'
+import { useEffect, Suspense } from 'react'
+import { useStore } from '@tanstack/react-store'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,27 +13,25 @@ import { TestFlowSkeleton } from '@/components/test-flow-skeleton'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { useDebounce } from '@/lib/hooks'
 import { Pagination } from '@/components/ui/pagination'
+import { testFlowFiltersStore, testFlowFiltersActions } from '@/stores'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
 })
 
 function TestFlowsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
-  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt'>('createdAt')
   const navigate = useNavigate()
-
+  const filters = useStore(testFlowFiltersStore)
+  
   // Debounce search query to avoid too many API calls
-  const debouncedSearchQuery = useDebounce(searchQuery, 500)
+  const debouncedSearchQuery = useDebounce(filters.searchQuery, 500)
 
   // Reset to page 1 when search query changes
   const { data: searchResults, isLoading, error } = useSearchTestFlows({
     query: debouncedSearchQuery || undefined,
-    page,
-    limit,
-    sortBy,
+    page: filters.page,
+    limit: filters.limit,
+    sortBy: filters.sortBy,
   })
 
   // Handle session expiration error
@@ -43,23 +42,8 @@ function TestFlowsPage() {
     }
   }, [error, navigate])
 
-  // Reset to page 1 when debounced search query changes
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearchQuery])
-
-  // Reset to page 1 when limit changes
-  useEffect(() => {
-    setPage(1)
-  }, [limit])
-
-  // Reset to page 1 when sortBy changes
-  useEffect(() => {
-    setPage(1)
-  }, [sortBy])
-
   const handlePageChange = (newPage: number) => {
-    setPage(newPage)
+    testFlowFiltersActions.setPage(newPage)
     // Scroll to top when page changes
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -91,10 +75,9 @@ function TestFlowsPage() {
                 <input
                   type="text"
                   placeholder="Search test flow..."
-                  value={searchQuery}
+                  value={filters.searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value)
-                    setPage(1) // Reset to first page when searching
+                    testFlowFiltersActions.setSearchQuery(e.target.value)
                   }}
                   className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -106,16 +89,16 @@ function TestFlowsPage() {
                 <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Sort by:</span>
                 <div className="flex items-center gap-2">
                   <Button
-                    variant={sortBy === 'createdAt' ? 'default' : 'outline'}
+                    variant={filters.sortBy === 'createdAt' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setSortBy('createdAt')}
+                    onClick={() => testFlowFiltersActions.setSortBy('createdAt')}
                   >
                     Latest Created
                   </Button>
                   <Button
-                    variant={sortBy === 'updatedAt' ? 'default' : 'outline'}
+                    variant={filters.sortBy === 'updatedAt' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setSortBy('updatedAt')}
+                    onClick={() => testFlowFiltersActions.setSortBy('updatedAt')}
                   >
                     Recently Updated
                   </Button>
@@ -129,8 +112,8 @@ function TestFlowsPage() {
                 </label>
                 <Select
                   id="page-size"
-                  value={limit}
-                  onChange={(e) => setLimit(Number(e.target.value))}
+                  value={filters.limit}
+                  onChange={(e) => testFlowFiltersActions.setLimit(Number(e.target.value))}
                   className="w-20"
                 >
                   <option value={10}>10</option>
@@ -145,8 +128,8 @@ function TestFlowsPage() {
             <TestFlowResultsCount
               searchResults={searchResults}
               isLoading={isLoading}
-              page={page}
-              limit={limit}
+              page={filters.page}
+              limit={filters.limit}
             />
 
             {/* Search Results */}
@@ -158,12 +141,12 @@ function TestFlowsPage() {
                 }
               }}
             >
-              <Suspense fallback={<TestFlowSkeleton count={limit} />}>
+              <Suspense fallback={<TestFlowSkeleton count={filters.limit} />}>
                 <TestFlowResults
                   debouncedSearchQuery={debouncedSearchQuery}
-                  page={page}
-                  limit={limit}
-                  sortBy={sortBy}
+                  page={filters.page}
+                  limit={filters.limit}
+                  sortBy={filters.sortBy}
                   onPageChange={handlePageChange}
                 />
               </Suspense>
