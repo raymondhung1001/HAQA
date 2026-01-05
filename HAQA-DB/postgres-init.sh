@@ -14,22 +14,22 @@ for f in "$TEMPLATE_DIR"/*.sql; do
   
   sed "s|##APP_USER_PASSWORD##|${APP_USER_PASSWORD}|g" "$f" > "$PROCESSED_DIR/$filename"
 done
-log "SQL templates processed successfully."
+echo "SQL templates processed successfully."
 
-log "Waiting for PostgreSQL to be ready..."
+echo "Waiting for PostgreSQL to be ready..."
 RETRIES=30
 until pg_isready -U postgres || [ $RETRIES -eq 0 ]; do
-    log "Waiting for PostgreSQL... ($RETRIES retries left)"
+    echo "Waiting for PostgreSQL... ($RETRIES retries left)"
     sleep 1
     RETRIES=$((RETRIES-1))
 done
 
 if [ $RETRIES -eq 0 ]; then
-    log "ERROR: PostgreSQL did not become ready in time"
+    echo "ERROR: PostgreSQL did not become ready in time"
     exit 1
 fi
 
-log "PostgreSQL is ready. Running initialization scripts..."
+echo "PostgreSQL is ready. Running initialization scripts..."
 
 PSQL="psql -v ON_ERROR_STOP=1 -U postgres -d $POSTGRES_DB"
 
@@ -39,15 +39,15 @@ run_sql_file() {
     local description="$2"
     
     if [ ! -f "$file" ]; then
-        log "WARNING: SQL file $file not found, skipping..."
+        echo "WARNING: SQL file $file not found, skipping..."
         return 0
     fi
     
-    log "Running $description..."
+    echo "Running $description..."
     if $PSQL -f "$file"; then
-        log "✓ $description completed successfully"
+        echo "✓ $description completed successfully"
     else
-        log "ERROR: Failed to execute $description"
+        echo "ERROR: Failed to execute $description"
         exit 1
     fi
 }
@@ -68,5 +68,5 @@ run_sql_file "$PROCESSED_DIR/008-foreign-key-indexes.sql" "Foreign key indexes"
 run_sql_file "$PROCESSED_DIR/999-grant-public-schema.sql" "Grant permissions"
 run_sql_file "$PROCESSED_DIR/9999-data-preparation.sql" "Data preparation"
 
-log "Database initialization completed successfully."
-log "All tables, indexes, constraints, and triggers have been created."
+echo "Database initialization completed successfully."
+echo "All tables, indexes, constraints, and triggers have been created."
