@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLogout } from '@/queries/auth-queries'
 import { DesktopSidebar } from './navigation/desktop-sidebar'
 import { MobileHeader } from './navigation/mobile-header'
@@ -16,9 +17,13 @@ export function Navigation({ children }: NavigationProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const uiState = useStore(uiStore)
+  const queryClient = useQueryClient()
   const logoutMutation = useLogout({
     onSuccess: () => {
-      navigate({ to: '/login' })
+      // Clear all queries on logout
+      queryClient.clear()
+      // Use window.location for a hard redirect to ensure complete logout
+      window.location.href = '/login'
     },
   })
 
