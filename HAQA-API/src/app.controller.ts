@@ -16,18 +16,6 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Get('auth/check')
-  checkAuth(@CurrentUser() user: Users): { authenticated: boolean; user: { id: number; username: string; email: string } } {
-    return {
-      authenticated: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      },
-    };
-  }
-
   @Get('profile')
   getProfile(@CurrentUser() user: Users): Users {
     return user;

@@ -14,6 +14,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { useDebounce } from '@/lib/hooks'
 import { Pagination } from '@/components/ui/pagination'
 import { testFlowFiltersStore, testFlowFiltersActions } from '@/stores'
+import { SessionExpiredError } from '@/lib/withApi'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
@@ -34,13 +35,15 @@ function TestFlowsPage() {
     sortBy: filters.sortBy,
   })
 
-  // Handle session expiration error
+  // Handle session expiration error (backup handler - global handler in QueryClient should catch this first)
   useEffect(() => {
-    if (error instanceof Error && error.message.includes('Session expired')) {
-      // Redirect to login on session expiration
-      navigate({ to: '/login' })
+    if (error instanceof SessionExpiredError || (error instanceof Error && error.message.includes('Session expired'))) {
+      // Use window.location for a hard redirect to ensure complete logout
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
-  }, [error, navigate])
+  }, [error])
 
   const handlePageChange = (newPage: number) => {
     testFlowFiltersActions.setPage(newPage)
@@ -135,9 +138,9 @@ function TestFlowsPage() {
             {/* Search Results */}
             <ErrorBoundary
               onError={(error) => {
-                // Handle session expiration errors
-                if (error.message.includes('Session expired')) {
-                  navigate({ to: '/login' })
+                // Handle session expiration errors (ErrorBoundary will auto-redirect, but this is a backup)
+                if ((error instanceof SessionExpiredError || error.message.includes('Session expired')) && window.location.pathname !== '/login') {
+                  window.location.href = '/login'
                 }
               }}
             >

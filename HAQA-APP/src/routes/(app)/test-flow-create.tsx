@@ -15,7 +15,7 @@ import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, ArrowLeft } from 'lucide-react'
-import { apiClient } from '@/lib/api'
+import { apiClient } from '@/lib/withApi'
 
 export const Route = createFileRoute('/(app)/test-flow-create')({
   component: CreateTestFlowPage,
@@ -50,7 +50,7 @@ function CreateTestFlowPage() {
       description?: string
       isActive?: boolean
     }) => {
-      const response = await apiClient.createTestCase(data)
+      const response = await apiClient.createTestFlow(data)
       // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
       return (response?.data || response)
     },

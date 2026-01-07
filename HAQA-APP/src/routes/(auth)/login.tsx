@@ -3,23 +3,15 @@ import { useEffect } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { LogIn, Loader2 } from 'lucide-react'
 import { useLogin } from '@/queries/auth-queries'
-import { apiClient } from '@/lib/api'
+import { apiClient } from '@/lib/withApi'
+import { authMiddleware, navigateToReturnUrl } from '@/lib/authMiddleware'
+import { apiGet } from '@/lib/withApi'
 
 export const Route = createFileRoute('/(auth)/login')({
   beforeLoad: async () => {
-    // If already authenticated, redirect to home (dashboard) (only on client side)
-    // This runs before the component renders, preventing any flash
-    if (typeof window !== 'undefined') {
-      // Check authentication via API call (HttpOnly cookies)
-      const isAuthenticated = await apiClient.checkAuth()
-      
-      if (isAuthenticated) {
-        // User is authenticated, redirect to home
-        throw redirect({
-          to: '/',
-        })
-      }
-    }
+    // Use auth middleware to check if user is already authenticated
+    // This will redirect authenticated users away from login page
+    await authMiddleware(undefined, '/login', false)
   },
   component: LoginPage,
 })
@@ -29,10 +21,8 @@ function LoginPage() {
   useEffect(() => {
     // Fetch CSRF token by making a GET request to ensure it's available
     // This will set the cookie and make the token ready for the login request
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/`, {
-      method: 'GET',
-      credentials: 'include',
-    }).catch(() => {
+    // Using withApi for consistency, but disabling retryOn401 since we're on login page
+    apiGet('/', { retryOn401: false }).catch(() => {
       // Silently fail - CSRF token fetch error
     })
   }, [])
@@ -47,8 +37,8 @@ function LoginPage() {
       const isAuthenticated = await apiClient.checkAuth()
       
       if (isAuthenticated) {
-        // Authentication successful, navigate to home (dashboard)
-        window.location.href = '/'
+        // Authentication successful, navigate to return URL or home
+        navigateToReturnUrl('/')
       } else {
         // Authentication failed - tokens not set properly
         alert('Login successful but authentication failed. Please try again.')
