@@ -74,10 +74,14 @@ export function useLogin(
     onSuccess: async (data) => {
       // Mark session as authenticated after successful login
       // No API call needed - tokens are in HttpOnly cookies
-      setSessionAuthenticated({
-        user: data, // Store token response data if needed
-        authenticated: true,
-      })
+      // Use expiresAt from token response to set proper expiration
+      setSessionAuthenticated(
+        {
+          user: data, // Store token response data if needed
+          authenticated: true,
+        },
+        data.expiresAt || null // Use token expiration time
+      )
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
       queryClient.invalidateQueries()
@@ -88,6 +92,7 @@ export function useLogin(
 
 /**
  * Logout mutation hook
+ * Clears session cache - cookies will expire naturally or be cleared by server
  */
 export function useLogout(
   options?: Omit<
@@ -99,13 +104,15 @@ export function useLogout(
 
   return useMutation({
     mutationFn: async () => {
-      // Sign out using better-auth
-      await authClient.signOut()
+      // Just clear session cache - no API call needed
+      // HttpOnly cookies will be handled by the browser/server
+      clearSessionCache()
     },
     onSuccess: () => {
-      // Clear session cache and all queries on logout
-      clearSessionCache()
+      // Clear all queries on logout
       queryClient.clear()
+      // Invalidate auth session query
+      queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
     },
     ...options,
   })

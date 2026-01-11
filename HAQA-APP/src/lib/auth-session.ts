@@ -1,17 +1,16 @@
-import { authClient } from './auth-client'
-
 /**
  * Session cache to avoid repeated API calls
+ * Since we use HttpOnly cookies, we can't read tokens directly,
+ * so we rely on session cache set after login
  */
 let sessionCache: {
   session: any | null
   timestamp: number
   isValid: boolean
-  lastVerified: number
+  expiresAt: number | null
 } | null = null
 
 const SESSION_CACHE_TTL = 5 * 60 * 1000 // 5 minutes - how long to trust cached session
-const SESSION_VERIFY_INTERVAL = 15 * 60 * 1000 // 15 minutes - how often to verify with API
 
 /**
  * Get cached session if still valid
@@ -20,6 +19,14 @@ function getCachedSession(): { session: any | null; isValid: boolean } | null {
   if (!sessionCache) return null
   
   const now = Date.now()
+  
+  // Check if session has expired based on expiresAt
+  if (sessionCache.expiresAt && now >= sessionCache.expiresAt) {
+    // Session expired
+    sessionCache = null
+    return null
+  }
+  
   // Use cached session if it's within the TTL
   if (now - sessionCache.timestamp < SESSION_CACHE_TTL) {
     return {
@@ -34,26 +41,19 @@ function getCachedSession(): { session: any | null; isValid: boolean } | null {
 }
 
 /**
- * Check if we need to verify session with API
- */
-function shouldVerifySession(): boolean {
-  if (!sessionCache) return true
-  
-  const now = Date.now()
-  // Verify if last verification was more than VERIFY_INTERVAL ago
-  return (now - sessionCache.lastVerified) > SESSION_VERIFY_INTERVAL
-}
-
-/**
  * Set session cache
  */
-function setSessionCache(session: any | null, isValid: boolean, verified: boolean = false): void {
+function setSessionCache(
+  session: any | null, 
+  isValid: boolean, 
+  expiresAt: number | null = null
+): void {
   const now = Date.now()
   sessionCache = {
     session,
     isValid,
     timestamp: now,
-    lastVerified: verified ? now : (sessionCache?.lastVerified || 0),
+    expiresAt: expiresAt || (isValid ? now + SESSION_CACHE_TTL : null),
   }
 }
 
@@ -65,58 +65,21 @@ export function clearSessionCache(): void {
 }
 
 /**
- * Verify session using better-auth (no API call needed)
- * Since tokens are in HttpOnly cookies, we rely on better-auth's session management
- */
-async function verifySessionWithBetterAuth(): Promise<{ session: any | null; isValid: boolean }> {
-  try {
-    // Try to get session from better-auth
-    const session = await authClient.getSession()
-    const isValid = !!session?.data?.session
-    
-    // Cache the result
-    setSessionCache(session?.data?.session || null, isValid, true)
-    
-    return {
-      session: session?.data?.session || null,
-      isValid,
-    }
-  } catch (error) {
-    // If better-auth session check fails, check cache
-    const cached = getCachedSession()
-    if (cached) {
-      return cached
-    }
-    
-    // No session found
-    setSessionCache(null, false, false)
-    return {
-      session: null,
-      isValid: false,
-    }
-  }
-}
-
-/**
- * Check authentication status using cached session
- * Uses better-auth session management instead of API calls
+ * Check authentication status using cached session only
+ * No API calls - relies on session cache set after login
  */
 export async function getAuthSession(): Promise<{ session: any | null; isValid: boolean }> {
-  // Check cache first
+  // Check cache first - this is the only source of truth
   const cached = getCachedSession()
   if (cached !== null) {
-    // If we have a cached session, check if we need to verify it
-    if (shouldVerifySession()) {
-      // Verify in background using better-auth (don't wait for it)
-      verifySessionWithBetterAuth().catch(() => {
-        // Silently fail - we'll use cached value
-      })
-    }
     return cached
   }
 
-  // No cache or cache expired - verify with better-auth
-  return verifySessionWithBetterAuth()
+  // No cache or cache expired - not authenticated
+  return {
+    session: null,
+    isValid: false,
+  }
 }
 
 /**
@@ -128,18 +91,19 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
- * Force refresh session using better-auth
- */
-export async function refreshAuthSession(): Promise<{ session: any | null; isValid: boolean }> {
-  clearSessionCache()
-  return verifySessionWithBetterAuth()
-}
-
-/**
  * Mark session as authenticated (used after successful login)
  * This avoids needing to call any API endpoint
+ * @param sessionData - Optional session data to store
+ * @param expiresAt - Optional expiration timestamp (from token response)
  */
-export function setSessionAuthenticated(sessionData: any = null): void {
-  setSessionCache(sessionData || { authenticated: true }, true, true)
+export function setSessionAuthenticated(
+  sessionData: any = null, 
+  expiresAt: number | null = null
+): void {
+  setSessionCache(
+    sessionData || { authenticated: true }, 
+    true,
+    expiresAt
+  )
 }
 
