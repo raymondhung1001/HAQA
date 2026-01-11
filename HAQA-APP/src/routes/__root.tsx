@@ -2,9 +2,12 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { AuthUIProvider } from '@daveyplate/better-auth-ui'
+import { useNavigate, Link } from '@tanstack/react-router'
 
 import appCss from '../styles.css?url'
 import { queryClient } from '@/queries/query-client'
+import { authClient } from '@/lib/auth-client'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,7 +42,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </QueryClientProvider>
         <TanStackDevtools
           config={{
@@ -55,5 +60,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function AuthProvider({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
+  // Create wrapper functions for better-auth-ui compatibility
+  const navigateWrapper = (href: string) => {
+    navigate({ to: href as any })
+  }
+  
+  // Create a Link wrapper component
+  const LinkWrapper = ({ href, className, children, ...props }: any) => {
+    return (
+      <Link to={href as any} className={className} {...props}>
+        {children}
+      </Link>
+    )
+  }
+  
+  return (
+    <AuthUIProvider authClient={authClient} navigate={navigateWrapper} Link={LinkWrapper}>
+      {children}
+    </AuthUIProvider>
   )
 }

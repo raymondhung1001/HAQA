@@ -1,18 +1,45 @@
-import { authMiddlewareWithRefresh } from './authMiddleware'
+import { redirect } from '@tanstack/react-router'
+import { getAuthSession } from './auth-session'
 
 /**
- * Global authentication guard function
- * Checks if user is authenticated and redirects to login if not
+ * Global authentication guard function for route protection
+ * Uses cached session to avoid repeated API calls
  * This should be used in route beforeLoad hooks
- * 
- * Uses the authMiddlewareWithRefresh for automatic token refresh handling
- * 
- * With HttpOnly cookies:
- * - Tokens are stored securely in HttpOnly cookies (set by server)
- * - Client checks authentication via API call
- * - No client-side token storage (prevents XSS attacks)
  */
 export async function requireAuth(): Promise<void> {
-  // Use the enhanced auth middleware with automatic token refresh
-  await authMiddlewareWithRefresh(undefined, undefined, true, true)
+  // Only run on client side
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    // Check authentication using cached session (avoids API call)
+    const { isValid } = await getAuthSession()
+
+    // If not authenticated, redirect to login
+    if (!isValid) {
+      const currentPath = window.location.pathname
+      const returnUrl = currentPath !== '/' ? `?returnUrl=${encodeURIComponent(currentPath)}` : ''
+      throw redirect({
+        to: '/login',
+        search: returnUrl ? { returnUrl: currentPath } : undefined,
+      })
+    }
+
+    // User is authenticated
+    return
+  } catch (error) {
+    // If it's a redirect, re-throw it
+    if (error && typeof error === 'object' && 'to' in error) {
+      throw error
+    }
+
+    // For other errors, redirect to login
+    const currentPath = window.location.pathname
+    throw redirect({
+      to: '/login',
+      search: { returnUrl: currentPath },
+    })
+  }
 }
+

@@ -15,9 +15,5 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
-
-  @Get('profile')
-  getProfile(@CurrentUser() user: Users): Users {
-    return user;
-  }
+  
 }

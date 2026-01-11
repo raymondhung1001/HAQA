@@ -14,7 +14,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { useDebounce } from '@/lib/hooks'
 import { Pagination } from '@/components/ui/pagination'
 import { testFlowFiltersStore, testFlowFiltersActions } from '@/stores'
-import { SessionExpiredError } from '@/lib/withApi'
+import { SessionExpiredError } from '@/lib/api-client'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,

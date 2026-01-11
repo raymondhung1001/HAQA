@@ -15,7 +15,7 @@ import { Navigation } from '@/components/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, ArrowLeft } from 'lucide-react'
-import { apiClient } from '@/lib/withApi'
+import { apiClient } from '@/lib/api-client'
 
 export const Route = createFileRoute('/(app)/test-flow-create')({
   component: CreateTestFlowPage,

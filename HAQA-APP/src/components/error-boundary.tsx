@@ -1,5 +1,5 @@
 import { Component, ReactNode } from 'react'
-import { SessionExpiredError } from '@/lib/withApi'
+import { SessionExpiredError } from '@/lib/api-client'
 
 interface ErrorBoundaryProps {
   children: ReactNode

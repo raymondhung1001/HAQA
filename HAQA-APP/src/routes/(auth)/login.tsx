@@ -1,51 +1,56 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { LogIn, Loader2 } from 'lucide-react'
 import { useLogin } from '@/queries/auth-queries'
-import { apiClient } from '@/lib/withApi'
-import { authMiddleware, navigateToReturnUrl } from '@/lib/authMiddleware'
-import { apiGet } from '@/lib/withApi'
+import { getAuthSession } from '@/lib/auth-session'
 
 export const Route = createFileRoute('/(auth)/login')({
   beforeLoad: async () => {
-    // Use auth middleware to check if user is already authenticated
-    // This will redirect authenticated users away from login page
-    await authMiddleware(undefined, '/login', false)
+    // Check if user is already authenticated using cached session
+    try {
+      const { isValid } = await getAuthSession()
+      if (isValid) {
+        // User is authenticated, redirect to home
+        throw redirect({
+          to: '/',
+        })
+      }
+    } catch (error) {
+      // If it's a redirect, re-throw it
+      if (error && typeof error === 'object' && 'to' in error) {
+        throw error
+      }
+      // Otherwise, continue to login page
+    }
   },
   component: LoginPage,
 })
 
 function LoginPage() {
-  // Pre-fetch CSRF token when component mounts
-  useEffect(() => {
-    // Fetch CSRF token by making a GET request to ensure it's available
-    // This will set the cookie and make the token ready for the login request
-    // Using withApi for consistency, but disabling retryOn401 since we're on login page
-    apiGet('/', { retryOn401: false }).catch(() => {
-      // Silently fail - CSRF token fetch error
-    })
-  }, [])
-
+  const navigate = useNavigate()
   const loginMutation = useLogin({
     onSuccess: async () => {
       // Login successful - tokens are stored in HttpOnly cookies by the server
-      // Verify authentication status before navigating
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Session is already marked as authenticated in the mutation's onSuccess
+      // Small delay to ensure state is updated
+      await new Promise(resolve => setTimeout(resolve, 50))
       
-      // Check if authentication is valid
-      const isAuthenticated = await apiClient.checkAuth()
-      
-      if (isAuthenticated) {
-        // Authentication successful, navigate to return URL or home
-        navigateToReturnUrl('/')
-      } else {
-        // Authentication failed - tokens not set properly
-        alert('Login successful but authentication failed. Please try again.')
+      // Navigate immediately - session is already authenticated
+      try {
+        // Get return URL from search params
+        const searchParams = new URLSearchParams(window.location.search)
+        const returnUrl = searchParams.get('returnUrl')
+        
+        if (returnUrl && returnUrl.startsWith('/')) {
+          navigate({ to: returnUrl as any })
+        } else {
+          navigate({ to: '/' })
+        }
+      } catch (error) {
+        console.error('Failed to navigate after login:', error)
+        // Fallback navigation
+        navigate({ to: '/' })
       }
-    },
-    onError: () => {
-      // Error is handled by the mutation error state
     },
   })
 

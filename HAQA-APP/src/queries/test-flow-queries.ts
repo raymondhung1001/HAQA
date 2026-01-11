@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery, UseQueryOptions, UseSuspenseQueryOptions } from '@tanstack/react-query'
-import { apiClient, SessionExpiredError, UnauthorizedError } from '@/lib/withApi'
+import { apiClient } from '@/lib/api-client'
+import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
 export interface Testflow {
   id: string

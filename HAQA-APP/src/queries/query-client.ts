@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { SessionExpiredError, UnauthorizedError } from '@/lib/withApi'
+import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
 /**
  * Create a new QueryClient instance with default options
