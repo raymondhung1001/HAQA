@@ -1,5 +1,4 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react-query'
-import { authClient } from '@/lib/auth-client'
 import { apiPost } from '@/lib/api-client'
 import { clearSessionCache, setSessionAuthenticated } from '@/lib/auth-session'
 
@@ -42,10 +41,7 @@ export function useLogin(
 
       const response = await apiPost<{ data?: AuthTokenResponse } | AuthTokenResponse>(
         '/token',
-        apiCredentials,
-        {
-          retryOn401: false, // Don't retry login on 401
-        }
+        apiCredentials
       )
 
       // The API wraps responses in a SuccessResponse format with a 'data' property

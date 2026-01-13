@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, Suspense } from 'react'
+import { Suspense } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { Container } from '@/components/ui/container'
 import { Navigation } from '@/components/navigation'
@@ -14,7 +14,6 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { useDebounce } from '@/lib/hooks'
 import { Pagination } from '@/components/ui/pagination'
 import { testFlowFiltersStore, testFlowFiltersActions } from '@/stores'
-import { SessionExpiredError } from '@/lib/api-client'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
@@ -28,22 +27,12 @@ function TestFlowsPage() {
   const debouncedSearchQuery = useDebounce(filters.searchQuery, 500)
 
   // Reset to page 1 when search query changes
-  const { data: searchResults, isLoading, error } = useSearchTestFlows({
+  const { data: searchResults, isLoading } = useSearchTestFlows({
     query: debouncedSearchQuery || undefined,
     page: filters.page,
     limit: filters.limit,
     sortBy: filters.sortBy,
   })
-
-  // Handle session expiration error (backup handler - global handler in QueryClient should catch this first)
-  useEffect(() => {
-    if (error instanceof SessionExpiredError || (error instanceof Error && error.message.includes('Session expired'))) {
-      // Use window.location for a hard redirect to ensure complete logout
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
-    }
-  }, [error])
 
   const handlePageChange = (newPage: number) => {
     testFlowFiltersActions.setPage(newPage)
@@ -136,14 +125,7 @@ function TestFlowsPage() {
             />
 
             {/* Search Results */}
-            <ErrorBoundary
-              onError={(error) => {
-                // Handle session expiration errors (ErrorBoundary will auto-redirect, but this is a backup)
-                if ((error instanceof SessionExpiredError || error.message.includes('Session expired')) && window.location.pathname !== '/login') {
-                  window.location.href = '/login'
-                }
-              }}
-            >
+            <ErrorBoundary>
               <Suspense fallback={<TestFlowSkeleton count={filters.limit} />}>
                 <TestFlowResults
                   debouncedSearchQuery={debouncedSearchQuery}

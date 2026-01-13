@@ -1,6 +1,5 @@
 import { useQuery, useSuspenseQuery, UseQueryOptions, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
-import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
 export interface Testflow {
   id: string
@@ -41,24 +40,15 @@ export function useSearchTestFlows(
   return useQuery({
     queryKey: ['testFlows', params?.query || '', params?.page || 1, params?.limit || 10, params?.sortBy || 'createdAt'],
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows({
-          query: params?.query || undefined,
-          isActive: params?.isActive,
-          page: params?.page,
-          limit: params?.limit,
-          sortBy: params?.sortBy,
-        })
-        // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
-        return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
-      } catch (error) {
-        // Re-throw SessionExpiredError and UnauthorizedError as-is so React Query can handle them properly
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        // Re-throw other errors
-        throw error
-      }
+      const response = await apiClient.searchTestFlows({
+        query: params?.query || undefined,
+        isActive: params?.isActive,
+        page: params?.page,
+        limit: params?.limit,
+        sortBy: params?.sortBy,
+      })
+      // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
+      return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
     },
     enabled: true,
     ...options,
@@ -79,24 +69,15 @@ export function useSearchTestFlowsSuspense(
   return useSuspenseQuery({
     queryKey: ['testFlows', params?.query || '', params?.page || 1, params?.limit || 10, params?.sortBy || 'createdAt'],
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows({
-          query: params?.query || undefined,
-          isActive: params?.isActive,
-          page: params?.page,
-          limit: params?.limit,
-          sortBy: params?.sortBy,
-        })
-        // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
-        return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
-      } catch (error) {
-        // Re-throw SessionExpiredError and UnauthorizedError as-is so React Query can handle them properly
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        // Re-throw other errors
-        throw error
-      }
+      const response = await apiClient.searchTestFlows({
+        query: params?.query || undefined,
+        isActive: params?.isActive,
+        page: params?.page,
+        limit: params?.limit,
+        sortBy: params?.sortBy,
+      })
+      // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
+      return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
     },
     ...options,
   })

@@ -2,39 +2,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 /**
- * Custom error class for session expiration
- */
-export class SessionExpiredError extends Error {
-  constructor(message: string = 'Session expired. Please login again.') {
-    super(message)
-    this.name = 'SessionExpiredError'
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, SessionExpiredError)
-    }
-  }
-}
-
-/**
- * Custom error class for unauthorized access
- */
-export class UnauthorizedError extends Error {
-  constructor(message: string = 'Not authorized. Please login again.') {
-    super(message)
-    this.name = 'UnauthorizedError'
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, UnauthorizedError)
-    }
-  }
-}
-
-/**
  * Extended RequestInit with additional options for apiRequest
  */
 export interface ApiRequestOptions extends RequestInit {
-  /**
-   * Whether to retry the request on 401 with token refresh (default: true)
-   */
-  retryOn401?: boolean
   /**
    * Whether to include CSRF token (default: auto-detect based on method)
    */
@@ -136,7 +106,6 @@ export async function apiRequest<T = any>(
   options: ApiRequestOptions = {}
 ): Promise<T | ApiResponse<T>> {
   const {
-    retryOn401 = true,
     includeCsrf,
     baseUrl: customBaseUrl,
     parseJson = true,
@@ -168,7 +137,7 @@ export async function apiRequest<T = any>(
     }
   }
 
-  // Make the request - tokens are automatically sent via HttpOnly cookies
+  // Make the request
   let response: Response
   
   try {
@@ -189,17 +158,6 @@ export async function apiRequest<T = any>(
       throw new Error(errorMessage)
     }
     throw error
-  }
-
-  // Handle 401 responses
-  if (response.status === 401) {
-    if (retryOn401) {
-      // For 401 errors, throw unauthorized error
-      // The auth system will handle redirects
-      throw new UnauthorizedError('Not authorized. Please login again.')
-    } else {
-      throw new UnauthorizedError('Not authorized. Please login again.')
-    }
   }
 
   // Handle non-OK responses
