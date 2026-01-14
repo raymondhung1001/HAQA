@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 
 import appCss from '../styles.css?url'
 import { queryClient } from '@/queries/query-client'
+import { AuthProvider } from '@/context/auth-context'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,7 +40,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </QueryClientProvider>
         <TanStackDevtools
           config={{
