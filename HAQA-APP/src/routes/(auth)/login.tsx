@@ -1,58 +1,16 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { LogIn, Loader2 } from 'lucide-react'
-import { useLogin } from '@/queries/auth-queries'
-import { getAuthSession } from '@/lib/auth-session'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/(auth)/login')({
-  beforeLoad: async () => {
-    // Check if user is already authenticated using cached session
-    try {
-      const { isValid } = await getAuthSession()
-      if (isValid) {
-        // User is authenticated, redirect to home
-        throw redirect({
-          to: '/',
-        })
-      }
-    } catch (error) {
-      // If it's a redirect, re-throw it
-      if (error && typeof error === 'object' && 'to' in error) {
-        throw error
-      }
-      // Otherwise, continue to login page
-    }
-  },
   component: LoginPage,
 })
 
 function LoginPage() {
   const navigate = useNavigate()
-  const loginMutation = useLogin({
-    onSuccess: async () => {
-      // Login successful - tokens are stored in HttpOnly cookies by the server
-      // Session is already marked as authenticated in the mutation's onSuccess
-      // Small delay to ensure state is updated
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      // Navigate immediately - session is already authenticated
-      try {
-        // Get return URL from search params
-        const searchParams = new URLSearchParams(window.location.search)
-        const returnUrl = searchParams.get('returnUrl')
-        
-        if (returnUrl && returnUrl.startsWith('/')) {
-          navigate({ to: returnUrl as any })
-        } else {
-          navigate({ to: '/' })
-        }
-      } catch (error) {
-        console.error('Failed to navigate after login:', error)
-        // Fallback navigation
-        navigate({ to: '/' })
-      }
-    },
-  })
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm({
     defaultValues: {
@@ -61,12 +19,23 @@ function LoginPage() {
       rememberMe: false,
     },
     onSubmit: async ({ value }) => {
-      loginMutation.mutate(value)
+      setError('')
+      setIsLoading(true)
+      
+      // TODO: Implement login logic
+      console.log('Login attempt:', value)
+      
+      // Simulate login for now
+      try {
+        // Navigate to home after login
+        navigate({ to: '/' })
+      } catch (err) {
+        setError('Login failed. Please try again.')
+      } finally {
+        setIsLoading(false)
+      }
     },
   })
-
-  const error = loginMutation.error?.message || ''
-  const isLoading = loginMutation.isPending
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-12">
