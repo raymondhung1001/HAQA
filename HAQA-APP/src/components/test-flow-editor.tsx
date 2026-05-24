@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ArrowLeft, FileText } from 'lucide-react'
 import { NodePalette } from '@/components/test-flow/node-palette'
+import { LoopBodyGroupNode } from '@/components/test-flow/loop-body-group-node'
 import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
 import { workflowNodeTypes } from '@/components/test-flow/workflow-node-types'
 import { cn } from '@/lib/utils'
@@ -25,15 +26,24 @@ import {
   canSwapWorkflowNode,
   swapAdjacentWorkflowNode,
   WORKFLOW_NODE_ORIGIN,
+  addNodeToLoopBody,
+  appendTargetToLoopBodyOnConnect,
   connectEdge,
   createDefaultNodes,
   createWorkflowNode,
   getNextNodePosition,
   hasStartNode,
+  isLoopNodeType,
   pruneEdgesForRemovedBranches,
   reactFlowToGraph,
+  LOOP_BODY_GROUP_NODE_TYPE,
   readIfElseBranches,
-  repositionNodeForIfElseConnection,
+  readLoopBodyNodeIds,
+  readLoopBranches,
+  removeNodeFromLoopBody,
+  repositionNodeForBranchConnection,
+  resolveLoopBodySteps,
+  reorderLoopBody,
   WORKFLOW_EDGE_OPTIONS,
   withWorkflowEdgeDefaults,
   type TestFlowGraph,
@@ -100,30 +110,89 @@ function TestFlowEditorCanvas({
 
   const flowNodes = useMemo(
     () =>
-      nodes.map((node) => ({
-        ...node,
-        draggable: false,
-        origin: WORKFLOW_NODE_ORIGIN,
-        data: {
-          ...node.data,
-          onEdit: () => setEditingNodeId(node.id),
-          onSwapLeft: () => handleSwapNode(node.id, 'left'),
-          onSwapRight: () => handleSwapNode(node.id, 'right'),
-          canSwapLeft: canSwapWorkflowNode(nodes, node.id, 'left'),
-          canSwapRight: canSwapWorkflowNode(nodes, node.id, 'right'),
-        },
-      })),
+      (nodes ?? []).map((node) => {
+        if (node.type === LOOP_BODY_GROUP_NODE_TYPE) {
+          return {
+            ...node,
+            draggable: false,
+            selectable: false,
+            focusable: false,
+          }
+        }
+
+        const data = node.data as WorkflowNodeData
+        const loopBodySteps = isLoopNodeType(data.nodeType ?? '')
+          ? resolveLoopBodySteps(readLoopBodyNodeIds(data.config), nodes)
+          : undefined
+        const isMainFlowNode = !node.parentId?.endsWith('-loop-body')
+
+        return {
+          ...node,
+          draggable: false,
+          origin: WORKFLOW_NODE_ORIGIN,
+          data: {
+            ...data,
+            loopBodySteps,
+            onEdit: () => setEditingNodeId(node.id),
+            onSwapLeft: isMainFlowNode ? () => handleSwapNode(node.id, 'left') : undefined,
+            onSwapRight: isMainFlowNode ? () => handleSwapNode(node.id, 'right') : undefined,
+            canSwapLeft: isMainFlowNode ? canSwapWorkflowNode(nodes, node.id, 'left') : false,
+            canSwapRight: isMainFlowNode ? canSwapWorkflowNode(nodes, node.id, 'right') : false,
+          },
+        }
+      }),
     [nodes, handleSwapNode],
+  )
+
+  const editorNodeTypes = useMemo(
+    () => ({
+      ...workflowNodeTypes,
+      [LOOP_BODY_GROUP_NODE_TYPE]: LoopBodyGroupNode,
+    }),
+    [],
   )
 
   const flowEdges = useMemo(() => edges.map(withWorkflowEdgeDefaults), [edges])
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((current) => connectEdge(connection, current))
-      setNodes((current) => repositionNodeForIfElseConnection(current, connection))
+      let nextEdges = connectEdge(connection, edges)
+      let nextNodes = repositionNodeForBranchConnection(nodes, connection)
+      const loopBodyResult = appendTargetToLoopBodyOnConnect(connection, nextNodes, nextEdges)
+      nextNodes = loopBodyResult.nodes
+      nextEdges = loopBodyResult.edges
+      setEdges(nextEdges)
+      setNodes(nextNodes)
     },
-    [setEdges, setNodes],
+    [nodes, edges, setEdges, setNodes],
+  )
+
+  const handleAddLoopBodyNode = useCallback(
+    (loopNodeId: string, nodeType: TestFlowNodeType) => {
+      const result = addNodeToLoopBody(loopNodeId, nodeType, nodes, edges)
+      if (!result) return
+      setNodes(result.nodes)
+      setEdges(result.edges)
+    },
+    [nodes, edges, setNodes, setEdges],
+  )
+
+  const handleRemoveLoopBodyNode = useCallback(
+    (loopNodeId: string, bodyNodeId: string) => {
+      const result = removeNodeFromLoopBody(loopNodeId, bodyNodeId, nodes, edges)
+      setNodes(result.nodes)
+      setEdges(result.edges)
+    },
+    [nodes, edges, setNodes, setEdges],
+  )
+
+  const handleReorderLoopBodyNode = useCallback(
+    (loopNodeId: string, fromIndex: number, toIndex: number) => {
+      const result = reorderLoopBody(loopNodeId, fromIndex, toIndex, nodes, edges)
+      setNodes(result.nodes)
+      setEdges(result.edges)
+    },
+    [nodes, edges, setNodes, setEdges],
   )
 
   const handleAddNode = useCallback(
@@ -140,6 +209,21 @@ function TestFlowEditorCanvas({
 
   const handleUpdateNode = useCallback(
     (nodeId: string, updates: Partial<WorkflowNodeData>) => {
+      if (updates.config?.branches) {
+        const existing = nodes.find((node) => node.id === nodeId)
+        const nodeType = (existing?.data as WorkflowNodeData)?.nodeType
+        const branches =
+          nodeType === 'if-else'
+            ? readIfElseBranches(updates.config)
+            : isLoopNodeType(nodeType ?? '')
+              ? readLoopBranches(updates.config)
+              : []
+
+        if (branches.length > 0) {
+          setEdges((current) => pruneEdgesForRemovedBranches(current, nodeId, branches))
+        }
+      }
+
       setNodes((current) =>
         current.map((node) =>
           node.id === nodeId
@@ -156,13 +240,8 @@ function TestFlowEditorCanvas({
             : node,
         ),
       )
-
-      if (updates.config?.branches) {
-        const branches = readIfElseBranches(updates.config)
-        setEdges((current) => pruneEdgesForRemovedBranches(current, nodeId, branches))
-      }
     },
-    [setNodes, setEdges],
+    [nodes, setNodes, setEdges],
   )
 
   const handleSubmit = () => {
@@ -264,7 +343,7 @@ function TestFlowEditorCanvas({
               <ReactFlow
                 nodes={flowNodes}
                 edges={flowEdges}
-                nodeTypes={workflowNodeTypes}
+                nodeTypes={editorNodeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -299,11 +378,15 @@ function TestFlowEditorCanvas({
 
       <WorkflowNodeEditor
         node={editingNode}
+        allNodes={nodes}
         open={editingNodeId !== null}
         onOpenChange={(open) => {
           if (!open) setEditingNodeId(null)
         }}
         onSave={handleUpdateNode}
+        onAddLoopBodyNode={handleAddLoopBodyNode}
+        onRemoveLoopBodyNode={handleRemoveLoopBodyNode}
+        onReorderLoopBodyNode={handleReorderLoopBodyNode}
       />
     </div>
   )

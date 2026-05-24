@@ -29,6 +29,22 @@ export const WORKFLOW_NODE_DEFINITIONS: WorkflowNodeDefinition[] = [
   { type: 'wait', label: 'Wait', description: 'Pause execution', icon: Clock },
 ]
 
+/** Work node types that can be placed inside a loop body. */
+export const LOOP_BODY_WORK_NODE_TYPES: TestFlowNodeType[] = [
+  'script',
+  'api-call',
+  'wait',
+  'if-else',
+]
+
+export function isLoopBodyWorkNodeType(nodeType: TestFlowNodeType): boolean {
+  return LOOP_BODY_WORK_NODE_TYPES.includes(nodeType)
+}
+
+export function getLoopBodyWorkNodeDefinitions(): WorkflowNodeDefinition[] {
+  return WORKFLOW_NODE_DEFINITIONS.filter((def) => isLoopBodyWorkNodeType(def.type))
+}
+
 export function isTestFlowNodeType(value: string): value is TestFlowNodeType {
   return WORKFLOW_NODE_DEFINITIONS.some((def) => def.type === value)
 }

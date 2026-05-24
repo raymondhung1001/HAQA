@@ -13,12 +13,17 @@ import {
   Pencil,
   type LucideIcon,
 } from 'lucide-react'
-import type { IfElseBranch, TestFlowNodeType, WorkflowNodeData } from '@/lib/test-flow-graph'
+import type { IfElseBranch, LoopBodyStep, TestFlowNodeType, WorkflowNodeData } from '@/lib/test-flow-graph'
 import {
   getBranchHandleColorClass,
   getIfElseBranchHandleTopPercent,
-  getIfElseBranches,
   getIfElseNodeHeight,
+  getLoopBranchHandleTopPercent,
+  getLoopNodeHeight,
+  getNodeOutputBranches,
+  isBranchingNodeType,
+  isLoopBodyBranchIndex,
+  isLoopNodeType,
 } from '@/lib/test-flow-graph'
 import {
   IF_ELSE_NODE_LAYOUT,
@@ -85,6 +90,13 @@ const actionButtonClass =
 
 const REORDER_FOOTER_HEIGHT = WORKFLOW_REORDER_FOOTER_HEIGHT
 
+type ToneClass = {
+  headerBorder: string
+  branchBorder: string
+  footerBorder: string
+  subtitle: string
+}
+
 function WorkflowNodeReorderFooter({
   nodeData,
   borderClassName = 'border-black/5 dark:border-white/10',
@@ -134,23 +146,25 @@ function WorkflowNodeReorderFooter({
   )
 }
 
-interface IfElseWorkflowNodeProps {
-  nodeData: WorkflowNodeData
-  style: (typeof NODE_STYLES)[TestFlowNodeType]
-  name: string
-  description?: string
-  branches: IfElseBranch[]
-  selected: boolean
-}
-
-function IfElseWorkflowNode({
+function MultiBranchWorkflowNode({
   nodeData,
   style,
   name,
   description,
   branches,
   selected,
-}: IfElseWorkflowNodeProps) {
+  defaultSubtitle,
+  toneClass,
+}: {
+  nodeData: WorkflowNodeData
+  style: (typeof NODE_STYLES)[TestFlowNodeType]
+  name: string
+  description?: string
+  branches: IfElseBranch[]
+  selected: boolean
+  defaultSubtitle: string
+  toneClass: ToneClass
+}) {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const nodeHeight = getIfElseNodeHeight(branches.length, showSwap)
@@ -172,7 +186,7 @@ function IfElseWorkflowNode({
       />
 
       <header
-        className="flex shrink-0 items-start gap-2 border-b border-amber-200/80 pb-2 dark:border-amber-900/50"
+        className={cn('flex shrink-0 items-start gap-2 border-b pb-2', toneClass.headerBorder)}
         style={{ height: IF_ELSE_NODE_LAYOUT.headerHeight }}
       >
         <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', style.iconColor)} />
@@ -183,8 +197,8 @@ function IfElseWorkflowNode({
               {description}
             </p>
           ) : (
-            <p className="mt-0.5 text-[10px] uppercase tracking-wide text-amber-700/70 dark:text-amber-300/70">
-              Conditional
+            <p className={cn('mt-0.5 text-[10px] uppercase tracking-wide', toneClass.subtitle)}>
+              {defaultSubtitle}
             </p>
           )}
         </div>
@@ -204,10 +218,13 @@ function IfElseWorkflowNode({
       </header>
 
       <div className="shrink-0">
-        {branches.map((branch, index) => (
+        {branches.map((branch) => (
           <div
             key={branch.id}
-            className="flex items-center justify-end gap-2 border-b border-amber-100/80 px-0.5 last:border-b-0 dark:border-amber-900/30"
+            className={cn(
+              'flex items-center justify-end gap-2 border-b px-0.5 last:border-b-0',
+              toneClass.branchBorder,
+            )}
             style={{ height: IF_ELSE_NODE_LAYOUT.branchRowHeight }}
           >
             <span className="truncate pr-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
@@ -217,10 +234,7 @@ function IfElseWorkflowNode({
         ))}
       </div>
 
-      <WorkflowNodeReorderFooter
-        nodeData={nodeData}
-        borderClassName="border-amber-200/80 dark:border-amber-900/50"
-      />
+      <WorkflowNodeReorderFooter nodeData={nodeData} borderClassName={toneClass.footerBorder} />
 
       {branches.map((branch, index) => (
         <Handle
@@ -231,7 +245,134 @@ function IfElseWorkflowNode({
           style={{ top: getIfElseBranchHandleTopPercent(index, branches.length, showSwap) }}
           className={cn(
             '!h-2.5 !w-2.5 !border-2 !bg-white',
-            getBranchHandleColorClass(index, branches.length),
+            getBranchHandleColorClass(index, branches.length, 'if-else'),
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
+function LoopWorkflowNode({
+  nodeData,
+  style,
+  name,
+  description,
+  branches,
+  bodySteps,
+  selected,
+  defaultSubtitle,
+  toneClass,
+}: {
+  nodeData: WorkflowNodeData
+  style: (typeof NODE_STYLES)[TestFlowNodeType]
+  name: string
+  description?: string
+  branches: IfElseBranch[]
+  bodySteps: LoopBodyStep[]
+  selected: boolean
+  defaultSubtitle: string
+  toneClass: ToneClass
+}) {
+  const Icon = style.icon
+  const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
+  const nodeHeight = getLoopNodeHeight(branches.length, 0, showSwap)
+
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        style.border,
+        style.bg,
+        selected && 'ring-2 ring-primary ring-offset-2',
+      )}
+      style={{ height: nodeHeight, minWidth: IF_ELSE_NODE_LAYOUT.minWidth }}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
+      />
+
+      <header
+        className={cn('flex shrink-0 items-start gap-2 border-b pb-2', toneClass.headerBorder)}
+        style={{ height: IF_ELSE_NODE_LAYOUT.headerHeight }}
+      >
+        <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', style.iconColor)} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{name}</p>
+          {description ? (
+            <p className="mt-0.5 line-clamp-1 text-xs text-gray-600 dark:text-gray-300">
+              {description}
+            </p>
+          ) : (
+            <p className={cn('mt-0.5 text-[10px] uppercase tracking-wide', toneClass.subtitle)}>
+              {defaultSubtitle}
+            </p>
+          )}
+        </div>
+        {nodeData.onEdit && (
+          <button
+            type="button"
+            className={cn(actionButtonClass, 'shrink-0')}
+            title="Edit node"
+            onClick={(event) => {
+              event.stopPropagation()
+              nodeData.onEdit?.()
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </header>
+
+      <div className="shrink-0">
+        {branches.map((branch, index) => {
+          const isLoopBodyRow = isLoopBodyBranchIndex(index)
+
+          return (
+            <div
+              key={branch.id}
+              className={cn(
+                'flex items-center gap-2 border-b px-0.5 last:border-b-0',
+                toneClass.branchBorder,
+              )}
+              style={{ height: IF_ELSE_NODE_LAYOUT.branchRowHeight }}
+            >
+              <span className="w-10 shrink-0 text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+                {branch.label}
+              </span>
+
+              {isLoopBodyRow ? (
+                <span className="ml-auto truncate pr-1 text-[10px] text-gray-500 dark:text-gray-400">
+                  {bodySteps.length === 0
+                    ? 'Dashed box → add steps'
+                    : `${bodySteps.length} step${bodySteps.length === 1 ? '' : 's'} →`}
+                </span>
+              ) : (
+                <span className="ml-auto truncate pr-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                  {branch.label}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <WorkflowNodeReorderFooter nodeData={nodeData} borderClassName={toneClass.footerBorder} />
+
+      {branches.map((branch, index) => (
+        <Handle
+          key={branch.id}
+          id={branch.id}
+          type="source"
+          position={Position.Right}
+          style={{
+            top: getLoopBranchHandleTopPercent(index, branches.length, 0, showSwap),
+          }}
+          className={cn(
+            '!h-2.5 !w-2.5 !border-2 !bg-white',
+            getBranchHandleColorClass(index, branches.length, 'loop'),
           )}
         />
       ))}
@@ -246,21 +387,51 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const Icon = style.icon
   const name = nodeData.label || nodeType
   const description = nodeData.description?.trim()
-  const branches = nodeType === 'if-else' ? getIfElseBranches(nodeData) : []
+  const branches = isBranchingNodeType(nodeType) ? (getNodeOutputBranches(nodeData) ?? []) : []
+  const bodySteps = Array.isArray(nodeData.loopBodySteps) ? nodeData.loopBodySteps : []
 
   const showTarget = nodeType !== 'start'
-  const showSource = nodeType !== 'end'
-  const isBranch = nodeType === 'if-else'
+  const showSource = nodeType !== 'end' && !isBranchingNodeType(nodeType)
 
-  if (isBranch) {
+  const loopToneClass: ToneClass = {
+    headerBorder: 'border-orange-200/80 dark:border-orange-900/50',
+    branchBorder: 'border-orange-100/80 dark:border-orange-900/30',
+    footerBorder: 'border-orange-200/80 dark:border-orange-900/50',
+    subtitle: 'text-orange-700/70 dark:text-orange-300/70',
+  }
+
+  if (nodeType === 'if-else') {
     return (
-      <IfElseWorkflowNode
+      <MultiBranchWorkflowNode
         nodeData={nodeData}
         style={style}
         name={name}
         description={description}
         branches={branches}
         selected={selected}
+        defaultSubtitle="Conditional"
+        toneClass={{
+          headerBorder: 'border-amber-200/80 dark:border-amber-900/50',
+          branchBorder: 'border-amber-100/80 dark:border-amber-900/30',
+          footerBorder: 'border-amber-200/80 dark:border-amber-900/50',
+          subtitle: 'text-amber-700/70 dark:text-amber-300/70',
+        }}
+      />
+    )
+  }
+
+  if (isLoopNodeType(nodeType)) {
+    return (
+      <LoopWorkflowNode
+        nodeData={nodeData}
+        style={style}
+        name={name}
+        description={description}
+        branches={branches}
+        bodySteps={bodySteps}
+        selected={selected}
+        defaultSubtitle={nodeType === 'for-loop' ? 'Iteration' : 'Loop until condition'}
+        toneClass={loopToneClass}
       />
     )
   }
