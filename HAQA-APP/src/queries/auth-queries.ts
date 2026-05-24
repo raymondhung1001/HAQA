@@ -41,8 +41,10 @@ export function useLogin(
   >,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess: userOnSuccess, ...restOptions } = options ?? {}
 
   return useMutation({
+    ...restOptions,
     mutationFn: async (credentials: LoginRequest) => {
       const response = await apiPost<{ data?: AuthTokenResponse } | AuthTokenResponse>(
         '/token',
@@ -52,11 +54,11 @@ export function useLogin(
 
       return unwrapTokenResponse(response)
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables, context) => {
       setSessionAuthenticated({ authenticated: true }, data.expiresAt || null)
       await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+      await userOnSuccess?.(data, variables, context)
     },
-    ...options,
   })
 }
 
@@ -64,8 +66,10 @@ export function useLogout(
   options?: Omit<UseMutationOptions<void, Error, void, unknown>, 'mutationFn'>,
 ) {
   const queryClient = useQueryClient()
+  const { onSuccess: userOnSuccess, ...restOptions } = options ?? {}
 
   return useMutation({
+    ...restOptions,
     mutationFn: async () => {
       try {
         await apiPost('/token/logout', undefined, { retryOn401: false })
@@ -75,10 +79,10 @@ export function useLogout(
         clearSessionCache()
       }
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables, context) => {
       queryClient.clear()
-      queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+      await userOnSuccess?.(data, variables, context)
     },
-    ...options,
   })
 }
