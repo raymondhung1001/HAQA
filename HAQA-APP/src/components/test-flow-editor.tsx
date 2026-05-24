@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   ReactFlowProvider,
+  ConnectionLineType,
   useNodesState,
   useEdgesState,
   type Connection,
@@ -21,7 +22,6 @@ import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
 import { workflowNodeTypes } from '@/components/test-flow/workflow-node-types'
 import { cn } from '@/lib/utils'
 import {
-  alignWorkflowNodePositions,
   canSwapWorkflowNode,
   swapAdjacentWorkflowNode,
   WORKFLOW_NODE_ORIGIN,
@@ -30,7 +30,12 @@ import {
   createWorkflowNode,
   getNextNodePosition,
   hasStartNode,
+  pruneEdgesForRemovedBranches,
   reactFlowToGraph,
+  readIfElseBranches,
+  repositionNodeForIfElseConnection,
+  WORKFLOW_EDGE_OPTIONS,
+  withWorkflowEdgeDefaults,
   type TestFlowGraph,
   type TestFlowNodeType,
   type WorkflowNodeData,
@@ -111,11 +116,14 @@ function TestFlowEditorCanvas({
     [nodes, handleSwapNode],
   )
 
+  const flowEdges = useMemo(() => edges.map(withWorkflowEdgeDefaults), [edges])
+
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges((current) => connectEdge(connection, current))
+      setNodes((current) => repositionNodeForIfElseConnection(current, connection))
     },
-    [setEdges],
+    [setEdges, setNodes],
   )
 
   const handleAddNode = useCallback(
@@ -124,12 +132,10 @@ function TestFlowEditorCanvas({
         return
       }
 
-      const position = getNextNodePosition(nodes)
-      setNodes((current) =>
-        alignWorkflowNodePositions([...current, createWorkflowNode(nodeType, position)]),
-      )
+      const position = getNextNodePosition(nodes, edges)
+      setNodes((current) => [...current, createWorkflowNode(nodeType, position)])
     },
-    [nodes, setNodes],
+    [nodes, edges, setNodes],
   )
 
   const handleUpdateNode = useCallback(
@@ -142,13 +148,21 @@ function TestFlowEditorCanvas({
                 data: {
                   ...node.data,
                   ...updates,
+                  config: updates.config
+                    ? { ...(node.data?.config as Record<string, unknown> | undefined), ...updates.config }
+                    : node.data?.config,
                 },
               }
             : node,
         ),
       )
+
+      if (updates.config?.branches) {
+        const branches = readIfElseBranches(updates.config)
+        setEdges((current) => pruneEdgesForRemovedBranches(current, nodeId, branches))
+      }
     },
-    [setNodes],
+    [setNodes, setEdges],
   )
 
   const handleSubmit = () => {
@@ -249,7 +263,7 @@ function TestFlowEditorCanvas({
           <div className="absolute inset-0">
               <ReactFlow
                 nodes={flowNodes}
-                edges={edges}
+                edges={flowEdges}
                 nodeTypes={workflowNodeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
@@ -258,8 +272,8 @@ function TestFlowEditorCanvas({
                 nodesDraggable={false}
                 nodeOrigin={WORKFLOW_NODE_ORIGIN}
                 proOptions={{ hideAttribution: true }}
-                defaultEdgeOptions={{ type: 'straight' }}
-                connectionLineType="straight"
+                defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
+                connectionLineType={ConnectionLineType.SmoothStep}
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
               >
@@ -275,9 +289,10 @@ function TestFlowEditorCanvas({
           </div>
 
           <p className="pointer-events-none absolute bottom-3 left-4 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-            Add nodes from the palette to grow the flow to the right, use the arrow buttons on a step
-            to swap its order, connect handles between steps, double-click or use the edit button to
-            configure a node, and press Delete to remove a selected node.
+            Add nodes from the palette to grow the flow to the right, configure If / Else output
+            branches in the node editor, use the arrow buttons on a step to swap its order, connect handles
+            between steps, double-click or use the edit button to configure a node, and press Delete
+            to remove a selected node.
           </p>
         </section>
       </div>

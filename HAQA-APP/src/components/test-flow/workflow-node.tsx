@@ -13,7 +13,17 @@ import {
   Pencil,
   type LucideIcon,
 } from 'lucide-react'
-import type { TestFlowNodeType, WorkflowNodeData } from '@/lib/test-flow-graph'
+import type { IfElseBranch, TestFlowNodeType, WorkflowNodeData } from '@/lib/test-flow-graph'
+import {
+  getBranchHandleColorClass,
+  getIfElseBranchHandleTopPercent,
+  getIfElseBranches,
+  getIfElseNodeHeight,
+} from '@/lib/test-flow-graph'
+import {
+  IF_ELSE_NODE_LAYOUT,
+  WORKFLOW_REORDER_FOOTER_HEIGHT,
+} from '@/components/test-flow/workflow-node-layout'
 import { cn } from '@/lib/utils'
 
 const NODE_STYLES: Record<
@@ -70,6 +80,165 @@ const NODE_STYLES: Record<
   },
 }
 
+const actionButtonClass =
+  'nodrag nopan rounded-md p-1 text-gray-500 transition-colors hover:bg-black/5 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-gray-200'
+
+const REORDER_FOOTER_HEIGHT = WORKFLOW_REORDER_FOOTER_HEIGHT
+
+function WorkflowNodeReorderFooter({
+  nodeData,
+  borderClassName = 'border-black/5 dark:border-white/10',
+}: {
+  nodeData: WorkflowNodeData
+  borderClassName?: string
+}) {
+  const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
+  if (!showSwap) return null
+
+  return (
+    <footer
+      className={cn(
+        'mt-auto flex shrink-0 items-center gap-1 border-t pt-1',
+        borderClassName,
+      )}
+      style={{ height: REORDER_FOOTER_HEIGHT }}
+    >
+      <span className="mr-auto text-[9px] font-medium uppercase tracking-wide text-gray-400">
+        Reorder
+      </span>
+      <button
+        type="button"
+        className={actionButtonClass}
+        title="Move step left"
+        disabled={!nodeData.canSwapLeft}
+        onClick={(event) => {
+          event.stopPropagation()
+          nodeData.onSwapLeft?.()
+        }}
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        className={actionButtonClass}
+        title="Move step right"
+        disabled={!nodeData.canSwapRight}
+        onClick={(event) => {
+          event.stopPropagation()
+          nodeData.onSwapRight?.()
+        }}
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </footer>
+  )
+}
+
+interface IfElseWorkflowNodeProps {
+  nodeData: WorkflowNodeData
+  style: (typeof NODE_STYLES)[TestFlowNodeType]
+  name: string
+  description?: string
+  branches: IfElseBranch[]
+  selected: boolean
+}
+
+function IfElseWorkflowNode({
+  nodeData,
+  style,
+  name,
+  description,
+  branches,
+  selected,
+}: IfElseWorkflowNodeProps) {
+  const Icon = style.icon
+  const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
+  const nodeHeight = getIfElseNodeHeight(branches.length, showSwap)
+
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        style.border,
+        style.bg,
+        selected && 'ring-2 ring-primary ring-offset-2',
+      )}
+      style={{ height: nodeHeight, minWidth: IF_ELSE_NODE_LAYOUT.minWidth }}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
+      />
+
+      <header
+        className="flex shrink-0 items-start gap-2 border-b border-amber-200/80 pb-2 dark:border-amber-900/50"
+        style={{ height: IF_ELSE_NODE_LAYOUT.headerHeight }}
+      >
+        <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', style.iconColor)} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{name}</p>
+          {description ? (
+            <p className="mt-0.5 line-clamp-1 text-xs text-gray-600 dark:text-gray-300">
+              {description}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-[10px] uppercase tracking-wide text-amber-700/70 dark:text-amber-300/70">
+              Conditional
+            </p>
+          )}
+        </div>
+        {nodeData.onEdit && (
+          <button
+            type="button"
+            className={cn(actionButtonClass, 'shrink-0')}
+            title="Edit node"
+            onClick={(event) => {
+              event.stopPropagation()
+              nodeData.onEdit?.()
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </header>
+
+      <div className="shrink-0">
+        {branches.map((branch, index) => (
+          <div
+            key={branch.id}
+            className="flex items-center justify-end gap-2 border-b border-amber-100/80 px-0.5 last:border-b-0 dark:border-amber-900/30"
+            style={{ height: IF_ELSE_NODE_LAYOUT.branchRowHeight }}
+          >
+            <span className="truncate pr-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+              {branch.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <WorkflowNodeReorderFooter
+        nodeData={nodeData}
+        borderClassName="border-amber-200/80 dark:border-amber-900/50"
+      />
+
+      {branches.map((branch, index) => (
+        <Handle
+          key={branch.id}
+          id={branch.id}
+          type="source"
+          position={Position.Right}
+          style={{ top: getIfElseBranchHandleTopPercent(index, branches.length, showSwap) }}
+          className={cn(
+            '!h-2.5 !w-2.5 !border-2 !bg-white',
+            getBranchHandleColorClass(index, branches.length),
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function WorkflowNode({ data, selected }: NodeProps) {
   const nodeData = data as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
@@ -77,15 +246,29 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const Icon = style.icon
   const name = nodeData.label || nodeType
   const description = nodeData.description?.trim()
+  const branches = nodeType === 'if-else' ? getIfElseBranches(nodeData) : []
 
   const showTarget = nodeType !== 'start'
   const showSource = nodeType !== 'end'
   const isBranch = nodeType === 'if-else'
 
+  if (isBranch) {
+    return (
+      <IfElseWorkflowNode
+        nodeData={nodeData}
+        style={style}
+        name={name}
+        description={description}
+        branches={branches}
+        selected={selected}
+      />
+    )
+  }
+
   return (
     <div
       className={cn(
-        'relative min-w-[180px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        'relative flex min-h-[72px] min-w-[180px] max-w-[240px] flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
         style.border,
         style.bg,
         selected && 'ring-2 ring-primary ring-offset-2',
@@ -116,7 +299,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
         {nodeData.onEdit && (
           <button
             type="button"
-            className="nodrag nopan shrink-0 rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 dark:hover:bg-white/10 dark:hover:text-gray-200"
+            className={actionButtonClass}
             title="Edit node"
             onClick={(event) => {
               event.stopPropagation()
@@ -128,64 +311,14 @@ export function WorkflowNode({ data, selected }: NodeProps) {
         )}
       </div>
 
-      {(nodeData.canSwapLeft || nodeData.canSwapRight) && (
-        <div className="mt-2 flex items-center justify-end gap-1 border-t border-black/5 pt-1.5 dark:border-white/10">
-          <button
-            type="button"
-            className="nodrag nopan rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-gray-200"
-            title="Move step left"
-            disabled={!nodeData.canSwapLeft}
-            onClick={(event) => {
-              event.stopPropagation()
-              nodeData.onSwapLeft?.()
-            }}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            className="nodrag nopan rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-gray-200"
-            title="Move step right"
-            disabled={!nodeData.canSwapRight}
-            onClick={(event) => {
-              event.stopPropagation()
-              nodeData.onSwapRight?.()
-            }}
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
+      <WorkflowNodeReorderFooter nodeData={nodeData} />
 
-      {showSource && !isBranch && (
+      {showSource && (
         <Handle
           type="source"
           position={Position.Right}
           className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
         />
-      )}
-
-      {isBranch && (
-        <>
-          <Handle
-            id="true"
-            type="source"
-            position={Position.Right}
-            style={{ top: '35%' }}
-            className="!h-2.5 !w-2.5 !border-2 !border-green-500 !bg-white"
-          />
-          <Handle
-            id="false"
-            type="source"
-            position={Position.Right}
-            style={{ top: '65%' }}
-            className="!h-2.5 !w-2.5 !border-2 !border-red-500 !bg-white"
-          />
-          <div className="mt-1 flex flex-col items-end pr-1 text-[9px] text-gray-500">
-            <span>Yes</span>
-            <span>No</span>
-          </div>
-        </>
       )}
     </div>
   )
