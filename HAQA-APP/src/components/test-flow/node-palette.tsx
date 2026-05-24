@@ -9,7 +9,7 @@ interface NodePaletteProps {
 
 export function NodePalette({ onAddNode, hasStartNode }: NodePaletteProps) {
   return (
-    <div className="flex h-full flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-slate-900/50">
+    <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-900/50">
       <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Add Node

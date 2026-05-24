@@ -25,6 +25,10 @@ export interface WorkflowNodeData {
   scriptDependencies?: Record<string, unknown>
   config?: Record<string, unknown>
   onEdit?: () => void
+  onSwapLeft?: () => void
+  onSwapRight?: () => void
+  canSwapLeft?: boolean
+  canSwapRight?: boolean
 }
 
 export interface TestFlowGraphNode {
@@ -42,6 +46,8 @@ export interface TestFlowGraphNode {
 const HORIZONTAL_NODE_GAP = 220
 const FLOW_BOARD_Y = 200
 const FLOW_BOARD_START_X = 40
+/** Vertical center anchor — position.y aligns handle line without custom handle offsets. */
+export const WORKFLOW_NODE_ORIGIN: [number, number] = [0, 0.5]
 
 export interface TestFlowGraphEdge {
   id: string
@@ -94,6 +100,7 @@ export function createWorkflowNode(
     id: createNodeId(),
     type: WORKFLOW_NODE_TYPE,
     draggable: false,
+    origin: WORKFLOW_NODE_ORIGIN,
     data: {
       label: getWorkflowNodeLabel(nodeType),
       description: '',
@@ -212,6 +219,7 @@ export function graphToReactFlow(version: TestFlowVersionGraph | null): {
       id: node.id,
       type: toReactFlowType(node.nodeType),
       draggable: false,
+      origin: WORKFLOW_NODE_ORIGIN,
       data: {
         label: node.label ?? node.nodeType,
         description: readNodeDescription(node.config as Record<string, unknown> | undefined) ?? '',
@@ -234,6 +242,113 @@ export function graphToReactFlow(version: TestFlowVersionGraph | null): {
       targetHandle: edge.targetHandle,
       label: edge.label,
     })),
+  }
+}
+
+export function getWorkflowNodeOrder(nodes: Node[]): Node[] {
+  return [...nodes].sort(
+    (a, b) => a.position.x - b.position.x || a.id.localeCompare(b.id),
+  )
+}
+
+export function canSwapWorkflowNode(
+  nodes: Node[],
+  nodeId: string,
+  direction: 'left' | 'right',
+): boolean {
+  const ordered = getWorkflowNodeOrder(nodes)
+  const index = ordered.findIndex((node) => node.id === nodeId)
+  if (index === -1) return false
+
+  const neighborIndex = direction === 'left' ? index - 1 : index + 1
+  if (neighborIndex < 0 || neighborIndex >= ordered.length) return false
+
+  const node = ordered[index]
+  const neighbor = ordered[neighborIndex]
+
+  if (node.data?.nodeType === 'start' || neighbor.data?.nodeType === 'start') {
+    return false
+  }
+
+  return true
+}
+
+function relayoutOrderedNodes(ordered: Node[]): Node[] {
+  return ordered.map((node, index) => ({
+    ...node,
+    origin: WORKFLOW_NODE_ORIGIN,
+    position: {
+      x: FLOW_BOARD_START_X + index * HORIZONTAL_NODE_GAP,
+      y: FLOW_BOARD_Y,
+    },
+  }))
+}
+
+export function alignWorkflowNodePositions(nodes: Node[]): Node[] {
+  return nodes.map((node) => ({
+    ...node,
+    origin: WORKFLOW_NODE_ORIGIN,
+    position: {
+      x: node.position.x,
+      y: FLOW_BOARD_Y,
+    },
+  }))
+}
+
+function remapEdgesAfterAdjacentSwap(
+  edges: Edge[],
+  leftNodeId: string,
+  rightNodeId: string,
+): Edge[] {
+  return edges.map((edge) => {
+    if (edge.source === leftNodeId && edge.target === rightNodeId) {
+      return { ...edge, source: rightNodeId, target: leftNodeId }
+    }
+
+    let source = edge.source
+    let target = edge.target
+
+    if (source === leftNodeId) source = rightNodeId
+    else if (source === rightNodeId) source = leftNodeId
+
+    if (target === leftNodeId) target = rightNodeId
+    else if (target === rightNodeId) target = leftNodeId
+
+    if (source === edge.source && target === edge.target) {
+      return edge
+    }
+
+    return { ...edge, source, target }
+  })
+}
+
+export function swapAdjacentWorkflowNode(
+  nodes: Node[],
+  edges: Edge[],
+  nodeId: string,
+  direction: 'left' | 'right',
+): { nodes: Node[]; edges: Edge[] } {
+  if (!canSwapWorkflowNode(nodes, nodeId, direction)) {
+    return { nodes, edges }
+  }
+
+  const ordered = getWorkflowNodeOrder(nodes)
+  const index = ordered.findIndex((node) => node.id === nodeId)
+  const neighborIndex = direction === 'left' ? index - 1 : index + 1
+
+  const nodeA = ordered[index]
+  const nodeB = ordered[neighborIndex]
+
+  const nextOrdered = [...ordered]
+  nextOrdered[index] = nodeB
+  nextOrdered[neighborIndex] = nodeA
+
+  const leftNodeId = direction === 'left' ? nodeB.id : nodeA.id
+  const rightNodeId = direction === 'left' ? nodeA.id : nodeB.id
+
+  return {
+    nodes: relayoutOrderedNodes(nextOrdered),
+    edges: remapEdgesAfterAdjacentSwap(edges, leftNodeId, rightNodeId),
   }
 }
 

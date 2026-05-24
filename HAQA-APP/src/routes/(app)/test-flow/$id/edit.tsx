@@ -49,7 +49,7 @@ function EditTestFlowPage() {
 
   return (
     <Navigation>
-      <Container size="2xl">
+      <div className="-mx-4 -my-6 sm:-mx-6 lg:-mx-8 lg:-my-8">
         <TestFlowEditor
           title="Edit Test Flow"
           submitLabel="Save New Version"
@@ -61,6 +61,7 @@ function EditTestFlowPage() {
           initialNodes={nodes}
           initialEdges={edges}
           isSubmitting={updateMutation.isPending || saveGraphMutation.isPending}
+          className="min-h-[calc(100dvh-4rem)] rounded-none border-x-0 border-t-0 shadow-none lg:min-h-[calc(100dvh-7rem)] lg:rounded-xl lg:border lg:shadow-sm"
           onCancel={() => navigate({ to: '/test-flow' })}
           onSubmit={(formData, graph) => {
             updateMutation.mutate({
@@ -75,11 +76,12 @@ function EditTestFlowPage() {
           }}
         />
         {data.latestVersion && (
-          <p className="text-xs text-gray-500 mt-2">
-            Current version: v{data.latestVersion.versionNumber}. Saving creates a new version snapshot.
+          <p className="px-4 py-2 text-xs text-gray-500 lg:px-0">
+            Current version: v{data.latestVersion.versionNumber}. Saving creates a new version
+            snapshot.
           </p>
         )}
-      </Container>
+      </div>
     </Navigation>
   )
 }

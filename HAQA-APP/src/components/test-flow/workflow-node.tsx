@@ -8,6 +8,8 @@ import {
   Repeat,
   RefreshCw,
   Clock,
+  ChevronLeft,
+  ChevronRight,
   Pencil,
   type LucideIcon,
 } from 'lucide-react'
@@ -83,7 +85,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'min-w-[180px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        'relative min-w-[180px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
         style.border,
         style.bg,
         selected && 'ring-2 ring-primary ring-offset-2',
@@ -125,6 +127,35 @@ export function WorkflowNode({ data, selected }: NodeProps) {
           </button>
         )}
       </div>
+
+      {(nodeData.canSwapLeft || nodeData.canSwapRight) && (
+        <div className="mt-2 flex items-center justify-end gap-1 border-t border-black/5 pt-1.5 dark:border-white/10">
+          <button
+            type="button"
+            className="nodrag nopan rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-gray-200"
+            title="Move step left"
+            disabled={!nodeData.canSwapLeft}
+            onClick={(event) => {
+              event.stopPropagation()
+              nodeData.onSwapLeft?.()
+            }}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            className="nodrag nopan rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-gray-200"
+            title="Move step right"
+            disabled={!nodeData.canSwapRight}
+            onClick={(event) => {
+              event.stopPropagation()
+              nodeData.onSwapRight?.()
+            }}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {showSource && !isBranch && (
         <Handle

@@ -2,6 +2,8 @@ import { Sheet, SheetContent, SheetHeader } from '@/components/ui/sheet'
 import { BrandLogo } from './brand-logo'
 import { NavItemList, type NavItemData } from './nav-item-list'
 import { LogoutButton } from './logout-button'
+import { mobileSidebarWidthClass } from './sidebar-layout'
+import { cn } from '@/lib/utils'
 
 interface MobileSidebarProps {
   open: boolean
@@ -24,7 +26,7 @@ export function MobileSidebar({
 }: MobileSidebarProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-80 p-0">
+      <SheetContent side="left" className={cn('p-0', mobileSidebarWidthClass)}>
         <SheetHeader className="px-6 py-6 border-b border-gray-200 dark:border-slate-700">
           <div className="text-left">
             <BrandLogo />
