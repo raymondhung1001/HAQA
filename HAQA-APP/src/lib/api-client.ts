@@ -291,17 +291,44 @@ export async function apiDelete<T = any>(
   return result as T
 }
 
+import type { TestFlowDetail, TestFlowGraph } from '@/lib/test-flow-graph'
+
+export function unwrapData<T>(response: { data?: T } | T): T {
+  return ((response as { data?: T })?.data ?? response) as T
+}
+
 /**
  * API Client object for backward compatibility
  */
 export const apiClient = {
-  // Test flow methods
   createTestFlow: async (data: {
     name: string
     description?: string
     isActive?: boolean
+    graph?: TestFlowGraph
   }) => {
     return apiPost('/test-flow', data)
+  },
+  getTestFlow: async (id: string) => {
+    const response = await apiGet<{ data?: TestFlowDetail } | TestFlowDetail>(`/test-flow/${id}`)
+    return unwrapData(response)
+  },
+  updateTestFlow: async (
+    id: string,
+    data: {
+      name?: string
+      description?: string
+      isActive?: boolean
+    },
+  ) => {
+    return apiPatch(`/test-flow/${id}`, data)
+  },
+  saveTestFlowGraph: async (id: string, graph: TestFlowGraph) => {
+    const response = await apiPut<{ data?: TestFlowDetail['latestVersion'] } | TestFlowDetail['latestVersion']>(
+      `/test-flow/${id}/graph`,
+      graph,
+    )
+    return unwrapData(response)
   },
   searchTestFlows: async (params?: {
     query?: string

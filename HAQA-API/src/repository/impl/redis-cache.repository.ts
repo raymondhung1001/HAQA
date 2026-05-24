@@ -1,5 +1,4 @@
-import { RedisService, DEFAULT_REDIS } from '@liaoliaots/nestjs-redis';
-import Redis from 'ioredis';
+import { RedisService } from '@liaoliaots/nestjs-redis';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -10,7 +9,7 @@ export type RedisNamespaceKey = 'auth';
 @Injectable()
 export abstract class RedisCacheRepository<T> implements ICacheRepository<T> {
 
-    protected readonly redis: Redis;
+    protected readonly redis: ReturnType<RedisService['getOrThrow']>;
     protected abstract readonly prefix: string;
     protected abstract readonly namespaceKey: RedisNamespaceKey;
     protected readonly ttl: number = 3600;

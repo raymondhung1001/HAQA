@@ -8,6 +8,8 @@ peer = true
 exact = false
 # Hoist dependencies to root (like pnpm)
 hoist = true
+# Copy packages instead of junctions — more reliable on Windows
+linker = "hoisted"
 
 [install.scopes]
 # Configure scoped packages if needed

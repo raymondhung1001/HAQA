@@ -14,7 +14,7 @@ export function BrandLogo({ className }: BrandLogoProps) {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">
           HAQA
         </h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
           Test Flow Execution Platform
         </p>
       </div>

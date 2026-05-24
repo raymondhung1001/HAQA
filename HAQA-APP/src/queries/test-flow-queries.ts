@@ -1,9 +1,16 @@
-import { useQuery, useSuspenseQuery, UseQueryOptions, UseSuspenseQueryOptions } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api-client'
-import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
+import {
+  useQuery,
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+  type UseQueryOptions,
+  type UseSuspenseQueryOptions,
+  type UseMutationOptions,
+} from '@tanstack/react-query'
+import { apiClient, SessionExpiredError, UnauthorizedError, unwrapData } from '@/lib/api-client'
+import type { TestFlowDetail, TestFlowGraph } from '@/lib/test-flow-graph'
 
-export interface Testflow {
-  id: string
+export interface Testflow {  id: string
   name: string
   description?: string
   isActive?: boolean
@@ -102,3 +109,96 @@ export function useSearchTestFlowsSuspense(
   })
 }
 
+export function useTestFlow(
+  id: string,
+  options?: Omit<
+    UseQueryOptions<TestFlowDetail, Error, TestFlowDetail, string[]>,
+    'queryKey' | 'queryFn'
+  >,
+) {
+  return useQuery({
+    queryKey: ['testFlow', id],
+    queryFn: () => apiClient.getTestFlow(id),
+    enabled: Boolean(id),
+    ...options,
+  })
+}
+
+export function useCreateTestFlow(
+  options?: Omit<
+    UseMutationOptions<
+      TestFlowDetail,
+      Error,
+      {
+        name: string
+        description?: string
+        isActive?: boolean
+        graph?: TestFlowGraph
+      },
+      unknown
+    >,
+    'mutationFn'
+  >,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data) => {
+      const response = await apiClient.createTestFlow(data)
+      return unwrapData(response) as TestFlowDetail
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
+    },
+    ...options,
+  })
+}
+
+export function useUpdateTestFlow(
+  options?: Omit<
+    UseMutationOptions<
+      Testflow,
+      Error,
+      { id: string; data: { name?: string; description?: string; isActive?: boolean } },
+      unknown
+    >,
+    'mutationFn'
+  >,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, data }) => {
+      const response = await apiClient.updateTestFlow(id, data)
+      return ((response as { data?: Testflow })?.data ?? response) as Testflow
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
+      queryClient.invalidateQueries({ queryKey: ['testFlow', variables.id] })
+    },
+    ...options,
+  })
+}
+
+export function useSaveTestFlowGraph(
+  options?: Omit<
+    UseMutationOptions<
+      TestFlowDetail['latestVersion'],
+      Error,
+      { id: string; graph: TestFlowGraph },
+      unknown
+    >,
+    'mutationFn'
+  >,
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, graph }) => apiClient.saveTestFlowGraph(id, graph),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
+      queryClient.invalidateQueries({ queryKey: ['testFlow', variables.id] })
+    },
+    ...options,
+  })
+}

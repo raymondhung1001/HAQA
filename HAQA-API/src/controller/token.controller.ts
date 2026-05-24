@@ -5,7 +5,9 @@ import { ConfigService } from "@nestjs/config";
 
 import { AuthService, AuthTokenResponse } from "@/service/auth.service";
 import { Public } from "@/decorators";
+import { CurrentUser } from "@/decorators";
 import { BodySchema } from "@/pipe";
+import { Users } from "@/entities/Users";
 
 // Define Zod schema for login validation
 const loginSchema = z.object({
@@ -96,6 +98,32 @@ export class TokenController {
         this.setTokenCookies(res, tokenData);
         
         return tokenData;
+    }
+
+    /**
+     * Clear auth cookies and invalidate cached tokens.
+     */
+    @Post('logout')
+    async logout(
+        @CurrentUser() user: Users,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<{ success: true }> {
+        await this.authService.logout(String(user.id));
+
+        const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+        const sameSite = isProduction ? 'strict' : 'lax';
+        const cookieOptions = {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: sameSite as 'strict' | 'lax' | 'none',
+            path: '/',
+            maxAge: 0,
+        };
+
+        res.clearCookie('accessToken', cookieOptions);
+        res.clearCookie('refreshToken', cookieOptions);
+
+        return { success: true };
     }
 
 }

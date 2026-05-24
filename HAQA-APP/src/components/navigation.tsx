@@ -7,7 +7,9 @@ import { MobileHeader } from './navigation/mobile-header'
 import { MobileSidebar } from './navigation/mobile-sidebar'
 import { PageHeader } from './navigation/page-header'
 import { navItems } from './navigation/nav-items'
+import { desktopSidebarOffsetClass } from './navigation/sidebar-layout'
 import { uiStore, uiActions } from '@/stores'
+import { cn } from '@/lib/utils'
 
 interface NavigationProps {
   children: React.ReactNode
@@ -20,9 +22,7 @@ export function Navigation({ children }: NavigationProps) {
   const queryClient = useQueryClient()
   const logoutMutation = useLogout({
     onSuccess: () => {
-      // Clear all queries on logout
       queryClient.clear()
-      // Use window.location for a hard redirect to ensure complete logout
       window.location.href = '/login'
     },
   })
@@ -64,7 +64,7 @@ export function Navigation({ children }: NavigationProps) {
         isLoggingOut={logoutMutation.isPending}
       />
 
-      <div className="lg:pl-64">
+      <div className={cn(desktopSidebarOffsetClass)}>
         <PageHeader title={pageTitle} subtitle={pageSubtitle} />
         <main className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           {children}
