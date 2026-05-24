@@ -18,6 +18,7 @@ import { Route as appTestRunsRouteImport } from './routes/(app)/test-runs'
 import { Route as appTestFlowCreateRouteImport } from './routes/(app)/test-flow-create'
 import { Route as appTestFlowRouteImport } from './routes/(app)/test-flow'
 import { Route as appSettingsRouteImport } from './routes/(app)/settings'
+import { Route as appTestFlowIdEditRouteImport } from './routes/(app)/test-flow/$id/edit'
 
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
@@ -63,38 +64,46 @@ const appSettingsRoute = appSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => appRouteRoute,
 } as any)
+const appTestFlowIdEditRoute = appTestFlowIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => appTestFlowRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
-  '/test-flow': typeof appTestFlowRoute
+  '/test-flow': typeof appTestFlowRouteWithChildren
   '/test-flow-create': typeof appTestFlowCreateRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
   '/': typeof appIndexRoute
+  '/test-flow/$id/edit': typeof appTestFlowIdEditRoute
 }
 export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/settings': typeof appSettingsRoute
-  '/test-flow': typeof appTestFlowRoute
+  '/test-flow': typeof appTestFlowRouteWithChildren
   '/test-flow-create': typeof appTestFlowCreateRoute
   '/test-runs': typeof appTestRunsRoute
   '/users': typeof appUsersRoute
   '/login': typeof authLoginRoute
   '/': typeof appIndexRoute
+  '/test-flow/$id/edit': typeof appTestFlowIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/(app)': typeof appRouteRouteWithChildren
   '/$': typeof SplatRoute
   '/(app)/settings': typeof appSettingsRoute
-  '/(app)/test-flow': typeof appTestFlowRoute
+  '/(app)/test-flow': typeof appTestFlowRouteWithChildren
   '/(app)/test-flow-create': typeof appTestFlowCreateRoute
   '/(app)/test-runs': typeof appTestRunsRoute
   '/(app)/users': typeof appUsersRoute
   '/(auth)/login': typeof authLoginRoute
   '/(app)/': typeof appIndexRoute
+  '/(app)/test-flow/$id/edit': typeof appTestFlowIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/login'
     | '/'
+    | '/test-flow/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/login'
     | '/'
+    | '/test-flow/$id/edit'
   id:
     | '__root__'
     | '/(app)'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/(app)/users'
     | '/(auth)/login'
     | '/(app)/'
+    | '/(app)/test-flow/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,12 +213,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appSettingsRouteImport
       parentRoute: typeof appRouteRoute
     }
+    '/(app)/test-flow/$id/edit': {
+      id: '/(app)/test-flow/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/test-flow/$id/edit'
+      preLoaderRoute: typeof appTestFlowIdEditRouteImport
+      parentRoute: typeof appTestFlowRoute
+    }
   }
 }
 
+interface appTestFlowRouteChildren {
+  appTestFlowIdEditRoute: typeof appTestFlowIdEditRoute
+}
+
+const appTestFlowRouteChildren: appTestFlowRouteChildren = {
+  appTestFlowIdEditRoute: appTestFlowIdEditRoute,
+}
+
+const appTestFlowRouteWithChildren = appTestFlowRoute._addFileChildren(
+  appTestFlowRouteChildren,
+)
+
 interface appRouteRouteChildren {
   appSettingsRoute: typeof appSettingsRoute
-  appTestFlowRoute: typeof appTestFlowRoute
+  appTestFlowRoute: typeof appTestFlowRouteWithChildren
   appTestFlowCreateRoute: typeof appTestFlowCreateRoute
   appTestRunsRoute: typeof appTestRunsRoute
   appUsersRoute: typeof appUsersRoute
@@ -215,7 +246,7 @@ interface appRouteRouteChildren {
 
 const appRouteRouteChildren: appRouteRouteChildren = {
   appSettingsRoute: appSettingsRoute,
-  appTestFlowRoute: appTestFlowRoute,
+  appTestFlowRoute: appTestFlowRouteWithChildren,
   appTestFlowCreateRoute: appTestFlowCreateRoute,
   appTestRunsRoute: appTestRunsRoute,
   appUsersRoute: appUsersRoute,

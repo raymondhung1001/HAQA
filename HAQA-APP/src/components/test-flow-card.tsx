@@ -1,4 +1,8 @@
+import { Link } from '@tanstack/react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { buttonVariants } from '@/components/ui/button'
+import { Pencil } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Testflow } from '@/queries/test-flow-queries'
 
 interface TestFlowCardProps {
@@ -9,17 +13,27 @@ export function TestFlowCard({ testFlow }: TestFlowCardProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <CardTitle className="text-lg">{testFlow.name}</CardTitle>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              testFlow.isActive
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-            }`}
-          >
-            {testFlow.isActive ? 'Active' : 'Inactive'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-2 py-1 text-xs rounded-full ${
+                testFlow.isActive
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+              }`}
+            >
+              {testFlow.isActive ? 'Active' : 'Inactive'}
+            </span>
+            <Link
+              to="/test-flow/$id/edit"
+              params={{ id: testFlow.id }}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Link>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -37,4 +51,3 @@ export function TestFlowCard({ testFlow }: TestFlowCardProps) {
     </Card>
   )
 }
-
