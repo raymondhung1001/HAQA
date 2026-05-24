@@ -10,12 +10,14 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, ArrowLeft } from 'lucide-react'
 import { NodePalette } from '@/components/test-flow/node-palette'
+import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
 import { workflowNodeTypes } from '@/components/test-flow/workflow-node-types'
 import {
   connectEdge,
@@ -26,6 +28,7 @@ import {
   reactFlowToGraph,
   type TestFlowGraph,
   type TestFlowNodeType,
+  type WorkflowNodeData,
 } from '@/lib/test-flow-graph'
 
 export interface TestFlowEditorFormData {
@@ -56,10 +59,36 @@ function TestFlowEditorCanvas({
   onSubmit,
 }: TestFlowEditorProps) {
   const [formData, setFormData] = useState(initialFormData)
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes ?? createDefaultNodes())
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialNodes ?? createDefaultNodes())
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges ?? [])
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChangeBase(changes.filter((change) => change.type !== 'position'))
+    },
+    [onNodesChangeBase],
+  )
 
   const startNodeExists = useMemo(() => hasStartNode(nodes), [nodes])
+
+  const editingNode = useMemo(
+    () => nodes.find((node) => node.id === editingNodeId) ?? null,
+    [nodes, editingNodeId],
+  )
+
+  const flowNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        draggable: false,
+        data: {
+          ...node.data,
+          onEdit: () => setEditingNodeId(node.id),
+        },
+      })),
+    [nodes],
+  )
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -78,6 +107,25 @@ function TestFlowEditorCanvas({
       setNodes((current) => [...current, createWorkflowNode(nodeType, position)])
     },
     [nodes, setNodes],
+  )
+
+  const handleUpdateNode = useCallback(
+    (nodeId: string, updates: Partial<WorkflowNodeData>) => {
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  ...updates,
+                },
+              }
+            : node,
+        ),
+      )
+    },
+    [setNodes],
   )
 
   const handleSubmit = () => {
@@ -136,12 +184,15 @@ function TestFlowEditorCanvas({
             </div>
             <div className="min-w-0 flex-1">
               <ReactFlow
-                nodes={nodes}
+                nodes={flowNodes}
                 edges={edges}
                 nodeTypes={workflowNodeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodeDoubleClick={(_, node) => setEditingNodeId(node.id)}
+                nodesDraggable={false}
+                proOptions={{ hideAttribution: true }}
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
               >
@@ -152,10 +203,20 @@ function TestFlowEditorCanvas({
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Add nodes from the palette, drag to arrange, connect handles, and press Delete to remove
-            a selected node.
+            Add nodes from the palette to grow the flow to the right, connect handles between steps,
+            double-click or use the edit button to configure a node, and press Delete to remove a
+            selected node.
           </p>
         </div>
+
+        <WorkflowNodeEditor
+          node={editingNode}
+          open={editingNodeId !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingNodeId(null)
+          }}
+          onSave={handleUpdateNode}
+        />
 
         <div>
           <label className="flex items-center gap-2">

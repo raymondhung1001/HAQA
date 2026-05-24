@@ -8,9 +8,10 @@ import {
   Repeat,
   RefreshCw,
   Clock,
+  Pencil,
   type LucideIcon,
 } from 'lucide-react'
-import type { TestFlowNodeType } from '@/lib/test-flow-graph'
+import type { TestFlowNodeType, WorkflowNodeData } from '@/lib/test-flow-graph'
 import { cn } from '@/lib/utils'
 
 const NODE_STYLES: Record<
@@ -68,10 +69,12 @@ const NODE_STYLES: Record<
 }
 
 export function WorkflowNode({ data, selected }: NodeProps) {
-  const nodeType = (data.nodeType as TestFlowNodeType) ?? 'script'
+  const nodeData = data as WorkflowNodeData
+  const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script
   const Icon = style.icon
-  const label = (data.label as string) || nodeType
+  const name = nodeData.label || nodeType
+  const description = nodeData.description?.trim()
 
   const showTarget = nodeType !== 'start'
   const showSource = nodeType !== 'end'
@@ -80,7 +83,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'min-w-[140px] rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        'min-w-[180px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
         style.border,
         style.bg,
         selected && 'ring-2 ring-primary ring-offset-2',
@@ -89,25 +92,44 @@ export function WorkflowNode({ data, selected }: NodeProps) {
       {showTarget && (
         <Handle
           type="target"
-          position={Position.Top}
+          position={Position.Left}
           className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
         />
       )}
 
-      <div className="flex items-center gap-2">
-        <Icon className={cn('h-4 w-4 shrink-0', style.iconColor)} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {nodeType}
-          </p>
+      <div className="flex items-start gap-2">
+        <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', style.iconColor)} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{name}</p>
+          {description ? (
+            <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
+              {description}
+            </p>
+          ) : (
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {nodeType}
+            </p>
+          )}
         </div>
+        {nodeData.onEdit && (
+          <button
+            type="button"
+            className="nodrag nopan shrink-0 rounded p-1 text-gray-500 hover:bg-black/5 hover:text-gray-800 dark:hover:bg-white/10 dark:hover:text-gray-200"
+            title="Edit node"
+            onClick={(event) => {
+              event.stopPropagation()
+              nodeData.onEdit?.()
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {showSource && !isBranch && (
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
         />
       )}
@@ -117,18 +139,18 @@ export function WorkflowNode({ data, selected }: NodeProps) {
           <Handle
             id="true"
             type="source"
-            position={Position.Bottom}
-            style={{ left: '30%' }}
+            position={Position.Right}
+            style={{ top: '35%' }}
             className="!h-2.5 !w-2.5 !border-2 !border-green-500 !bg-white"
           />
           <Handle
             id="false"
             type="source"
-            position={Position.Bottom}
-            style={{ left: '70%' }}
+            position={Position.Right}
+            style={{ top: '65%' }}
             className="!h-2.5 !w-2.5 !border-2 !border-red-500 !bg-white"
           />
-          <div className="mt-1 flex justify-between px-1 text-[9px] text-gray-500">
+          <div className="mt-1 flex flex-col items-end pr-1 text-[9px] text-gray-500">
             <span>Yes</span>
             <span>No</span>
           </div>
