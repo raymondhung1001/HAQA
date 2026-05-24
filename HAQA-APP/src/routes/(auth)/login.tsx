@@ -1,16 +1,43 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { LogIn, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useLogin } from '@/queries/auth-queries'
+import { getAuthSession } from '@/lib/auth-session'
 
 export const Route = createFileRoute('/(auth)/login')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    returnUrl: typeof search.returnUrl === 'string' ? search.returnUrl : undefined,
+  }),
+  beforeLoad: async () => {
+    try {
+      const { isValid } = await getAuthSession()
+      if (isValid) {
+        throw redirect({ to: '/' })
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'to' in error) {
+        throw error
+      }
+    }
+  },
   component: LoginPage,
 })
 
 function LoginPage() {
   const navigate = useNavigate()
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const { returnUrl } = Route.useSearch()
+
+  const loginMutation = useLogin({
+    onSuccess: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      if (returnUrl && returnUrl.startsWith('/')) {
+        navigate({ to: returnUrl as '/' })
+      } else {
+        navigate({ to: '/' })
+      }
+    },
+  })
 
   const form = useForm({
     defaultValues: {
@@ -19,28 +46,16 @@ function LoginPage() {
       rememberMe: false,
     },
     onSubmit: async ({ value }) => {
-      setError('')
-      setIsLoading(true)
-      
-      // TODO: Implement login logic
-      console.log('Login attempt:', value)
-      
-      // Simulate login for now
-      try {
-        // Navigate to home after login
-        navigate({ to: '/' })
-      } catch (err) {
-        setError('Login failed. Please try again.')
-      } finally {
-        setIsLoading(false)
-      }
+      loginMutation.mutate(value)
     },
   })
+
+  const error = loginMutation.error?.message || ''
+  const isLoading = loginMutation.isPending
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-12">
       <div className="w-full max-w-md">
-        {/* Logo/Title Section */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg mb-4">
             <LogIn className="w-8 h-8 text-white" />
@@ -53,7 +68,6 @@ function LoginPage() {
           </p>
         </div>
 
-        {/* Login Card */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-slate-700">
           <form
             onSubmit={(e) => {
@@ -63,7 +77,6 @@ function LoginPage() {
             }}
             className="space-y-6"
           >
-            {/* Username Field */}
             <form.Field
               name="username"
               validators={{
@@ -98,7 +111,6 @@ function LoginPage() {
               )}
             </form.Field>
 
-            {/* Password Field */}
             <form.Field
               name="password"
               validators={{
@@ -133,14 +145,12 @@ function LoginPage() {
               )}
             </form.Field>
 
-            {/* Error Message */}
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
 
-            {/* Remember Me & Forgot Password */}
             <form.Field name="rememberMe">
               {(field) => (
                 <div className="flex items-center justify-between">
@@ -166,7 +176,6 @@ function LoginPage() {
               )}
             </form.Field>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading || !form.state.canSubmit}
@@ -187,7 +196,6 @@ function LoginPage() {
           </form>
         </div>
 
-        {/* Footer */}
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
           Test Flow Execution System
         </p>

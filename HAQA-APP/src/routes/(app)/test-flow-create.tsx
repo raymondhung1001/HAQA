@@ -55,7 +55,7 @@ function CreateTestFlowPage() {
       return (response?.data || response)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['testCases'] })
+      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
       navigate({ to: '/test-flow' })
     },
   })

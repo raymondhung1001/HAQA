@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./HAQA-API" },
+    { "path": "./HAQA-APP" }
+  ]
+}

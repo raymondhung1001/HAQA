@@ -1,5 +1,7 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import { useQueryClient } from '@tanstack/react-query'
+import { useLogout } from '@/queries/auth-queries'
 import { DesktopSidebar } from './navigation/desktop-sidebar'
 import { MobileHeader } from './navigation/mobile-header'
 import { MobileSidebar } from './navigation/mobile-sidebar'
@@ -15,6 +17,18 @@ export function Navigation({ children }: NavigationProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const uiState = useStore(uiStore)
+  const queryClient = useQueryClient()
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      queryClient.clear()
+      window.location.href = '/login'
+    },
+  })
+
+  const handleLogout = () => {
+    logoutMutation.mutate()
+    uiActions.closeMobileMenu()
+  }
 
   const handleNavClick = (path: string) => {
     navigate({ to: path })
@@ -32,6 +46,8 @@ export function Navigation({ children }: NavigationProps) {
         navItems={navItems}
         activePath={activePath}
         onNavClick={handleNavClick}
+        onLogout={handleLogout}
+        isLoggingOut={logoutMutation.isPending}
       />
 
       <MobileHeader onMenuOpen={() => uiActions.openMobileMenu()} />
@@ -42,6 +58,8 @@ export function Navigation({ children }: NavigationProps) {
         navItems={navItems}
         activePath={activePath}
         onNavClick={handleNavClick}
+        onLogout={handleLogout}
+        isLoggingOut={logoutMutation.isPending}
       />
 
       <div className="lg:pl-64">

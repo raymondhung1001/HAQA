@@ -13,13 +13,11 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "noUnusedLocals": false,
-
     "strictPropertyInitialization": false,
-
-    /* Path mapping - override base config for this project */
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
-  }
+  },
+  "include": ["src/**/*"]
 }
