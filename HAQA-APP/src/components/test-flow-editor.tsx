@@ -3,6 +3,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  ControlButton,
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
@@ -50,6 +51,7 @@ function TestFlowEditorCanvas({
 }: TestFlowEditorProps) {
   const [formData, setFormData] = useState(initialFormData)
   const [nameError, setNameError] = useState<string | undefined>()
+  const [showFlowHelp, setShowFlowHelp] = useState(false)
 
   const {
     nodes,
@@ -128,19 +130,34 @@ function TestFlowEditorCanvas({
               fitView
             >
               <Background gap={20} size={1} />
-              <Controls className="!shadow-md" />
+              <Controls className="!shadow-md">
+                <ControlButton
+                  aria-label="Flow board help"
+                  title="Flow board help"
+                  className="!bg-white hover:!bg-slate-100 dark:!bg-slate-800 dark:hover:!bg-slate-700"
+                  onClick={() => setShowFlowHelp((current) => !current)}
+                >
+                  <svg viewBox="0 0 24 24" className="block h-4 w-4" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" fill="currentColor" />
+                    <rect x="11" y="10" width="2" height="7" rx="1" fill="white" />
+                    <circle cx="12" cy="7" r="1.25" fill="white" />
+                  </svg>
+                </ControlButton>
+              </Controls>
               <MiniMap className="!shadow-md" pannable zoomable nodeStrokeWidth={3} />
             </ReactFlow>
           </div>
 
-          <p className="pointer-events-none absolute bottom-3 left-4 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-            Add nodes from the palette to grow the flow to the right, connect handles to build a
-            branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
-            the canvas, add break exits on the loop body box for mid-iteration exits,
-            use the arrow buttons on a main-flow step to swap its order, connect handles between steps,
-            double-click or use the edit button to configure a node, and press Delete to remove a
-            selected node.
-          </p>
+          {showFlowHelp ? (
+            <p className="pointer-events-none absolute bottom-3 left-16 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
+              Add nodes from the palette to grow the flow to the right, connect handles to build a
+              branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
+              the canvas, add break exits on the loop body box for mid-iteration exits, use the
+              arrow buttons on a main-flow step to swap its order, connect handles between steps,
+              double-click or use the edit button to configure a node, and press Delete to remove a
+              selected node.
+            </p>
+          ) : null}
         </section>
       </div>
 
