@@ -1075,6 +1075,83 @@ export function syncAllLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[]
   return result
 }
 
+/** Recompute loop body size/position after graph edits (nodes, edges, or break handles). */
+export function syncLoopBodyGraphLayout(
+  nodes: Node[],
+  edges: Edge[],
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeIds = new Set(nodes.map((node) => node.id))
+
+  let nextNodes = nodes.map((node) => {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) return node
+
+    const validIds = normalizeLoopBodyNodeIds(readLoopBodyNodeIds(data.config), nodeIds)
+    const hasIfElse = validIds.some((id) => {
+      const member = nodes.find((member) => member.id === id)
+      return (member?.data as WorkflowNodeData)?.nodeType === 'if-else'
+    })
+
+    const nextConfig = {
+      ...migrateLoopNodeConfig(data.config as Record<string, unknown> | undefined),
+      bodyNodeIds: validIds,
+      ...(hasIfElse ? {} : { breakExits: [] as IfElseBranch[] }),
+    }
+
+    return {
+      ...node,
+      data: {
+        ...data,
+        config: nextConfig,
+      },
+    }
+  })
+
+  let nextEdges = edges
+  for (const node of nextNodes) {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+
+    const groupId = getLoopBodyGroupId(node.id)
+    const breakExits = readLoopBreakExits(data.config)
+    nextEdges = pruneEdgesForRemovedBranches(nextEdges, groupId, breakExits)
+  }
+
+  nextEdges = syncAllLoopBodyEdges(nextNodes, nextEdges)
+  nextNodes = syncAllLoopBodyGroups(nextNodes, nextEdges)
+
+  return { nodes: nextNodes, edges: nextEdges }
+}
+
+/** Stable fingerprint to skip redundant loop-body relayout effect passes. */
+export function getLoopBodyLayoutDigest(nodes: Node[], edges: Edge[]): string {
+  const parts: string[] = [`edges:${edges.length}`]
+
+  for (const edge of edges) {
+    parts.push(`${edge.source}>${edge.target}:${edge.sourceHandle ?? ''}:${edge.targetHandle ?? ''}`)
+  }
+
+  for (const node of nodes) {
+    if (node.type === LOOP_BODY_GROUP_NODE_TYPE) {
+      parts.push(
+        `group:${node.id}:${String(node.style?.width ?? '')}x${String(node.style?.height ?? '')}`,
+      )
+      continue
+    }
+
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+
+    const bodyIds = readLoopBodyNodeIds(data.config)
+    const breaks = readLoopBreakExits(data.config)
+    parts.push(
+      `loop:${node.id}:${bodyIds.join(',')}:breaks=${breaks.map((b) => b.id).join(',')}`,
+    )
+  }
+
+  return parts.join('|')
+}
+
 function migrateLoopGroupSourceEdges(nodes: Node[], edges: Edge[]): Edge[] {
   return edges.map((edge) => {
     if (!edge.sourceHandle) return edge
