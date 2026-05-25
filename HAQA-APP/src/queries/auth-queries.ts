@@ -1,20 +1,10 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react-query'
+
 import { apiPost } from '@/lib/api-client'
 import { clearSessionCache, setSessionAuthenticated } from '@/lib/auth-session'
+import type { AuthTokenResponse, LoginRequest } from '@/types'
 
-export interface LoginRequest {
-  username: string
-  password: string
-  rememberMe?: boolean
-}
-
-export interface AuthTokenResponse {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
-  expiresAt: number
-  tokenType: 'Bearer'
-}
+export type { LoginRequest, AuthTokenResponse } from '@/types'
 
 function unwrapTokenResponse(
   response: { data?: AuthTokenResponse } | AuthTokenResponse,

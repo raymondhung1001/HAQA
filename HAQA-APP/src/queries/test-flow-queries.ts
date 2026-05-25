@@ -7,63 +7,66 @@ import {
   type UseSuspenseQueryOptions,
   type UseMutationOptions,
 } from '@tanstack/react-query'
+
 import { apiClient, SessionExpiredError, UnauthorizedError, unwrapData } from '@/lib/api-client'
-import type { TestFlowDetail, TestFlowGraph } from '@/lib/test-flow-graph'
+import { testFlowQueryKeys } from '@/types'
+import type {
+  CreateTestFlowInput,
+  PaginatedTestFlows,
+  SaveTestFlowGraphVariables,
+  SearchTestFlowsParams,
+  TestFlow,
+  TestFlowDetail,
+  TestFlowListQueryKey,
+  TestFlowDetailQueryKey,
+  TestFlowVersionGraph,
+  UpdateTestFlowMutationVariables,
+} from '@/types'
+import { isPaginatedTestFlows } from '@/types/guards'
 
-export interface Testflow {  id: string
-  name: string
-  description?: string
-  isActive?: boolean
-  userId?: number
-  createdAt?: string
-  updatedAt?: string
+export type {
+  TestFlow,
+  Testflow,
+  PaginatedTestFlows,
+  SearchTestFlowsParams,
+  CreateTestFlowInput,
+  UpdateTestFlowMutationVariables,
+  SaveTestFlowGraphVariables,
+} from '@/types'
+
+const emptyPaginatedTestFlows = (): PaginatedTestFlows => ({
+  data: [],
+  total: 0,
+  page: 1,
+  limit: 10,
+  totalPages: 0,
+})
+
+function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
+  const data = (response as { data?: unknown })?.data ?? response
+  if (isPaginatedTestFlows(data)) {
+    return data
+  }
+  return emptyPaginatedTestFlows()
 }
 
-export interface PaginatedTestFlows {
-  data: Testflow[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
-}
-
-interface SearchTestFlowsParams {
-  query?: string
-  isActive?: boolean
-  page?: number
-  limit?: number
-  sortBy?: 'createdAt' | 'updatedAt'
-}
-
-/**
- * Search test flows query hook with pagination
- */
 export function useSearchTestFlows(
   params?: SearchTestFlowsParams,
   options?: Omit<
-    UseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, (string | number)[]>,
+    UseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
-  >
+  >,
 ) {
   return useQuery({
-    queryKey: ['testFlows', params?.query || '', params?.page || 1, params?.limit || 10, params?.sortBy || 'createdAt'],
+    queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
       try {
-        const response = await apiClient.searchTestFlows({
-          query: params?.query || undefined,
-          isActive: params?.isActive,
-          page: params?.page,
-          limit: params?.limit,
-          sortBy: params?.sortBy,
-        })
-        // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
-        return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
+        const response = await apiClient.searchTestFlows(params)
+        return parsePaginatedTestFlows(response)
       } catch (error) {
-        // Re-throw SessionExpiredError and UnauthorizedError as-is so React Query can handle them properly
         if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
           throw error
         }
-        // Re-throw other errors
         throw error
       }
     },
@@ -72,36 +75,23 @@ export function useSearchTestFlows(
   })
 }
 
-/**
- * Search test flows query hook with Suspense support
- * Note: This will throw errors that should be caught by ErrorBoundary
- */
 export function useSearchTestFlowsSuspense(
   params?: SearchTestFlowsParams,
   options?: Omit<
-    UseSuspenseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, (string | number)[]>,
+    UseSuspenseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
-  >
+  >,
 ) {
   return useSuspenseQuery({
-    queryKey: ['testFlows', params?.query || '', params?.page || 1, params?.limit || 10, params?.sortBy || 'createdAt'],
+    queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
       try {
-        const response = await apiClient.searchTestFlows({
-          query: params?.query || undefined,
-          isActive: params?.isActive,
-          page: params?.page,
-          limit: params?.limit,
-          sortBy: params?.sortBy,
-        })
-        // Response is wrapped in SuccessResponse format: { success: true, data: {...}, ... }
-        return (response?.data || { data: [], total: 0, page: 1, limit: 10, totalPages: 0 }) as PaginatedTestFlows
+        const response = await apiClient.searchTestFlows(params)
+        return parsePaginatedTestFlows(response)
       } catch (error) {
-        // Re-throw SessionExpiredError and UnauthorizedError as-is so React Query can handle them properly
         if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
           throw error
         }
-        // Re-throw other errors
         throw error
       }
     },
@@ -112,12 +102,12 @@ export function useSearchTestFlowsSuspense(
 export function useTestFlow(
   id: string,
   options?: Omit<
-    UseQueryOptions<TestFlowDetail, Error, TestFlowDetail, string[]>,
+    UseQueryOptions<TestFlowDetail, Error, TestFlowDetail, TestFlowDetailQueryKey>,
     'queryKey' | 'queryFn'
   >,
 ) {
   return useQuery({
-    queryKey: ['testFlow', id],
+    queryKey: testFlowQueryKeys.detail(id),
     queryFn: () => apiClient.getTestFlow(id),
     enabled: Boolean(id),
     ...options,
@@ -126,17 +116,7 @@ export function useTestFlow(
 
 export function useCreateTestFlow(
   options?: Omit<
-    UseMutationOptions<
-      TestFlowDetail,
-      Error,
-      {
-        name: string
-        description?: string
-        isActive?: boolean
-        graph?: TestFlowGraph
-      },
-      unknown
-    >,
+    UseMutationOptions<TestFlowDetail, Error, CreateTestFlowInput, unknown>,
     'mutationFn'
   >,
 ) {
@@ -145,10 +125,10 @@ export function useCreateTestFlow(
   return useMutation({
     mutationFn: async (data) => {
       const response = await apiClient.createTestFlow(data)
-      return unwrapData(response) as TestFlowDetail
+      return unwrapData<TestFlowDetail>(response)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
+      queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.all })
     },
     ...options,
   })
@@ -156,12 +136,7 @@ export function useCreateTestFlow(
 
 export function useUpdateTestFlow(
   options?: Omit<
-    UseMutationOptions<
-      Testflow,
-      Error,
-      { id: string; data: { name?: string; description?: string; isActive?: boolean } },
-      unknown
-    >,
+    UseMutationOptions<TestFlow, Error, UpdateTestFlowMutationVariables, unknown>,
     'mutationFn'
   >,
 ) {
@@ -170,11 +145,11 @@ export function useUpdateTestFlow(
   return useMutation({
     mutationFn: async ({ id, data }) => {
       const response = await apiClient.updateTestFlow(id, data)
-      return ((response as { data?: Testflow })?.data ?? response) as Testflow
+      return unwrapData<TestFlow>(response)
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
-      queryClient.invalidateQueries({ queryKey: ['testFlow', variables.id] })
+      queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.detail(variables.id) })
     },
     ...options,
   })
@@ -182,12 +157,7 @@ export function useUpdateTestFlow(
 
 export function useSaveTestFlowGraph(
   options?: Omit<
-    UseMutationOptions<
-      TestFlowDetail['latestVersion'],
-      Error,
-      { id: string; graph: TestFlowGraph },
-      unknown
-    >,
+    UseMutationOptions<TestFlowVersionGraph | null, Error, SaveTestFlowGraphVariables, unknown>,
     'mutationFn'
   >,
 ) {
@@ -196,8 +166,8 @@ export function useSaveTestFlowGraph(
   return useMutation({
     mutationFn: async ({ id, graph }) => apiClient.saveTestFlowGraph(id, graph),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['testFlows'] })
-      queryClient.invalidateQueries({ queryKey: ['testFlow', variables.id] })
+      queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.detail(variables.id) })
     },
     ...options,
   })

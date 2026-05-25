@@ -1,14 +1,14 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
-import { useQueryClient } from '@tanstack/react-query'
-import { useLogout } from '@/queries/auth-queries'
-import { DesktopSidebar } from './navigation/desktop-sidebar'
-import { MobileHeader } from './navigation/mobile-header'
-import { MobileSidebar } from './navigation/mobile-sidebar'
-import { PageHeader } from './navigation/page-header'
-import { navItems } from './navigation/nav-items'
-import { desktopSidebarOffsetClass } from './navigation/sidebar-layout'
-import { uiStore, uiActions } from '@/stores'
+
+import { DesktopSidebar } from './desktop-sidebar'
+import { MobileHeader } from './mobile-header'
+import { MobileSidebar } from './mobile-sidebar'
+import { PageHeader } from './page-header'
+import { navItems } from './nav-items'
+import { desktopSidebarOffsetClass } from './sidebar-layout'
+import { useLogoutHandler } from '@/lib/hooks'
+import { uiActions, uiStore } from '@/stores'
 import { cn } from '@/lib/utils'
 
 interface NavigationProps {
@@ -19,18 +19,7 @@ export function Navigation({ children }: NavigationProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const uiState = useStore(uiStore)
-  const queryClient = useQueryClient()
-  const logoutMutation = useLogout({
-    onSuccess: () => {
-      queryClient.clear()
-      window.location.href = '/login'
-    },
-  })
-
-  const handleLogout = () => {
-    logoutMutation.mutate()
-    uiActions.closeMobileMenu()
-  }
+  const { handleLogout, isLoggingOut } = useLogoutHandler()
 
   const handleNavClick = (path: string) => {
     navigate({ to: path })
@@ -49,7 +38,7 @@ export function Navigation({ children }: NavigationProps) {
         activePath={activePath}
         onNavClick={handleNavClick}
         onLogout={handleLogout}
-        isLoggingOut={logoutMutation.isPending}
+        isLoggingOut={isLoggingOut}
       />
 
       <MobileHeader onMenuOpen={() => uiActions.openMobileMenu()} />
@@ -61,16 +50,13 @@ export function Navigation({ children }: NavigationProps) {
         activePath={activePath}
         onNavClick={handleNavClick}
         onLogout={handleLogout}
-        isLoggingOut={logoutMutation.isPending}
+        isLoggingOut={isLoggingOut}
       />
 
       <div className={cn(desktopSidebarOffsetClass)}>
         <PageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <main className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-          {children}
-        </main>
+        <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
       </div>
     </div>
   )
 }
-
