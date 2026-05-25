@@ -42,10 +42,40 @@ const emptyPaginatedTestFlows = (): PaginatedTestFlows => ({
   totalPages: 0,
 })
 
+function normalizeTestFlowRow(row: unknown): TestFlow | null {
+  if (!row || typeof row !== 'object') return null
+  const record = row as Record<string, unknown>
+
+  const rawId = record.id ?? record.testFlowId ?? record.test_flow_id
+  const rawName = record.name
+
+  if (typeof rawId !== 'string' || rawId.length === 0) return null
+  if (typeof rawName !== 'string' || rawName.length === 0) return null
+
+  const rawDescription = record.description
+  const rawIsActive = record.isActive ?? record.is_active
+  const rawUserId = record.userId ?? record.user_id
+  const rawCreatedAt = record.createdAt ?? record.created_at
+  const rawUpdatedAt = record.updatedAt ?? record.updated_at
+
+  return {
+    id: rawId,
+    name: rawName,
+    description: typeof rawDescription === 'string' ? rawDescription : undefined,
+    isActive: typeof rawIsActive === 'boolean' ? rawIsActive : undefined,
+    userId: typeof rawUserId === 'number' ? rawUserId : undefined,
+    createdAt: typeof rawCreatedAt === 'string' ? rawCreatedAt : undefined,
+    updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : undefined,
+  }
+}
+
 function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
   const data = (response as { data?: unknown })?.data ?? response
   if (isPaginatedTestFlows(data)) {
-    return data
+    return {
+      ...data,
+      data: data.data.map(normalizeTestFlowRow).filter((row): row is TestFlow => row !== null),
+    }
   }
   return emptyPaginatedTestFlows()
 }

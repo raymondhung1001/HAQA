@@ -1,10 +1,8 @@
-import { Link } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 
 import { StatusBadge } from '@/components/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import type { TestFlow } from '@/types'
 
 interface TestFlowCardProps {
@@ -12,6 +10,9 @@ interface TestFlowCardProps {
 }
 
 export function TestFlowCard({ testFlow }: TestFlowCardProps) {
+  const testFlowId = typeof testFlow.id === 'string' ? testFlow.id : ''
+  const editHref = testFlowId ? `/test-flow/${encodeURIComponent(testFlowId)}/edit` : '#'
+
   return (
     <Card>
       <CardHeader>
@@ -19,14 +20,19 @@ export function TestFlowCard({ testFlow }: TestFlowCardProps) {
           <CardTitle className="text-lg">{testFlow.name}</CardTitle>
           <div className="flex items-center gap-2">
             <StatusBadge active={testFlow.isActive ?? false} />
-            <Link
-              to="/test-flow/$id/edit"
-              params={{ id: testFlow.id }}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            <a
+              href={editHref}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              aria-disabled={!testFlowId}
+              onClick={(event) => {
+                if (!testFlowId) {
+                  event.preventDefault()
+                }
+              }}
             >
               <Pencil className="h-4 w-4" />
               Edit
-            </Link>
+            </a>
           </div>
         </div>
       </CardHeader>
