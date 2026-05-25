@@ -19,6 +19,16 @@ export const LOOP_BODY_GROUP = {
   nodeHeight: 88,
   minWidth: 280,
   minHeight: 140,
+  /** Workflow node visual height used for vertical fit (min-h-[72px] + content). */
+  bodyNodeHeight: 96,
+  /** Right-side rail for break exit handles at end of body. */
+  breakRailWidth: 72,
+  /** Gap between loop body bottom and the Done handle edge lane. */
+  doneEdgeClearance: 36,
+  /** Extra room for edge stroke and smooth-step routing below the body box. */
+  doneEdgeRoutingSlack: 16,
+  /** Dashed border width (border-2) counted in clearance math. */
+  borderWidth: 4,
 } as const
 
 export const WORKFLOW_REORDER_FOOTER_HEIGHT = IF_ELSE_NODE_LAYOUT.footerHeight

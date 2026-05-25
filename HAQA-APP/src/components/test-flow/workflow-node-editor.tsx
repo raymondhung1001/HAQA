@@ -16,18 +16,18 @@ import {
 } from '@/components/test-flow/workflow-node-definitions'
 import {
   addIfElseBranch,
-  addLoopBreakCondition,
+  addLoopBreakExit,
+  DEFAULT_LOOP_BRANCHES,
   isElseBranchIndex,
-  isLoopBodyBranchIndex,
-  isLoopDoneBranchIndex,
   isLoopNodeType,
+  migrateLoopNodeConfig,
   normalizeIfElseBranches,
-  normalizeLoopBranches,
+  normalizeLoopBreakExits,
   readIfElseBranches,
   readLoopBodyNodeIds,
-  readLoopBranches,
+  readLoopBreakExits,
   removeIfElseBranch,
-  removeLoopBreakCondition,
+  removeLoopBreakExit,
   resolveLoopBodySteps,
   type IfElseBranch,
   type LoopBodyStep,
@@ -36,7 +36,6 @@ import {
 } from '@/lib/test-flow-graph'
 
 const MIN_IF_ELSE_BRANCHES = 2
-const MIN_LOOP_BRANCHES = 2
 
 interface WorkflowNodeEditorProps {
   node: Node | null
@@ -69,6 +68,7 @@ export function WorkflowNodeEditor({
   )
   const [scriptContent, setScriptContent] = useState('')
   const [branches, setBranches] = useState<IfElseBranch[]>([])
+  const [breakExits, setBreakExits] = useState<IfElseBranch[]>([])
 
   const isIfElseNode = nodeType === 'if-else'
   const isLoopNode = isLoopNodeType(nodeType)
@@ -89,13 +89,8 @@ export function WorkflowNodeEditor({
     setDescription(nodeData.description ?? '')
     setScriptLanguage(nodeData.scriptLanguage ?? 'javascript')
     setScriptContent(nodeData.scriptContent ?? '')
-    setBranches(
-      isIfElseNode
-        ? readIfElseBranches(nodeData.config)
-        : isLoopNode
-          ? readLoopBranches(nodeData.config)
-          : [],
-    )
+    setBranches(isIfElseNode ? readIfElseBranches(nodeData.config) : [])
+    setBreakExits(isLoopNode ? readLoopBreakExits(nodeData.config) : [])
   }, [
     node,
     isIfElseNode,
@@ -121,29 +116,28 @@ export function WorkflowNodeEditor({
   }
 
   const handleLoopBreakLabelChange = (branchId: string, nextLabel: string) => {
-    setBranches((current) =>
-      normalizeLoopBranches(
-        current.map((branch, index) =>
-          branch.id === branchId &&
-          !isLoopBodyBranchIndex(index) &&
-          !isLoopDoneBranchIndex(index, current.length)
-            ? { ...branch, label: nextLabel }
-            : branch,
+    setBreakExits((current) =>
+      normalizeLoopBreakExits(
+        current.map((branch) =>
+          branch.id === branchId ? { ...branch, label: nextLabel } : branch,
         ),
       ),
     )
   }
 
   const handleAddBranch = () => {
-    setBranches((current) =>
-      isLoopNode ? addLoopBreakCondition(current) : addIfElseBranch(current),
-    )
+    setBranches((current) => (isLoopNode ? current : addIfElseBranch(current)))
+    if (isLoopNode) {
+      setBreakExits((current) => addLoopBreakExit(current))
+    }
   }
 
   const handleRemoveBranch = (branchId: string) => {
-    setBranches((current) =>
-      isLoopNode ? removeLoopBreakCondition(current, branchId) : removeIfElseBranch(current, branchId),
-    )
+    if (isLoopNode) {
+      setBreakExits((current) => removeLoopBreakExit(current, branchId))
+      return
+    }
+    setBranches((current) => removeIfElseBranch(current, branchId))
   }
 
   const handleSave = () => {
@@ -167,17 +161,12 @@ export function WorkflowNodeEditor({
       return
     }
 
-    const normalizedLoopBranches = normalizeLoopBranches(
-      branches.map((branch) => ({
+    const normalizedLoopBreakExits = normalizeLoopBreakExits(
+      breakExits.map((branch) => ({
         ...branch,
         label: branch.label.trim() || branch.id,
       })),
     )
-
-    if (isLoopNode && normalizedLoopBranches.length < MIN_LOOP_BRANCHES) {
-      alert('Loop nodes need at least Loop and Done outputs')
-      return
-    }
 
     onSave(node.id, {
       label: trimmedLabel,
@@ -193,11 +182,12 @@ export function WorkflowNodeEditor({
           }
         : isLoopNode
           ? {
-              config: {
+              config: migrateLoopNodeConfig({
                 ...(nodeData.config ?? {}),
-                branches: normalizedLoopBranches,
+                branches: [...DEFAULT_LOOP_BRANCHES],
+                breakExits: normalizedLoopBreakExits,
                 bodyNodeIds: readLoopBodyNodeIds(nodeData.config),
-              },
+              }),
             }
           : {}),
     })
@@ -307,6 +297,17 @@ export function WorkflowNodeEditor({
           )}
 
           {isLoopNode && (
+            <div className="rounded-md border border-orange-200/70 bg-white/70 px-3 py-2 text-xs text-gray-600 dark:border-orange-900/40 dark:bg-slate-900/40 dark:text-gray-300">
+              <p>
+                <span className="font-medium text-gray-800 dark:text-gray-100">Loop</span> enters the
+                body. After each iteration the flow returns to the loop node.{' '}
+                <span className="font-medium text-gray-800 dark:text-gray-100">Done</span> continues
+                the main flow when the loop finishes.
+              </p>
+            </div>
+          )}
+
+          {isLoopNode && (
             <div className="space-y-3 rounded-lg border border-green-200 bg-green-50/60 p-3 dark:border-green-900/50 dark:bg-green-950/20">
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Loop body steps</p>
@@ -395,10 +396,11 @@ export function WorkflowNodeEditor({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    Break on conditions
+                    Break exits (end of body)
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Loop and Done are reserved. Add break exits between them.
+                    Handles appear at the right edge of the loop body box. Wire If / Else branches
+                    inside the body directly to the main flow for mid-body breaks.
                   </p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
@@ -408,51 +410,34 @@ export function WorkflowNodeEditor({
               </div>
 
               <div className="space-y-2">
-                {(branches ?? []).map((branch, index) => {
-                  const isLoopBody = isLoopBodyBranchIndex(index)
-                  const isDoneBranch = isLoopDoneBranchIndex(index, (branches ?? []).length)
-
-                  return (
+                {breakExits.length === 0 ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    No break exits yet. Add one to expose a handle after the body completes.
+                  </p>
+                ) : (
+                  breakExits.map((branch, index) => (
                     <div key={branch.id} className="flex items-center gap-2">
                       <span className="w-5 shrink-0 text-xs text-gray-400">{index + 1}.</span>
-                      {isLoopBody || isDoneBranch ? (
-                        <div className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm text-gray-700 dark:bg-slate-900 dark:text-gray-300">
-                          {isLoopBody ? 'Loop' : 'Done'}
-                          <span className="ml-2 text-xs text-gray-400">(reserved)</span>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          value={branch.label}
-                          onChange={(e) => handleLoopBreakLabelChange(branch.id, e.target.value)}
-                          className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-900"
-                          placeholder="Break condition label"
-                        />
-                      )}
+                      <input
+                        type="text"
+                        value={branch.label}
+                        onChange={(e) => handleLoopBreakLabelChange(branch.id, e.target.value)}
+                        className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-900"
+                        placeholder="Break condition label"
+                      />
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
                         className="shrink-0"
-                        disabled={
-                          isLoopBody || isDoneBranch || branches.length <= MIN_LOOP_BRANCHES
-                        }
                         onClick={() => handleRemoveBranch(branch.id)}
-                        title={
-                          isLoopBody
-                            ? 'The Loop output is always kept as the first path'
-                            : isDoneBranch
-                              ? 'The Done output is always kept as the last path'
-                              : branches.length <= MIN_LOOP_BRANCHES
-                                ? 'At least Loop and Done outputs are required'
-                                : 'Remove break condition'
-                        }
+                        title="Remove break exit"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  )
-                })}
+                  ))
+                )}
               </div>
             </div>
           )}

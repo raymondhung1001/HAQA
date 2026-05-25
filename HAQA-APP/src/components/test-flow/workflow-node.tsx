@@ -276,7 +276,7 @@ function LoopWorkflowNode({
 }) {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
-  const nodeHeight = getLoopNodeHeight(branches.length, 0, showSwap)
+  const nodeHeight = getLoopNodeHeight(showSwap)
 
   return (
     <div
@@ -368,7 +368,7 @@ function LoopWorkflowNode({
           type="source"
           position={Position.Right}
           style={{
-            top: getLoopBranchHandleTopPercent(index, branches.length, 0, showSwap),
+            top: getLoopBranchHandleTopPercent(index, showSwap),
           }}
           className={cn(
             '!h-2.5 !w-2.5 !border-2 !bg-white',

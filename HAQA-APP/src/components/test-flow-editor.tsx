@@ -28,18 +28,20 @@ import {
   WORKFLOW_NODE_ORIGIN,
   addNodeToLoopBody,
   appendTargetToLoopBodyOnConnect,
+  applyLoopNodeConfigUpdate,
   connectEdge,
   createDefaultNodes,
   createWorkflowNode,
   getNextNodePosition,
   hasStartNode,
   isLoopNodeType,
+  isValidWorkflowConnection,
+  migrateLoopNodeConfig,
   pruneEdgesForRemovedBranches,
   reactFlowToGraph,
   LOOP_BODY_GROUP_NODE_TYPE,
   readIfElseBranches,
   readLoopBodyNodeIds,
-  readLoopBranches,
   removeNodeFromLoopBody,
   repositionNodeForBranchConnection,
   resolveLoopBodySteps,
@@ -156,6 +158,8 @@ function TestFlowEditorCanvas({
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (!isValidWorkflowConnection(connection, nodes)) return
+
       let nextEdges = connectEdge(connection, edges)
       let nextNodes = repositionNodeForBranchConnection(nodes, connection)
       const loopBodyResult = appendTargetToLoopBodyOnConnect(connection, nextNodes, nextEdges)
@@ -209,19 +213,40 @@ function TestFlowEditorCanvas({
 
   const handleUpdateNode = useCallback(
     (nodeId: string, updates: Partial<WorkflowNodeData>) => {
-      if (updates.config?.branches) {
-        const existing = nodes.find((node) => node.id === nodeId)
-        const nodeType = (existing?.data as WorkflowNodeData)?.nodeType
-        const branches =
-          nodeType === 'if-else'
-            ? readIfElseBranches(updates.config)
-            : isLoopNodeType(nodeType ?? '')
-              ? readLoopBranches(updates.config)
-              : []
+      const existing = nodes.find((node) => node.id === nodeId)
+      const nodeType = (existing?.data as WorkflowNodeData)?.nodeType
 
+      if (updates.config?.branches && nodeType === 'if-else') {
+        const branches = readIfElseBranches(updates.config)
         if (branches.length > 0) {
           setEdges((current) => pruneEdgesForRemovedBranches(current, nodeId, branches))
         }
+      }
+
+      if (isLoopNodeType(nodeType ?? '') && updates.config) {
+        const mergedConfig = migrateLoopNodeConfig({
+          ...((existing?.data as WorkflowNodeData)?.config ?? {}),
+          ...updates.config,
+        })
+        const result = applyLoopNodeConfigUpdate(
+          nodeId,
+          mergedConfig,
+          nodes.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    ...updates,
+                  },
+                }
+              : node,
+          ),
+          edges,
+        )
+        setNodes(result.nodes)
+        setEdges(result.edges)
+        return
       }
 
       setNodes((current) =>
@@ -241,7 +266,7 @@ function TestFlowEditorCanvas({
         ),
       )
     },
-    [nodes, setNodes, setEdges],
+    [nodes, edges, setNodes, setEdges],
   )
 
   const handleSubmit = () => {
@@ -369,7 +394,8 @@ function TestFlowEditorCanvas({
 
           <p className="pointer-events-none absolute bottom-3 left-4 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
             Add nodes from the palette to grow the flow to the right, configure If / Else output
-            branches in the node editor, use the arrow buttons on a step to swap its order, connect handles
+            branches in the node editor, add loop body steps and break exits at the end of the body,
+            use the arrow buttons on a step to swap its order, connect handles between steps,
             between steps, double-click or use the edit button to configure a node, and press Delete
             to remove a selected node.
           </p>
