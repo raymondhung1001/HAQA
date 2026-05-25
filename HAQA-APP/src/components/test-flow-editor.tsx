@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -25,6 +25,9 @@ import {
 import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
+
+const FLOW_BOARD_MIN_ZOOM = 0.2
+const FLOW_BOARD_MAX_ZOOM = 2
 
 interface TestFlowEditorProps {
   title: string
@@ -73,6 +76,39 @@ function TestFlowEditorCanvas({
     handleRemoveLoopBodyNode,
     handleReorderLoopBodyNode,
   } = useWorkflowGraph({ initialNodes, initialEdges })
+
+  const boardTranslateExtent = useMemo<[[number, number], [number, number]]>(() => {
+    if (flowNodes.length === 0) {
+      return [[-1000, -1000], [2000, 2000]]
+    }
+
+    let minX = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+
+    for (const node of flowNodes) {
+      const width = Number(node.width ?? node.style?.width ?? 220)
+      const height = Number(node.height ?? node.style?.height ?? 120)
+      const left = node.position.x
+      const right = node.position.x + width
+      const top = node.position.y - height / 2
+      const bottom = node.position.y + height / 2
+
+      minX = Math.min(minX, left)
+      maxX = Math.max(maxX, right)
+      minY = Math.min(minY, top)
+      maxY = Math.max(maxY, bottom)
+    }
+
+    const paddingX = 450
+    const paddingY = 320
+
+    return [
+      [minX - paddingX, minY - paddingY],
+      [maxX + paddingX, maxY + paddingY],
+    ]
+  }, [flowNodes])
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
@@ -126,7 +162,11 @@ function TestFlowEditorCanvas({
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
               connectionRadius={28}
+              minZoom={FLOW_BOARD_MIN_ZOOM}
+              maxZoom={FLOW_BOARD_MAX_ZOOM}
+              translateExtent={boardTranslateExtent}
               deleteKeyCode={['Backspace', 'Delete']}
+              fitViewOptions={{ padding: 0.2, minZoom: 0.45, maxZoom: 1.1 }}
               fitView
             >
               <Background gap={20} size={1} />
@@ -144,7 +184,12 @@ function TestFlowEditorCanvas({
                   </svg>
                 </ControlButton>
               </Controls>
-              <MiniMap className="!shadow-md" pannable zoomable nodeStrokeWidth={3} />
+              <MiniMap
+                className="!h-36 !w-52 !shadow-md"
+                pannable
+                zoomable
+                nodeStrokeWidth={3}
+              />
             </ReactFlow>
           </div>
 
