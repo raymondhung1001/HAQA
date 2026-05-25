@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { FileText, Plus } from 'lucide-react'
 
 import { AppPage } from '@/components/app-page'
@@ -25,6 +25,14 @@ function TestFlowsPage() {
   const navigate = useNavigate()
   const { filters, debouncedSearchQuery, searchParams, setSearchQuery, setPage, setLimit, setSortBy } =
     useTestFlowFilters()
+
+  useEffect(() => {
+    if (filters.searchQuery) {
+      setSearchQuery('')
+    }
+    // Intentionally run once on page mount to avoid stale persisted filters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const { data: searchResults, isLoading, error } = useSearchTestFlows(searchParams)
   useSessionRedirect(error)

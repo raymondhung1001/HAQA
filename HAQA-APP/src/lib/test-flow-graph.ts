@@ -1949,7 +1949,29 @@ export function cloneGraphWithFreshIds(graph: TestFlowGraph): TestFlowGraph {
 }
 
 export function createDefaultNodes(): Node[] {
-  return [createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y })]
+  return [
+    createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y }),
+    createWorkflowNode('end', {
+      x: FLOW_BOARD_START_X + HORIZONTAL_NODE_GAP,
+      y: FLOW_BOARD_Y,
+    }),
+  ]
+}
+
+export function createDefaultEdges(nodes: Node[]): Edge[] {
+  const startNode = nodes.find((node) => (node.data as WorkflowNodeData)?.nodeType === 'start')
+  const endNode = nodes.find((node) => (node.data as WorkflowNodeData)?.nodeType === 'end')
+
+  if (!startNode || !endNode) return []
+
+  return [
+    {
+      ...WORKFLOW_EDGE_OPTIONS,
+      id: createNodeId(),
+      source: startNode.id,
+      target: endNode.id,
+    },
+  ]
 }
 
 export function createWorkflowNode(
@@ -2433,7 +2455,8 @@ export function graphToReactFlow(version: TestFlowVersionGraph | null): {
   edges: Edge[]
 } {
   if (!version) {
-    return { nodes: createDefaultNodes(), edges: [] }
+    const nodes = createDefaultNodes()
+    return { nodes, edges: createDefaultEdges(nodes) }
   }
 
   const baseNodes = version.nodes.map((node) => ({

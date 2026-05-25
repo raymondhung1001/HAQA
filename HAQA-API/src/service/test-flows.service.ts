@@ -352,6 +352,12 @@ export class TestFlowsService {
             if (incomingCount === 0) {
                 throw new BadRequestException(`Node ${node.id} must have an incoming edge`);
             }
+
+            // Allow fan-in to terminal end nodes so branch paths can merge safely.
+            if (node.nodeType === END_NODE_TYPE) {
+                continue;
+            }
+
             if (incomingCount > 1) {
                 throw new BadRequestException(
                     `Tree flow semantics require max one incoming edge per node. Node ${node.id} has ${incomingCount}`,

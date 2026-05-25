@@ -21,6 +21,7 @@ import {
   appendTargetToLoopBodyOnConnect,
   applyLoopNodeConfigUpdate,
   connectEdge,
+  createDefaultEdges,
   createDefaultNodes,
   createWorkflowNode,
   getNextNodePosition,
@@ -52,7 +53,7 @@ export function useWorkflowGraph({
   initialEdges,
 }: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn {
   const defaultNodes = initialNodes ?? createDefaultNodes()
-  const defaultEdges = initialEdges ?? []
+  const defaultEdges = initialEdges ?? createDefaultEdges(defaultNodes)
   const [nodes, setNodes] = useNodesState(defaultNodes)
   const [edges, setEdges] = useEdgesState(defaultEdges)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
