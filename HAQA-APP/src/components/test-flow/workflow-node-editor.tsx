@@ -195,7 +195,7 @@ export function WorkflowNodeEditor({
             <Callout
               variant="success"
               title="Loop body steps"
-              description="Work nodes executed on each iteration via the Loop handle."
+              description="Wire steps as a tree: connect outputs to the next step. If / Else uses branch handles; other steps use the right handle. Multiple paths can end at different leaves."
             >
               <div className="space-y-2">
                 {loopBodySteps.length === 0 ? (
@@ -276,7 +276,7 @@ export function WorkflowNodeEditor({
             <Callout
               variant="orange"
               title="Break exits (end of body)"
-              description="Handles appear at the right edge of the loop body box. Wire If / Else branches inside the body directly to the main flow for mid-body breaks."
+              description="Handles appear on the loop body box edge. Wire If / Else branch outputs to main-flow steps for mid-body breaks, or to other body steps to branch inside the iteration."
             >
               <div className="flex justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>

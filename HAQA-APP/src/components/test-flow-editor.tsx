@@ -133,9 +133,10 @@ function TestFlowEditorCanvas({
           </div>
 
           <p className="pointer-events-none absolute bottom-3 left-4 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-            Add nodes from the palette to grow the flow to the right, configure If / Else output
-            branches in the node editor, add loop body steps and break exits at the end of the body,
-            use the arrow buttons on a step to swap its order, connect handles between steps,
+            Add nodes from the palette to grow the flow to the right, connect handles to build a
+            branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
+            the canvas, add break exits on the loop body box for mid-iteration exits,
+            use the arrow buttons on a main-flow step to swap its order, connect handles between steps,
             double-click or use the edit button to configure a node, and press Delete to remove a
             selected node.
           </p>

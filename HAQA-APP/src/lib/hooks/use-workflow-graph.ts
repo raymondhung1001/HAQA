@@ -33,6 +33,8 @@ import {
   repositionNodeForBranchConnection,
   resolveLoopBodySteps,
   reorderLoopBody,
+  syncAllLoopBodyEdges,
+  syncAllLoopBodyGroups,
   withWorkflowEdgeDefaults,
   type TestFlowNodeType,
   type WorkflowNodeData,
@@ -125,7 +127,8 @@ export function useWorkflowGraph({
       let nextNodes = repositionNodeForBranchConnection(nodes, connection)
       const loopBodyResult = appendTargetToLoopBodyOnConnect(connection, nextNodes, nextEdges)
       nextNodes = loopBodyResult.nodes
-      nextEdges = loopBodyResult.edges
+      nextEdges = syncAllLoopBodyEdges(loopBodyResult.nodes, loopBodyResult.edges)
+      nextNodes = syncAllLoopBodyGroups(loopBodyResult.nodes, nextEdges)
       setEdges(nextEdges)
       setNodes(nextNodes)
     },
