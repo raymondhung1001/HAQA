@@ -1926,6 +1926,28 @@ export function createNodeId(): string {
   return crypto.randomUUID()
 }
 
+export function cloneGraphWithFreshIds(graph: TestFlowGraph): TestFlowGraph {
+  const nodeIdMap = new Map<string, string>()
+
+  for (const node of graph.nodes) {
+    nodeIdMap.set(node.id, createNodeId())
+  }
+
+  return {
+    uiLayoutJson: graph.uiLayoutJson ?? null,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      id: nodeIdMap.get(node.id) ?? node.id,
+    })),
+    edges: graph.edges.map((edge) => ({
+      ...edge,
+      id: createNodeId(),
+      sourceNodeId: nodeIdMap.get(edge.sourceNodeId) ?? edge.sourceNodeId,
+      targetNodeId: nodeIdMap.get(edge.targetNodeId) ?? edge.targetNodeId,
+    })),
+  }
+}
+
 export function createDefaultNodes(): Node[] {
   return [createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y })]
 }

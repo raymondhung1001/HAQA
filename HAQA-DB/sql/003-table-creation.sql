@@ -142,8 +142,8 @@ BEGIN;
         CONSTRAINT pk_test_flow_edges PRIMARY KEY (id),
         CONSTRAINT uk_test_flow_edges_version UNIQUE (id, test_flow_version_id),
         CONSTRAINT fk_edges_version FOREIGN KEY (test_flow_version_id) REFERENCES haqa_schema.test_flow_versions(id) ON DELETE CASCADE,
-        CONSTRAINT fk_edges_source FOREIGN KEY (source_node_id) REFERENCES haqa_schema.test_flow_nodes(id),
-        CONSTRAINT fk_edges_target FOREIGN KEY (target_node_id) REFERENCES haqa_schema.test_flow_nodes(id)
+        CONSTRAINT fk_edges_source_version FOREIGN KEY (source_node_id, test_flow_version_id) REFERENCES haqa_schema.test_flow_nodes(id, test_flow_version_id),
+        CONSTRAINT fk_edges_target_version FOREIGN KEY (target_node_id, test_flow_version_id) REFERENCES haqa_schema.test_flow_nodes(id, test_flow_version_id)
     );
 
     CREATE TABLE IF NOT EXISTS haqa_schema.test_flow_executions (
