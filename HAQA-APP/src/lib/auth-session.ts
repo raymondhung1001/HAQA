@@ -50,10 +50,31 @@ export function clearSessionCache(): void {
   sessionCache = null
 }
 
+async function probeSessionFromCookies(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+
+  try {
+    const response = await fetch(`${baseUrl}/test-flow?page=1&limit=1`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
 export async function getAuthSession(): Promise<{ session: unknown | null; isValid: boolean }> {
   const cached = getCachedSession()
   if (cached !== null) {
     return cached
+  }
+
+  if (await probeSessionFromCookies()) {
+    setSessionAuthenticated({ authenticated: true })
+    return { session: { authenticated: true }, isValid: true }
   }
 
   return {

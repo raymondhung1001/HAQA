@@ -1,3 +1,5 @@
+import { setSessionAuthenticated } from '@/lib/auth-session'
+
 // API base URL - defaults to localhost:3001/api (NestJS default with global prefix)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -212,6 +214,11 @@ export async function apiRequest<T = unknown>(
       errorMessage = response.statusText || `HTTP ${response.status}`
     }
     throw new Error(errorMessage)
+  }
+
+  // Keep in-memory auth cache aligned with successful cookie-authenticated requests
+  if (typeof window !== 'undefined') {
+    setSessionAuthenticated({ authenticated: true })
   }
 
   // If parseJson is false, return the ApiResponse object

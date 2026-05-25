@@ -44,11 +44,9 @@ function handleSessionExpiration(error: unknown) {
   if (
     error instanceof SessionExpiredError ||
     error instanceof UnauthorizedError ||
-    (error instanceof Error && (error.message.includes('Session expired') || error.message.includes('Not authorized')))
+    (error instanceof Error &&
+      (error.message.includes('Session expired') || error.message.includes('Not authorized')))
   ) {
-    // Clear all queries to prevent retries
-    queryClient.clear()
-    
     redirectToLoginIfNeeded()
   }
 }

@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 
-import { SessionExpiredError } from '@/lib/api-client'
+import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
 export function isSessionExpiredError(error: unknown): boolean {
   return (
     error instanceof SessionExpiredError ||
-    (error instanceof Error && error.message.includes('Session expired'))
+    error instanceof UnauthorizedError ||
+    (error instanceof Error &&
+      (error.message.includes('Session expired') || error.message.includes('Not authorized')))
   )
 }
 

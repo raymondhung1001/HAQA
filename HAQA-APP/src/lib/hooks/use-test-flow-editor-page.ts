@@ -22,15 +22,15 @@ export function useTestFlowEditorPage(
   const navigate = useNavigate()
 
   const createMutation = useCreateTestFlow({
-    onSuccess: () => navigate({ to: '/test-flow' }),
+    onSuccess: () => navigate({ to: '/test-flow/', replace: true }),
   })
 
   const updateMutation = useUpdateTestFlow()
   const saveGraphMutation = useSaveTestFlowGraph({
-    onSuccess: () => navigate({ to: '/test-flow' }),
+    onSuccess: () => navigate({ to: '/test-flow/', replace: true }),
   })
 
-  const handleCancel = () => navigate({ to: '/test-flow' })
+  const handleCancel = () => navigate({ to: '/test-flow/', replace: true })
 
   const isSubmitting =
     options.mode === 'create'

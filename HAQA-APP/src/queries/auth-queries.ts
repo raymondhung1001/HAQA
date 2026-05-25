@@ -2,6 +2,7 @@ import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react
 
 import { apiPost } from '@/lib/api-client'
 import { clearSessionCache, setSessionAuthenticated } from '@/lib/auth-session'
+import { testFlowQueryKeys } from '@/types'
 import type { AuthTokenResponse, LoginRequest } from '@/types'
 
 export type { LoginRequest, AuthTokenResponse } from '@/types'
@@ -47,6 +48,7 @@ export function useLogin(
     onSuccess: async (data, variables, context) => {
       setSessionAuthenticated({ authenticated: true }, data.expiresAt || null)
       await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+      await queryClient.invalidateQueries({ queryKey: testFlowQueryKeys.all })
       await userOnSuccess?.(data, variables, context)
     },
   })
