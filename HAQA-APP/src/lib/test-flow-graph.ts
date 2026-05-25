@@ -728,6 +728,11 @@ export function getLoopNestingDepth(loopNodeId: string, nodes: Node[]): number {
   return depth
 }
 
+function getNestedLoopBodyTopInset(): number {
+  const { labelHeight, padding } = LOOP_BODY_GROUP
+  return labelHeight + padding * 2 + 16
+}
+
 function getNestedLoopBodyLayoutMetrics(
   loopNode: Node,
   nodes: Node[],
@@ -766,7 +771,7 @@ function computeNestedLoopCompoundSize(
 
   const { padding } = LOOP_BODY_GROUP
   const width = loopCardWidth + HORIZONTAL_NODE_GAP + innerMetrics.width - padding
-  const height = Math.max(loopCardHeight, innerMetrics.height)
+  const height = Math.max(loopCardHeight, getNestedLoopBodyTopInset() + innerMetrics.height)
 
   return {
     width,
@@ -1098,14 +1103,13 @@ function getLoopBodyGroupPosition(
   loopNode: Node,
   groupHeight: number,
 ): { x: number; y: number } {
-  const { padding, labelHeight } = LOOP_BODY_GROUP
+  const { padding } = LOOP_BODY_GROUP
   const loopCardWidth = getLoopCardWidth(loopNode)
   const y = loopNode.position.y - groupHeight / 2
-  const nestedTopInset = labelHeight + padding
 
   return {
     x: loopNode.position.x + loopCardWidth + HORIZONTAL_NODE_GAP - padding,
-    y: isNestedLoopInParentBody(loopNode) ? Math.max(y, nestedTopInset) : y,
+    y: isNestedLoopInParentBody(loopNode) ? Math.max(y, getNestedLoopBodyTopInset()) : y,
   }
 }
 
