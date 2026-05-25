@@ -24,7 +24,7 @@ export function LoopBodyGroupNode({ selected, data }: NodeProps) {
   return (
     <div
       className={cn(
-        'relative box-border h-full w-full overflow-hidden rounded-xl border-2 border-dashed border-green-400/80 bg-green-50/25 dark:border-green-600/70 dark:bg-green-950/15',
+        'relative box-border h-full w-full overflow-visible rounded-xl border-2 border-dashed border-green-400/80 bg-green-50/25 dark:border-green-600/70 dark:bg-green-950/15',
         selected && 'ring-2 ring-green-400/40 ring-offset-2',
       )}
     >
