@@ -6,6 +6,7 @@ import { ConfigService } from "@nestjs/config";
 import { AuthService } from "./auth.service";
 import { TestFlowsService } from "./test-flows.service";
 import { JwtStrategy } from "@/strategies/jwt.strategy";
+import { JwtAuthGuard } from "@/guards";
 
 const services = [AuthService, TestFlowsService];
 
@@ -24,8 +25,8 @@ const services = [AuthService, TestFlowsService];
             }),
         }),
     ],
-    providers: [...services, JwtStrategy],
-    exports: services,
+    providers: [...services, JwtStrategy, JwtAuthGuard],
+    exports: [...services, JwtAuthGuard],
 })
 export class ServiceModule {
 
