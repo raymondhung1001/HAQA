@@ -1,3 +1,5 @@
+import { clearSessionCache, setSessionAuthenticated } from '@/lib/auth-session'
+
 // API base URL - defaults to localhost:3001/api (NestJS default with global prefix)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -128,6 +130,68 @@ function getBaseUrl(customBaseUrl?: string): string {
   return API_BASE_URL
 }
 
+interface AuthTokenPayload {
+  expiresAt?: number
+  expiresIn?: number
+}
+
+let refreshInFlight: Promise<boolean> | null = null
+
+function unwrapAuthTokenPayload(response: unknown): AuthTokenPayload | null {
+  const payload = (response as { data?: AuthTokenPayload })?.data ?? response
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  return payload as AuthTokenPayload
+}
+
+function isAuthTokenEndpoint(fullUrl: string, baseUrl: string): boolean {
+  const path = fullUrl.replace(baseUrl, '').split('?')[0]?.replace(/\/$/, '') || ''
+  return path === '/token' || path === '/token/refresh'
+}
+
+async function refreshAccessToken(baseUrl: string): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const csrfToken = await getCsrfToken(baseUrl)
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken
+        }
+
+        const response = await fetch(`${baseUrl}/token/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({}),
+        })
+
+        if (!response.ok) {
+          return false
+        }
+
+        const authData = unwrapAuthTokenPayload(await response.json())
+        if (authData?.expiresAt && typeof authData.expiresAt === 'number') {
+          setSessionAuthenticated({ authenticated: true }, authData.expiresAt)
+        } else {
+          setSessionAuthenticated({ authenticated: true })
+        }
+
+        return true
+      } catch {
+        return false
+      } finally {
+        refreshInFlight = null
+      }
+    })()
+  }
+
+  return refreshInFlight
+}
+
 /**
  * API request wrapper that handles authentication, CSRF tokens, and error handling
  */
@@ -191,15 +255,17 @@ export async function apiRequest<T = unknown>(
     throw error
   }
 
-  // Handle 401 responses
+  // Handle 401 responses — attempt token refresh once, then retry the original request
   if (response.status === 401) {
-    if (retryOn401) {
-      // For 401 errors, throw unauthorized error
-      // The auth system will handle redirects
-      throw new UnauthorizedError('Not authorized. Please login again.')
-    } else {
-      throw new UnauthorizedError('Not authorized. Please login again.')
+    if (retryOn401 && !isAuthTokenEndpoint(fullUrl, baseUrl)) {
+      const refreshed = await refreshAccessToken(baseUrl)
+      if (refreshed) {
+        return apiRequest<T>(url, { ...options, retryOn401: false })
+      }
+      clearSessionCache()
     }
+
+    throw new UnauthorizedError('Not authorized. Please login again.')
   }
 
   // Handle non-OK responses
@@ -212,6 +278,11 @@ export async function apiRequest<T = unknown>(
       errorMessage = response.statusText || `HTTP ${response.status}`
     }
     throw new Error(errorMessage)
+  }
+
+  // Keep in-memory auth cache aligned with successful cookie-authenticated requests
+  if (typeof window !== 'undefined') {
+    setSessionAuthenticated({ authenticated: true })
   }
 
   // If parseJson is false, return the ApiResponse object

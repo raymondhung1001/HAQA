@@ -1,4 +1,4 @@
-import { Controller, Post, Res, Req } from "@nestjs/common";
+import { BadRequestException, Controller, Post, Res, Req, UseGuards } from "@nestjs/common";
 import { Response, Request } from "express";
 import { z } from "zod";
 import { ConfigService } from "@nestjs/config";
@@ -8,6 +8,7 @@ import { Public } from "@/decorators";
 import { CurrentUser } from "@/decorators";
 import { BodySchema } from "@/pipe";
 import { Users } from "@/entities/Users";
+import { JwtAuthGuard } from "@/guards";
 
 // Define Zod schema for login validation
 const loginSchema = z.object({
@@ -26,6 +27,7 @@ type LoginDto = z.infer<typeof loginSchema>;
 type RefreshTokenDto = z.infer<typeof refreshTokenSchema>;
 
 @Controller('token')
+@UseGuards(JwtAuthGuard)
 export class TokenController {
 
     constructor(
@@ -39,29 +41,27 @@ export class TokenController {
      */
     private setTokenCookies(res: Response, tokenData: AuthTokenResponse, rememberMe: boolean = false): void {
         const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
-        // Use 'lax' for development to allow cross-origin cookie sending
-        // Use 'strict' for production when frontend and backend are on same domain
         const sameSite = isProduction ? 'strict' : 'lax';
-        const cookieOptions = {
+        const baseCookieOptions = {
             httpOnly: true,
             secure: isProduction,
             sameSite: sameSite as 'strict' | 'lax' | 'none',
             path: '/',
-            maxAge: rememberMe ? tokenData.expiresAt - Date.now() : undefined,
         };
 
-        // Set access token cookie
         res.cookie('accessToken', tokenData.accessToken, {
-            ...cookieOptions,
-            maxAge: (tokenData.expiresIn) * 1000, // Convert seconds to milliseconds
+            ...baseCookieOptions,
+            maxAge: tokenData.expiresIn * 1000,
         });
 
-        // Set refresh token cookie (longer expiration)
         const refreshExpiresIn = this.configService.get<number>('auth.jwt.refreshExpiresIn', 604800);
-        res.cookie('refreshToken', tokenData.refreshToken, {
-            ...cookieOptions,
-            maxAge: refreshExpiresIn * 1000, // Convert seconds to milliseconds
-        });
+        res.cookie(
+            'refreshToken',
+            tokenData.refreshToken,
+            rememberMe
+                ? { ...baseCookieOptions, maxAge: refreshExpiresIn * 1000 }
+                : baseCookieOptions,
+        );
     }
 
     @Public()
@@ -89,7 +89,7 @@ export class TokenController {
         const refreshToken = req.cookies?.['refreshToken'] || refreshDto?.refreshToken;
         
         if (!refreshToken) {
-            throw new Error('Refresh token is required');
+            throw new BadRequestException('Refresh token is required');
         }
         
         const tokenData = await this.authService.refreshToken(refreshToken);
