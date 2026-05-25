@@ -131,9 +131,16 @@ export function LoopBodyGroupNode({ id, selected, data, height }: NodeProps) {
     <div
       ref={rootRef}
       className={cn(
-        'relative box-border h-full w-full overflow-visible rounded-xl border-2 border-dashed border-green-400/80 bg-green-50/25 dark:border-green-600/70 dark:bg-green-950/15',
+        'relative box-border overflow-visible rounded-xl border-2 border-dashed border-green-400/80 bg-green-50/25 dark:border-green-600/70 dark:bg-green-950/15',
         selected && 'ring-2 ring-green-400/40 ring-offset-2',
       )}
+      style={{
+        width: '100%',
+        height: '100%',
+        minWidth: '100%',
+        minHeight: '100%',
+        boxSizing: 'border-box',
+      }}
     >
       <span className="pointer-events-none absolute left-3 top-2 z-10 text-[10px] font-semibold uppercase tracking-wide text-green-700/90 dark:text-green-300/90">
         Loop body

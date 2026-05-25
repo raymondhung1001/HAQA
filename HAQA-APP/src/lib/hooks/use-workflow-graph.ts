@@ -123,6 +123,9 @@ export function useWorkflowGraph({
             draggable: false,
             selectable: false,
             focusable: false,
+            ...(node.parentId
+              ? { extent: 'parent' as const, expandParent: false }
+              : {}),
           }
         }
 
@@ -131,7 +134,6 @@ export function useWorkflowGraph({
           ? resolveLoopBodySteps(readLoopBodyNodeIds(data.config), nodes)
           : undefined
         const isMainFlowNode = !node.parentId?.endsWith('-loop-body')
-
         return {
           ...node,
           draggable: false,

@@ -196,7 +196,7 @@ export function WorkflowNodeEditor({
             <Callout
               variant="success"
               title="Loop body steps"
-              description="Wire steps as a tree: connect outputs to the next step. If / Else uses branch handles; other steps use the right handle. Multiple paths can end at different leaves."
+              description="Wire steps as a tree: connect outputs to the next step. If / Else uses branch handles; loops use the Loop handle into their inner body. You can nest For Loop or Do While nodes inside another loop body."
             >
               <div className="space-y-2">
                 {loopBodySteps.length === 0 ? (

@@ -287,14 +287,16 @@ function LoopWorkflowNode({
     ? visibleBranches
     : branches
 
+  const cardClassName = cn(
+    'flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+    style.border,
+    style.bg,
+    selected && 'ring-2 ring-primary ring-offset-2',
+  )
+
   return (
     <div
-      className={cn(
-        'relative flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
-        style.border,
-        style.bg,
-        selected && 'ring-2 ring-primary ring-offset-2',
-      )}
+      className={cardClassName}
       style={{ height: nodeHeight, minWidth: IF_ELSE_NODE_LAYOUT.minWidth }}
     >
       <Handle
@@ -421,7 +423,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script
   const Icon = style.icon
-  const name = nodeData.displayLabel ?? nodeData.label || nodeType
+  const name = nodeData.displayLabel ?? (nodeData.label || nodeType)
   const description = nodeData.description?.trim()
   const branches = isBranchingNodeType(nodeType) ? (getNodeOutputBranches(nodeData) ?? []) : []
   const bodySteps = Array.isArray(nodeData.loopBodySteps) ? nodeData.loopBodySteps : []
