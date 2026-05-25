@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
   Controls,
+  ControlButton,
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
@@ -24,6 +25,9 @@ import {
 import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
+
+const FLOW_BOARD_MIN_ZOOM = 0.2
+const FLOW_BOARD_MAX_ZOOM = 2
 
 interface TestFlowEditorProps {
   title: string
@@ -50,6 +54,7 @@ function TestFlowEditorCanvas({
 }: TestFlowEditorProps) {
   const [formData, setFormData] = useState(initialFormData)
   const [nameError, setNameError] = useState<string | undefined>()
+  const [showFlowHelp, setShowFlowHelp] = useState(false)
 
   const {
     nodes,
@@ -71,6 +76,39 @@ function TestFlowEditorCanvas({
     handleRemoveLoopBodyNode,
     handleReorderLoopBodyNode,
   } = useWorkflowGraph({ initialNodes, initialEdges })
+
+  const boardTranslateExtent = useMemo<[[number, number], [number, number]]>(() => {
+    if (flowNodes.length === 0) {
+      return [[-1000, -1000], [2000, 2000]]
+    }
+
+    let minX = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+
+    for (const node of flowNodes) {
+      const width = Number(node.width ?? node.style?.width ?? 220)
+      const height = Number(node.height ?? node.style?.height ?? 120)
+      const left = node.position.x
+      const right = node.position.x + width
+      const top = node.position.y - height / 2
+      const bottom = node.position.y + height / 2
+
+      minX = Math.min(minX, left)
+      maxX = Math.max(maxX, right)
+      minY = Math.min(minY, top)
+      maxY = Math.max(maxY, bottom)
+    }
+
+    const paddingX = 450
+    const paddingY = 320
+
+    return [
+      [minX - paddingX, minY - paddingY],
+      [maxX + paddingX, maxY + paddingY],
+    ]
+  }, [flowNodes])
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
@@ -123,23 +161,48 @@ function TestFlowEditorCanvas({
               proOptions={{ hideAttribution: true }}
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
+              connectionRadius={28}
+              minZoom={FLOW_BOARD_MIN_ZOOM}
+              maxZoom={FLOW_BOARD_MAX_ZOOM}
+              translateExtent={boardTranslateExtent}
               deleteKeyCode={['Backspace', 'Delete']}
+              fitViewOptions={{ padding: 0.2, minZoom: 0.45, maxZoom: 1.1 }}
               fitView
             >
               <Background gap={20} size={1} />
-              <Controls className="!shadow-md" />
-              <MiniMap className="!shadow-md" pannable zoomable nodeStrokeWidth={3} />
+              <Controls className="!shadow-md">
+                <ControlButton
+                  aria-label="Flow board help"
+                  title="Flow board help"
+                  className="!bg-white hover:!bg-slate-100 dark:!bg-slate-800 dark:hover:!bg-slate-700"
+                  onClick={() => setShowFlowHelp((current) => !current)}
+                >
+                  <svg viewBox="0 0 24 24" className="block h-4 w-4" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" fill="currentColor" />
+                    <rect x="11" y="10" width="2" height="7" rx="1" fill="white" />
+                    <circle cx="12" cy="7" r="1.25" fill="white" />
+                  </svg>
+                </ControlButton>
+              </Controls>
+              <MiniMap
+                className="!h-36 !w-52 !shadow-md"
+                pannable
+                zoomable
+                nodeStrokeWidth={3}
+              />
             </ReactFlow>
           </div>
 
-          <p className="pointer-events-none absolute bottom-3 left-4 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-            Add nodes from the palette to grow the flow to the right, connect handles to build a
-            branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
-            the canvas, add break exits on the loop body box for mid-iteration exits,
-            use the arrow buttons on a main-flow step to swap its order, connect handles between steps,
-            double-click or use the edit button to configure a node, and press Delete to remove a
-            selected node.
-          </p>
+          {showFlowHelp ? (
+            <p className="pointer-events-none absolute bottom-3 left-16 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
+              Add nodes from the palette to grow the flow to the right, connect handles to build a
+              branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
+              the canvas, add break exits on the loop body box for mid-iteration exits, use the
+              arrow buttons on a main-flow step to swap its order, connect handles between steps,
+              double-click or use the edit button to configure a node, and press Delete to remove a
+              selected node.
+            </p>
+          ) : null}
         </section>
       </div>
 

@@ -1,6 +1,6 @@
 import type { Connection, Edge, Node } from '@xyflow/react'
 import type { ScriptLanguage } from '@/types/workflow'
-import { addEdge } from '@xyflow/react'
+import { addEdge, Position } from '@xyflow/react'
 import {
   IF_ELSE_NODE_LAYOUT,
   LOOP_BODY_GROUP,
@@ -9,8 +9,10 @@ import {
 } from '@/components/test-flow/workflow-node-layout'
 import {
   getWorkflowNodeLabel,
+  getWorkflowNodeTypeOrdinals,
   isLoopBodyWorkNodeType,
   isTestFlowNodeType,
+  resolveWorkflowNodeDisplayLabel,
 } from '@/components/test-flow/workflow-node-definitions'
 
 const WORKFLOW_NODE_TYPE = 'workflow' as const
@@ -39,6 +41,8 @@ export interface WorkflowNodeData {
   onSwapRight?: () => void
   canSwapLeft?: boolean
   canSwapRight?: boolean
+  /** Canvas display name; computed when duplicate types need disambiguation. */
+  displayLabel?: string
 }
 
 export interface TestFlowGraphNode {
@@ -75,20 +79,63 @@ export const WORKFLOW_EDGE_OPTIONS = {
   },
 }
 
+function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
+  return (
+    typeof edge.target === 'string' &&
+    edge.target.endsWith('-loop-body') &&
+    typeof edge.targetHandle === 'string' &&
+    edge.targetHandle.endsWith('-target')
+  )
+}
+
+/** Map drops on the visible break source dot to the target handle id. */
+export function normalizeLoopBodyBreakTargetConnection(
+  connection: Connection,
+  nodes: Node[],
+): Connection {
+  if (!connection.target || !connection.targetHandle) return connection
+
+  const targetNode = nodes.find((node) => node.id === connection.target)
+  if (!targetNode || !isLoopBodyGroupNode(targetNode)) return connection
+
+  const breakExits = Array.isArray(targetNode.data?.breakExits)
+    ? (targetNode.data.breakExits as IfElseBranch[])
+    : []
+
+  if (connection.targetHandle.endsWith('-target')) return connection
+
+  const branch = breakExits.find((exit) => exit.id === connection.targetHandle)
+  if (!branch) return connection
+
+  return { ...connection, targetHandle: `${branch.id}-target` }
+}
+
 export function withWorkflowEdgeDefaults(edge: Edge): Edge {
   const isDoneEdge = edge.sourceHandle === LOOP_DONE_BRANCH_ID
+  const isBreakTarget = isLoopBodyBreakTargetEdge(edge)
+  const isLoopBack =
+    edge.sourceHandle === LOOP_CONTINUE_SOURCE_HANDLE || edge.data?.loopBack === true
 
   return {
     ...edge,
     ...WORKFLOW_EDGE_OPTIONS,
+    ...(isBreakTarget
+      ? { targetPosition: Position.Left, sourcePosition: Position.Right }
+      : {}),
+    ...(isLoopBack
+      ? { targetPosition: Position.Left, sourcePosition: Position.Right, zIndex: -1 }
+      : {}),
     pathOptions: {
       ...WORKFLOW_EDGE_OPTIONS.pathOptions,
       ...(edge.pathOptions ?? {}),
       ...(isDoneEdge ? { offset: 52 } : {}),
+      ...(isBreakTarget ? { offset: 12 } : {}),
+      ...(isLoopBack ? { offset: 56, borderRadius: 28 } : {}),
     },
     style: {
       ...WORKFLOW_EDGE_OPTIONS.style,
       ...(edge.style ?? {}),
+      ...(isLoopBack ? { strokeDasharray: '6 4', opacity: 0.45 } : {}),
     },
   }
 }
@@ -312,7 +359,10 @@ export function getNodeOutputBranches(data: WorkflowNodeData): IfElseBranch[] {
 export interface LoopBodyStep {
   id: string
   label: string
+  /** Type label with optional ordinal when duplicates exist (e.g. "Script 1"). */
+  displayLabel: string
   nodeType: TestFlowNodeType
+  typeOrdinal?: number
 }
 
 export function readLoopBodyNodeIds(config?: Record<string, unknown> | null): string[] {
@@ -335,6 +385,65 @@ export function normalizeLoopBodyNodeIds(
   })
 }
 
+function getNodeTypeFromMap(
+  nodeMap: Map<string, Node>,
+  nodeId: string,
+): TestFlowNodeType | undefined {
+  const node = nodeMap.get(nodeId)
+  if (!node) return undefined
+  return (node.data as WorkflowNodeData).nodeType ?? 'script'
+}
+
+/** Main-flow workflow nodes in canvas order (left to right), excluding start/end. */
+export function collectMainFlowOrderedNodeIds(nodes: Node[]): string[] {
+  return nodes
+    .filter((node) => {
+      if (node.type === LOOP_BODY_GROUP_NODE_TYPE) return false
+      if (node.parentId?.endsWith('-loop-body')) return false
+
+      const data = node.data as WorkflowNodeData
+      const nodeType = data.nodeType ?? 'script'
+      if (nodeType === 'start' || nodeType === 'end') return false
+
+      return node.type === WORKFLOW_NODE_TYPE
+    })
+    .sort(
+      (left, right) =>
+        left.position.x - right.position.x || left.position.y - right.position.y,
+    )
+    .map((node) => node.id)
+}
+
+export function buildWorkflowNodeDisplayLabels(nodes: Node[]): Map<string, string> {
+  const labels = new Map<string, string>()
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
+  const getNodeType = (nodeId: string) => getNodeTypeFromMap(nodeMap, nodeId)
+
+  const applyForOrderedIds = (orderedIds: string[]) => {
+    const ordinals = getWorkflowNodeTypeOrdinals(orderedIds, getNodeType)
+    for (const id of orderedIds) {
+      const node = nodeMap.get(id)
+      if (!node) continue
+      const data = node.data as WorkflowNodeData
+      const nodeType = data.nodeType ?? 'script'
+      labels.set(
+        id,
+        resolveWorkflowNodeDisplayLabel(nodeType, data.label, ordinals.get(id)),
+      )
+    }
+  }
+
+  for (const node of nodes) {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+    applyForOrderedIds(readLoopBodyNodeIds(data.config))
+  }
+
+  applyForOrderedIds(collectMainFlowOrderedNodeIds(nodes))
+
+  return labels
+}
+
 export function resolveLoopBodySteps(
   bodyNodeIds: string[] | undefined | null,
   nodes: Node[] | undefined | null,
@@ -342,6 +451,7 @@ export function resolveLoopBodySteps(
   const ids = Array.isArray(bodyNodeIds) ? bodyNodeIds : []
   const nodeList = Array.isArray(nodes) ? nodes : []
   const nodeMap = new Map(nodeList.map((node) => [node.id, node]))
+  const ordinals = getWorkflowNodeTypeOrdinals(ids, (nodeId) => getNodeTypeFromMap(nodeMap, nodeId))
 
   return ids
     .map((id) => nodeMap.get(id))
@@ -349,11 +459,16 @@ export function resolveLoopBodySteps(
     .map((node) => {
       const data = node.data as WorkflowNodeData
       const nodeType = data.nodeType ?? 'script'
+      const typeOrdinal = ordinals.get(node.id)
+      const label = data.label?.trim() || getWorkflowNodeLabel(nodeType)
+      const displayLabel = resolveWorkflowNodeDisplayLabel(nodeType, data.label, typeOrdinal)
 
       return {
         id: node.id,
-        label: data.label?.trim() || getWorkflowNodeLabel(nodeType),
+        label,
+        displayLabel,
         nodeType,
+        typeOrdinal,
       }
     })
 }
@@ -396,6 +511,31 @@ function isNodeInAnyLoopBody(nodeId: string, nodes: Node[]): boolean {
   })
 }
 
+/** Parent loop that lists `loopNodeId` in its body (for nested loop exit wiring). */
+function findParentLoopNode(loopNodeId: string, nodes: Node[]): Node | undefined {
+  return nodes.find((node) => {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) return false
+    return readLoopBodyNodeIds(data.config).includes(loopNodeId)
+  })
+}
+
+function isValidLoopGroupExitTarget(
+  loopNodeId: string,
+  targetNode: Node,
+  nodes: Node[],
+): boolean {
+  if (isCanvasLayoutNode(targetNode, nodes)) return true
+
+  const parentLoop = findParentLoopNode(loopNodeId, nodes)
+  if (!parentLoop) return false
+
+  if (!isNodeInLoopBody(targetNode.id, parentLoop, nodes)) return false
+
+  const targetType = (targetNode.data as WorkflowNodeData)?.nodeType ?? ''
+  return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
+}
+
 export function isCanvasLayoutNode(node: Node, nodes: Node[] = []): boolean {
   if (isLoopBodyGroupNode(node)) return false
   if (node.parentId && node.parentId.endsWith('-loop-body')) return false
@@ -405,7 +545,7 @@ export function isCanvasLayoutNode(node: Node, nodes: Node[] = []): boolean {
 
 /** Work nodes that fan out to multiple outgoing paths (branch) vs a single default output (leaf path). */
 export function isBranchingWorkNodeType(nodeType: string): boolean {
-  return nodeType === 'if-else'
+  return nodeType === 'if-else' || isLoopNodeType(nodeType)
 }
 
 function getLoopBodyMemberSet(bodyNodeIds: string[]): Set<string> {
@@ -447,14 +587,15 @@ export function findLoopBodyEntryNodeIds(
 /** Steps with no further body successors — iteration paths end here before continue-back. */
 export function findLoopBodyLeafNodeIds(bodyNodeIds: string[], edges: Edge[]): string[] {
   const bodySet = getLoopBodyMemberSet(bodyNodeIds)
-  const outgoingToBody = new Set<string>()
+  const outgoingToBodyOrOutside = new Set<string>()
 
-  for (const edge of getLoopBodyMemberEdges(edges, bodySet)) {
-    outgoingToBody.add(edge.source)
+  for (const edge of edges) {
+    if (bodySet.has(edge.source) && !isLoopBackEdge(edge)) {
+      outgoingToBodyOrOutside.add(edge.source)
+    }
   }
 
-  const leaves = bodyNodeIds.filter((id) => !outgoingToBody.has(id))
-  return leaves.length > 0 ? leaves : bodyNodeIds.slice(-1)
+  return bodyNodeIds.filter((id) => !outgoingToBodyOrOutside.has(id))
 }
 
 /** BFS order from entry nodes for layout; disconnected members follow bodyNodeIds order. */
@@ -566,7 +707,85 @@ function getLoopBodyGroupSize(
   return { width, height }
 }
 
-function getLoopBodyMemberVisualHeight(node: Node): number {
+/** How many ancestor loop bodies contain this loop node (0 = main-flow loop). */
+export function getLoopNestingDepth(loopNodeId: string, nodes: Node[]): number {
+  let depth = 0
+  let memberId: string | null = loopNodeId
+
+  while (memberId) {
+    const parentLoop = nodes.find((node) => {
+      const data = node.data as WorkflowNodeData
+      if (!isLoopNodeType(data.nodeType ?? '')) return false
+      return readLoopBodyNodeIds(data.config).includes(memberId!)
+    })
+
+    if (!parentLoop) break
+
+    depth += 1
+    memberId = parentLoop.id
+  }
+
+  return depth
+}
+
+function getNestedLoopBodyTopInset(): number {
+  const { labelHeight, padding } = LOOP_BODY_GROUP
+  return labelHeight + padding * 2 + 16
+}
+
+function getNestedLoopBodyLayoutMetrics(
+  loopNode: Node,
+  nodes: Node[],
+  edges: Edge[],
+): { width: number; height: number } | null {
+  const data = loopNode.data as WorkflowNodeData
+  const nodeType = data.nodeType ?? 'script'
+  if (!isLoopNodeType(nodeType)) return null
+
+  const bodyIds = readLoopBodyNodeIds(data.config)
+  if (bodyIds.length === 0) return null
+
+  const breakCount = readLoopBreakExits(data.config).length
+  const metrics = computeLoopBodyLayoutMetrics(bodyIds, nodes, edges, breakCount, loopNode.id)
+  return { width: metrics.width, height: metrics.height }
+}
+
+/** Full bounds for a nested loop card plus its inner loop-body group. */
+function computeNestedLoopCompoundSize(
+  loopNode: Node,
+  nodes: Node[],
+  edges: Edge[],
+): { width: number; height: number; innerWidth: number; innerHeight: number } {
+  const loopCardWidth = getLoopCardWidth(loopNode)
+  const loopCardHeight = getLoopNodeHeight(false)
+  const innerMetrics = getNestedLoopBodyLayoutMetrics(loopNode, nodes, edges)
+
+  if (!innerMetrics) {
+    return {
+      width: loopCardWidth,
+      height: loopCardHeight,
+      innerWidth: 0,
+      innerHeight: 0,
+    }
+  }
+
+  const { padding } = LOOP_BODY_GROUP
+  const width = loopCardWidth + HORIZONTAL_NODE_GAP + innerMetrics.width - padding
+  const height = Math.max(loopCardHeight, getNestedLoopBodyTopInset() + innerMetrics.height)
+
+  return {
+    width,
+    height,
+    innerWidth: innerMetrics.width,
+    innerHeight: innerMetrics.height,
+  }
+}
+
+function getLoopBodyMemberVisualHeight(
+  node: Node,
+  nodes: Node[],
+  edges: Edge[],
+): number {
   const data = node.data as WorkflowNodeData
   const nodeType = data.nodeType ?? 'script'
 
@@ -574,7 +793,30 @@ function getLoopBodyMemberVisualHeight(node: Node): number {
     return getIfElseNodeHeight(getIfElseBranches(data).length, false)
   }
 
+  if (isLoopNodeType(nodeType)) {
+    return computeNestedLoopCompoundSize(node, nodes, edges).height
+  }
+
   return LOOP_BODY_GROUP.bodyNodeHeight
+}
+
+function getLoopBodyMemberVisualWidth(
+  node: Node,
+  nodes: Node[],
+  edges: Edge[],
+): number {
+  const data = node.data as WorkflowNodeData
+  const nodeType = data.nodeType ?? 'script'
+
+  if (nodeType === 'if-else') {
+    return LOOP_BODY_GROUP.nodeWidth
+  }
+
+  if (isLoopNodeType(nodeType)) {
+    return computeNestedLoopCompoundSize(node, nodes, edges).width
+  }
+
+  return LOOP_BODY_GROUP.nodeWidth
 }
 
 function computeLoopBodyDepths(
@@ -763,10 +1005,38 @@ function computeLoopBodyLayoutMetrics(
   const yById = computeLoopBodyMemberY(bodyNodeIds, edges, nodes, depths)
   const columnsById = computeLoopBodyColumns(bodyNodeIds, edges, nodes)
   const maxColumn = Math.max(0, ...bodyNodeIds.map((id) => columnsById.get(id) ?? 0))
-  const contentSpan = maxColumn * HORIZONTAL_NODE_GAP + nodeWidth
+
+  const widthById = new Map<string, number>()
+  const widthByColumn = new Map<number, number>()
+  for (const id of bodyNodeIds) {
+    const node = nodes.find((member) => member.id === id)
+    const memberWidth = node
+      ? getLoopBodyMemberVisualWidth(node, nodes, edges)
+      : nodeWidth
+    widthById.set(id, memberWidth)
+    const column = columnsById.get(id) ?? 0
+    widthByColumn.set(column, Math.max(widthByColumn.get(column) ?? 0, memberWidth))
+  }
+
+  let contentSpan = 0
+  for (let column = 0; column <= maxColumn; column += 1) {
+    const columnWidth = widthByColumn.get(column) ?? nodeWidth
+    if (column > 0) contentSpan += HORIZONTAL_NODE_GAP
+    contentSpan += columnWidth
+  }
+
   const railWidth = LOOP_BODY_GROUP.exitRailWidth
   const width = Math.max(minWidth, padding * 2 + contentSpan + railWidth)
-  const startX = (width - contentSpan - railWidth) / 2
+  const loopNode = nodes.find((node) => node.id === loopNodeId)
+  const leftAlignContent = Boolean(loopNode?.parentId?.endsWith('-loop-body'))
+  const startX = leftAlignContent ? padding : (width - contentSpan - railWidth) / 2
+
+  const columnStartX = new Map<number, number>()
+  let columnX = startX
+  for (let column = 0; column <= maxColumn; column += 1) {
+    columnStartX.set(column, columnX)
+    columnX += (widthByColumn.get(column) ?? nodeWidth) + HORIZONTAL_NODE_GAP
+  }
 
   const positions = new Map<string, { x: number; y: number }>()
   let minEdge = Infinity
@@ -774,12 +1044,15 @@ function computeLoopBodyLayoutMetrics(
 
   for (const id of bodyNodeIds) {
     const node = nodes.find((member) => member.id === id)
-    const memberHeight = node ? getLoopBodyMemberVisualHeight(node) : bodyNodeHeight
+    const memberHeight = node
+      ? getLoopBodyMemberVisualHeight(node, nodes, edges)
+      : bodyNodeHeight
     const column = columnsById.get(id) ?? 0
     const centerY = yById.get(id) ?? 0
+    const columnLeft = columnStartX.get(column) ?? startX
 
     positions.set(id, {
-      x: startX + column * HORIZONTAL_NODE_GAP,
+      x: columnLeft,
       y: centerY,
     })
 
@@ -815,15 +1088,28 @@ function getLoopDoneHandleLaneOffsetY(): number {
   )
 }
 
+function getLoopCardWidth(loopNode: Node): number {
+  const data = loopNode.data as WorkflowNodeData
+  return isLoopNodeType(data.nodeType ?? '')
+    ? IF_ELSE_NODE_LAYOUT.minWidth
+    : LOOP_BODY_GROUP.nodeWidth
+}
+
+function isNestedLoopInParentBody(loopNode: Node): boolean {
+  return Boolean(loopNode.parentId?.endsWith('-loop-body'))
+}
+
 function getLoopBodyGroupPosition(
   loopNode: Node,
   groupHeight: number,
 ): { x: number; y: number } {
   const { padding } = LOOP_BODY_GROUP
+  const loopCardWidth = getLoopCardWidth(loopNode)
+  const y = loopNode.position.y - groupHeight / 2
 
   return {
-    x: loopNode.position.x + HORIZONTAL_NODE_GAP - padding,
-    y: loopNode.position.y - groupHeight / 2,
+    x: loopNode.position.x + loopCardWidth + HORIZONTAL_NODE_GAP - padding,
+    y: isNestedLoopInParentBody(loopNode) ? Math.max(y, getNestedLoopBodyTopInset()) : y,
   }
 }
 
@@ -898,7 +1184,21 @@ export function isNodeInLoopBody(nodeId: string, loopNode: Node, nodes: Node[]):
   if (bodyIds.includes(nodeId)) return true
 
   const groupId = getLoopBodyGroupId(loopNode.id)
-  return nodes.some((node) => node.id === nodeId && node.parentId === groupId)
+  let currentId: string | undefined = nodeId
+
+  while (currentId) {
+    if (currentId === groupId) return true
+
+    const current = nodes.find((node) => node.id === currentId)
+    if (!current?.parentId) return false
+
+    if (current.parentId === groupId || current.parentId === loopNode.id) return true
+    if (bodyIds.includes(current.parentId)) return true
+
+    currentId = current.parentId
+  }
+
+  return false
 }
 
 export function findLoopNodeForBodyMember(nodeId: string, nodes: Node[]): Node | undefined {
@@ -961,12 +1261,22 @@ export function layoutLoopBodyNodes(
   )
   const groupPosition = getLoopBodyGroupPosition(loopNode, height)
 
+  const nestedInParentBody = isNestedLoopInParentBody(loopNode)
+
   const groupNode: Node = {
     id: groupId,
     type: LOOP_BODY_GROUP_NODE_TYPE,
     position: groupPosition,
+    parentId: loopNode.parentId,
+    extent: loopNode.parentId ? ('parent' as const) : undefined,
     data: { loopNodeId: loopNode.id, breakExits },
-    style: { width, height, zIndex: -1, maxWidth: width, maxHeight: height },
+    style: {
+      width,
+      height,
+      zIndex: nestedInParentBody ? 0 : -1,
+      maxWidth: width,
+      maxHeight: height,
+    },
     draggable: false,
     selectable: false,
     focusable: false,
@@ -986,6 +1296,10 @@ export function layoutLoopBodyNodes(
       return node
     }
 
+    const restStyle = { ...((node.style ?? {}) as Record<string, unknown>) }
+    delete restStyle.width
+    delete restStyle.height
+
     return {
       ...node,
       parentId: groupId,
@@ -993,6 +1307,9 @@ export function layoutLoopBodyNodes(
       expandParent: false,
       origin: WORKFLOW_NODE_ORIGIN,
       position: positions.get(node.id) ?? { x: 0, y: height / 2 },
+      width: undefined,
+      height: undefined,
+      style: Object.keys(restStyle).length > 0 ? restStyle : undefined,
       draggable: false,
     }
   })
@@ -1027,15 +1344,132 @@ export function syncAllLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[]
       : node,
   )
 
-  for (const loopNode of result) {
-    const data = loopNode.data as WorkflowNodeData
+  const loopNodes = result.filter((node) => {
+    const data = node.data as WorkflowNodeData
+    return isLoopNodeType(data.nodeType ?? '')
+  })
+
+  const sortedLoopNodes = [...loopNodes].sort(
+    (left, right) => getLoopNestingDepth(left.id, result) - getLoopNestingDepth(right.id, result),
+  )
+
+  for (const loopNode of sortedLoopNodes) {
+    // Parent loop layout can change a nested loop's parentId and relative position.
+    // Always use the latest node from `result`, not the stale object captured before layout.
+    const latestLoopNode = result.find((node) => node.id === loopNode.id) ?? loopNode
+    const data = latestLoopNode.data as WorkflowNodeData
+    const bodyIds = readLoopBodyNodeIds(data.config)
+    result = layoutLoopBodyNodes(latestLoopNode, bodyIds, result, edges)
+  }
+
+  return repositionNestedLoopBodyGroups(result)
+}
+
+/** Keep nested inner loop body boxes aligned after parent loop members move. */
+function repositionNestedLoopBodyGroups(nodes: Node[]): Node[] {
+  return nodes.map((node) => {
+    if (!isLoopBodyGroupNode(node)) return node
+
+    const loopNodeId = (node.data as { loopNodeId?: string })?.loopNodeId
+    if (typeof loopNodeId !== 'string') return node
+
+    const loopNode = nodes.find((candidate) => candidate.id === loopNodeId)
+    if (!loopNode || !isNestedLoopInParentBody(loopNode)) return node
+
+    const groupHeight = Number(node.style?.height ?? LOOP_BODY_GROUP.minHeight)
+    const groupWidth = Number(node.style?.width ?? LOOP_BODY_GROUP.minWidth)
+    return {
+      ...node,
+      position: getLoopBodyGroupPosition(loopNode, groupHeight),
+      parentId: loopNode.parentId,
+      extent: 'parent' as const,
+      width: groupWidth,
+      height: groupHeight,
+      style: {
+        ...(node.style ?? {}),
+        width: groupWidth,
+        height: groupHeight,
+        zIndex: 0,
+      },
+    }
+  })
+}
+
+/** Recompute loop body size/position after graph edits (nodes, edges, or break handles). */
+export function syncLoopBodyGraphLayout(
+  nodes: Node[],
+  edges: Edge[],
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeIds = new Set(nodes.map((node) => node.id))
+
+  let nextNodes = nodes.map((node) => {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) return node
+
+    const validIds = normalizeLoopBodyNodeIds(readLoopBodyNodeIds(data.config), nodeIds)
+    const hasIfElse = validIds.some((id) => {
+      const member = nodes.find((member) => member.id === id)
+      return (member?.data as WorkflowNodeData)?.nodeType === 'if-else'
+    })
+
+    const nextConfig = {
+      ...migrateLoopNodeConfig(data.config as Record<string, unknown> | undefined),
+      bodyNodeIds: validIds,
+      ...(hasIfElse ? {} : { breakExits: [] as IfElseBranch[] }),
+    }
+
+    return {
+      ...node,
+      data: {
+        ...data,
+        config: nextConfig,
+      },
+    }
+  })
+
+  let nextEdges = edges
+  for (const node of nextNodes) {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+
+    const groupId = getLoopBodyGroupId(node.id)
+    const breakExits = readLoopBreakExits(data.config)
+    nextEdges = pruneEdgesForRemovedBranches(nextEdges, groupId, breakExits)
+  }
+
+  nextEdges = syncAllLoopBodyEdges(nextNodes, nextEdges)
+  nextNodes = syncAllLoopBodyGroups(nextNodes, nextEdges)
+
+  return { nodes: nextNodes, edges: nextEdges }
+}
+
+/** Stable fingerprint to skip redundant loop-body relayout effect passes. */
+export function getLoopBodyLayoutDigest(nodes: Node[], edges: Edge[]): string {
+  const parts: string[] = [`edges:${edges.length}`]
+
+  for (const edge of edges) {
+    parts.push(`${edge.source}>${edge.target}:${edge.sourceHandle ?? ''}:${edge.targetHandle ?? ''}`)
+  }
+
+  for (const node of nodes) {
+    if (node.type === LOOP_BODY_GROUP_NODE_TYPE) {
+      parts.push(
+        `group:${node.id}:${String(node.style?.width ?? '')}x${String(node.style?.height ?? '')}`,
+      )
+      continue
+    }
+
+    const data = node.data as WorkflowNodeData
     if (!isLoopNodeType(data.nodeType ?? '')) continue
 
     const bodyIds = readLoopBodyNodeIds(data.config)
-    result = layoutLoopBodyNodes(loopNode, bodyIds, result, edges)
+    const breaks = readLoopBreakExits(data.config)
+    parts.push(
+      `loop:${node.id}:${bodyIds.join(',')}:breaks=${breaks.map((b) => b.id).join(',')}:parent=${node.parentId ?? ''}:size=${String(node.style?.width ?? node.width ?? '')}x${String(node.style?.height ?? node.height ?? '')}`,
+    )
   }
 
-  return result
+  return parts.join('|')
 }
 
 function migrateLoopGroupSourceEdges(nodes: Node[], edges: Edge[]): Edge[] {
@@ -1095,7 +1529,21 @@ export function applyLoopNodeConfigUpdate(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const migratedConfig = migrateLoopNodeConfig(config)
+  let migratedConfig = migrateLoopNodeConfig(config)
+  
+  const bodyIds = readLoopBodyNodeIds(migratedConfig)
+  const hasIfElse = bodyIds.some((id) => {
+    const node = nodes.find((n) => n.id === id)
+    return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+  })
+
+  if (!hasIfElse && Array.isArray(migratedConfig.breakExits)) {
+    migratedConfig = {
+      ...migratedConfig,
+      breakExits: [],
+    }
+  }
+
   const updatedNodes = nodes.map((node) =>
     node.id === nodeId
       ? {
@@ -1207,24 +1655,54 @@ export function applyLoopBodyUpdate(
     new Set(nodes.map((node) => node.id)),
   )
 
-  const positionedNodes = layoutLoopBodyNodes(loopNode, validIds, nodes, edges).map((node) => {
+  const hasIfElse = validIds.some((id) => {
+    const node = nodes.find((n) => n.id === id)
+    return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+  })
+
+  const nextLoopNode = { ...loopNode }
+  if (!hasIfElse) {
+    const currentConfig = (nextLoopNode.data as WorkflowNodeData).config ?? {}
+    nextLoopNode.data = {
+      ...nextLoopNode.data,
+      config: {
+        ...currentConfig,
+        breakExits: [],
+      },
+    }
+  }
+
+  const positionedNodes = layoutLoopBodyNodes(nextLoopNode, validIds, nodes, edges).map((node) => {
     if (node.id !== loopNodeId) return node
+
+    const currentConfig = (node.data as WorkflowNodeData).config ?? {}
+    const nextConfig = {
+      ...currentConfig,
+      bodyNodeIds: validIds,
+    }
+
+    if (!hasIfElse && Array.isArray(nextConfig.breakExits)) {
+      nextConfig.breakExits = []
+    }
 
     return {
       ...node,
       data: {
         ...node.data,
-        config: {
-          ...((node.data as WorkflowNodeData).config ?? {}),
-          bodyNodeIds: validIds,
-        },
+        config: nextConfig,
       },
     }
   })
 
+  let nextEdges = edges
+  if (!hasIfElse) {
+    const groupId = getLoopBodyGroupId(loopNodeId)
+    nextEdges = pruneEdgesForRemovedBranches(edges, groupId, [])
+  }
+
   return {
     nodes: positionedNodes,
-    edges: syncLoopBodyEdges(loopNodeId, validIds, positionedNodes, edges),
+    edges: syncLoopBodyEdges(loopNodeId, validIds, positionedNodes, nextEdges),
   }
 }
 
@@ -1448,8 +1926,52 @@ export function createNodeId(): string {
   return crypto.randomUUID()
 }
 
+export function cloneGraphWithFreshIds(graph: TestFlowGraph): TestFlowGraph {
+  const nodeIdMap = new Map<string, string>()
+
+  for (const node of graph.nodes) {
+    nodeIdMap.set(node.id, createNodeId())
+  }
+
+  return {
+    uiLayoutJson: graph.uiLayoutJson ?? null,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      id: nodeIdMap.get(node.id) ?? node.id,
+    })),
+    edges: graph.edges.map((edge) => ({
+      ...edge,
+      id: createNodeId(),
+      sourceNodeId: nodeIdMap.get(edge.sourceNodeId) ?? edge.sourceNodeId,
+      targetNodeId: nodeIdMap.get(edge.targetNodeId) ?? edge.targetNodeId,
+    })),
+  }
+}
+
 export function createDefaultNodes(): Node[] {
-  return [createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y })]
+  return [
+    createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y }),
+    createWorkflowNode('end', {
+      x: FLOW_BOARD_START_X + HORIZONTAL_NODE_GAP,
+      y: FLOW_BOARD_Y,
+    }),
+  ]
+}
+
+export function createDefaultEdges(nodes: Node[]): Edge[] {
+  const startNode = nodes.find((node) => (node.data as WorkflowNodeData)?.nodeType === 'start')
+  const endNode = nodes.find((node) => (node.data as WorkflowNodeData)?.nodeType === 'end')
+
+  if (!startNode || !endNode) return []
+
+  return [
+    {
+      ...WORKFLOW_EDGE_OPTIONS,
+      id: createNodeId(),
+      source: startNode.id,
+      target: endNode.id,
+    },
+  ]
 }
 
 export function createWorkflowNode(
@@ -1620,7 +2142,11 @@ export function repositionNodeForBranchConnection(
   if (!connection.source || !connection.target) return nodes
 
   const sourceNode = nodes.find((node) => node.id === connection.source)
-  if (!sourceNode) return nodes
+  const targetNode = nodes.find((node) => node.id === connection.target)
+  if (!sourceNode || !targetNode) return nodes
+
+  // Never move the loop body shell when wiring branches to Break / Done handles.
+  if (isLoopBodyGroupNode(targetNode)) return nodes
 
   const handle = connection.sourceHandle
   if (!handle) return nodes
@@ -1629,8 +2155,18 @@ export function repositionNodeForBranchConnection(
     const targetNode = nodes.find((node) => node.id === connection.target)
     if (!targetNode) return nodes
 
+    const groupWidth = Number(sourceNode.style?.width ?? LOOP_BODY_GROUP.minWidth)
+    const groupHeight = Number(sourceNode.style?.height ?? LOOP_BODY_GROUP.minHeight)
+    const sharedParent =
+      Boolean(sourceNode.parentId) && sourceNode.parentId === targetNode.parentId
+
     if (handle === LOOP_DONE_BRANCH_ID) {
-      const position = getLoopDoneOutputPosition(sourceNode)
+      const position = sharedParent
+        ? {
+            x: sourceNode.position.x + groupWidth + HORIZONTAL_NODE_GAP,
+            y: sourceNode.position.y + getLoopBodyDoneHandleCenterY(groupHeight),
+          }
+        : getLoopDoneOutputPosition(sourceNode)
       return nodes.map((node) =>
         node.id === connection.target
           ? { ...node, origin: WORKFLOW_NODE_ORIGIN, position }
@@ -1643,7 +2179,19 @@ export function repositionNodeForBranchConnection(
       : []
     if (!breakExits.some((branch) => branch.id === handle)) return nodes
 
-    const position = getLoopBreakOutputPosition(sourceNode, handle, breakExits)
+    const breakIndex = breakExits.findIndex((branch) => branch.id === handle)
+    const position = sharedParent
+      ? {
+          x: sourceNode.position.x + groupWidth + HORIZONTAL_NODE_GAP,
+          y:
+            sourceNode.position.y +
+            getLoopBodyBreakHandleCenterY(
+              groupHeight,
+              Math.max(breakIndex, 0),
+              breakExits.length,
+            ),
+        }
+      : getLoopBreakOutputPosition(sourceNode, handle, breakExits)
     return nodes.map((node) =>
       node.id === connection.target
         ? { ...node, origin: WORKFLOW_NODE_ORIGIN, position }
@@ -1658,9 +2206,6 @@ export function repositionNodeForBranchConnection(
 
   const branches = getNodeOutputBranches(sourceNode.data as WorkflowNodeData)
   if (!branches.some((branch) => branch.id === handle)) return nodes
-
-  const targetNode = nodes.find((node) => node.id === connection.target)
-  if (!targetNode) return nodes
 
   const position = getBranchOutputPositionForConnection(
     sourceNode,
@@ -1698,14 +2243,29 @@ export function isValidWorkflowConnection(
 
   if (isLoopBodyGroupNode(sourceNode)) {
     if (!handle) return false
+
+    const loopNodeId = (sourceNode.data as { loopNodeId?: string })?.loopNodeId
+    if (typeof loopNodeId !== 'string' || loopNodeId.length === 0) return false
+
     if (handle === LOOP_DONE_BRANCH_ID) {
-      return isCanvasLayoutNode(targetNode, nodes)
+      return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
     }
+
     const breakExits = Array.isArray(sourceNode.data?.breakExits)
       ? (sourceNode.data.breakExits as IfElseBranch[])
       : []
     if (!breakExits.some((branch) => branch.id === handle)) return false
-    return isCanvasLayoutNode(targetNode, nodes)
+
+    const loopNode = nodes.find((n) => n.id === loopNodeId)
+    if (!loopNode) return false
+    const bodyIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
+    const hasIfElse = bodyIds.some((id) => {
+      const node = nodes.find((n) => n.id === id)
+      return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+    })
+    if (!hasIfElse) return false
+
+    return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
   }
 
   if (isLoopNodeType(sourceType)) {
@@ -1734,6 +2294,24 @@ export function isValidWorkflowConnection(
 
     if (isCanvasLayoutNode(targetNode, nodes)) {
       return true
+    }
+
+    if (isLoopBodyGroupNode(targetNode)) {
+      const loopNodeId = (targetNode.data as any)?.loopNodeId
+      if (loopNodeId === owningLoop.id) {
+        const breakExits = Array.isArray(targetNode.data?.breakExits)
+          ? (targetNode.data.breakExits as IfElseBranch[])
+          : []
+        if (
+          breakExits.some(
+            (branch) =>
+              connection.targetHandle === `${branch.id}-target` ||
+              connection.targetHandle === branch.id,
+          )
+        ) {
+          return true
+        }
+      }
     }
 
     return false
@@ -1877,7 +2455,8 @@ export function graphToReactFlow(version: TestFlowVersionGraph | null): {
   edges: Edge[]
 } {
   if (!version) {
-    return { nodes: createDefaultNodes(), edges: [] }
+    const nodes = createDefaultNodes()
+    return { nodes, edges: createDefaultEdges(nodes) }
   }
 
   const baseNodes = version.nodes.map((node) => ({
@@ -2042,6 +2621,7 @@ export function pruneEdgesForRemovedBranches(
   return edges.filter((edge) => {
     if (edge.source !== sourceNodeId) return true
     if (!edge.sourceHandle) return true
+    if (edge.sourceHandle === LOOP_DONE_BRANCH_ID) return true
     return branchIds.has(edge.sourceHandle)
   })
 }

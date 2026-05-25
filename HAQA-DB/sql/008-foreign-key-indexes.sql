@@ -12,6 +12,8 @@ CREATE INDEX IF NOT EXISTS idx_test_flow_versions_test_flow_id ON haqa_schema.te
 CREATE INDEX IF NOT EXISTS idx_test_flow_nodes_test_flow_version_id ON haqa_schema.test_flow_nodes(test_flow_version_id);
 CREATE INDEX IF NOT EXISTS idx_test_flow_edges_source_node_id ON haqa_schema.test_flow_edges(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_test_flow_edges_target_node_id ON haqa_schema.test_flow_edges(target_node_id);
+CREATE INDEX IF NOT EXISTS idx_test_flow_edges_source_version ON haqa_schema.test_flow_edges(source_node_id, test_flow_version_id);
+CREATE INDEX IF NOT EXISTS idx_test_flow_edges_target_version ON haqa_schema.test_flow_edges(target_node_id, test_flow_version_id);
 CREATE INDEX IF NOT EXISTS idx_test_flow_executions_test_flow_version_id ON haqa_schema.test_flow_executions(test_flow_version_id);
 CREATE INDEX IF NOT EXISTS idx_test_flow_executions_triggered_by_user_id ON haqa_schema.test_flow_executions(triggered_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_test_flow_node_execution_logs_execution_id ON haqa_schema.test_flow_node_execution_logs(execution_id);

@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  applyEdgeChanges,
+  applyNodeChanges,
   useNodesState,
   useEdgesState,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
 } from '@xyflow/react'
@@ -18,6 +21,7 @@ import {
   appendTargetToLoopBodyOnConnect,
   applyLoopNodeConfigUpdate,
   connectEdge,
+  createDefaultEdges,
   createDefaultNodes,
   createWorkflowNode,
   getNextNodePosition,
@@ -25,16 +29,18 @@ import {
   isLoopNodeType,
   isValidWorkflowConnection,
   migrateLoopNodeConfig,
+  normalizeLoopBodyBreakTargetConnection,
   pruneEdgesForRemovedBranches,
   LOOP_BODY_GROUP_NODE_TYPE,
   readIfElseBranches,
   readLoopBodyNodeIds,
   removeNodeFromLoopBody,
   repositionNodeForBranchConnection,
+  buildWorkflowNodeDisplayLabels,
   resolveLoopBodySteps,
   reorderLoopBody,
-  syncAllLoopBodyEdges,
-  syncAllLoopBodyGroups,
+  getLoopBodyLayoutDigest,
+  syncLoopBodyGraphLayout,
   withWorkflowEdgeDefaults,
   type TestFlowNodeType,
   type WorkflowNodeData,
@@ -46,16 +52,50 @@ export function useWorkflowGraph({
   initialNodes,
   initialEdges,
 }: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn {
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialNodes ?? createDefaultNodes())
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges ?? [])
+  const defaultNodes = initialNodes ?? createDefaultNodes()
+  const defaultEdges = initialEdges ?? createDefaultEdges(defaultNodes)
+  const [nodes, setNodes] = useNodesState(defaultNodes)
+  const [edges, setEdges] = useEdgesState(defaultEdges)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const layoutDigestRef = useRef(getLoopBodyLayoutDigest(defaultNodes, defaultEdges))
+
+  const applyLoopBodyRelayout = useCallback(
+    (nextNodes: Node[], nextEdges: Edge[]) => {
+      const layout = syncLoopBodyGraphLayout(nextNodes, nextEdges)
+      layoutDigestRef.current = getLoopBodyLayoutDigest(layout.nodes, layout.edges)
+      return layout
+    },
+    [],
+  )
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      onNodesChangeBase(changes.filter((change) => change.type !== 'position'))
+      const filtered = changes.filter((change) => change.type !== 'position')
+      if (filtered.length === 0) return
+
+      setNodes((currentNodes) => applyNodeChanges(filtered, currentNodes))
     },
-    [onNodesChangeBase],
+    [setNodes],
   )
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      if (changes.length === 0) return
+
+      setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges))
+    },
+    [setEdges],
+  )
+
+  useEffect(() => {
+    const layout = syncLoopBodyGraphLayout(nodes, edges)
+    const digest = getLoopBodyLayoutDigest(layout.nodes, layout.edges)
+    if (digest === layoutDigestRef.current) return
+
+    layoutDigestRef.current = digest
+    setNodes(layout.nodes)
+    setEdges(layout.edges)
+  }, [nodes, edges, setNodes, setEdges])
 
   const startNodeExists = useMemo(() => hasStartNode(nodes), [nodes])
 
@@ -73,6 +113,8 @@ export function useWorkflowGraph({
     [nodes, edges, setNodes, setEdges],
   )
 
+  const displayLabelByNodeId = useMemo(() => buildWorkflowNodeDisplayLabels(nodes), [nodes])
+
   const flowNodes = useMemo(
     () =>
       (nodes ?? []).map((node) => {
@@ -82,6 +124,9 @@ export function useWorkflowGraph({
             draggable: false,
             selectable: false,
             focusable: false,
+            ...(node.parentId
+              ? { extent: 'parent' as const, expandParent: false }
+              : {}),
           }
         }
 
@@ -90,13 +135,13 @@ export function useWorkflowGraph({
           ? resolveLoopBodySteps(readLoopBodyNodeIds(data.config), nodes)
           : undefined
         const isMainFlowNode = !node.parentId?.endsWith('-loop-body')
-
         return {
           ...node,
           draggable: false,
           origin: WORKFLOW_NODE_ORIGIN,
           data: {
             ...data,
+            displayLabel: displayLabelByNodeId.get(node.id),
             loopBodySteps,
             onEdit: () => setEditingNodeId(node.id),
             onSwapLeft: isMainFlowNode ? () => handleSwapNode(node.id, 'left') : undefined,
@@ -106,7 +151,7 @@ export function useWorkflowGraph({
           },
         }
       }),
-    [nodes, handleSwapNode],
+    [nodes, handleSwapNode, displayLabelByNodeId],
   )
 
   const editorNodeTypes = useMemo(
@@ -121,46 +166,48 @@ export function useWorkflowGraph({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!isValidWorkflowConnection(connection, nodes)) return
+      const normalized = normalizeLoopBodyBreakTargetConnection(connection, nodes)
+      if (!isValidWorkflowConnection(normalized, nodes)) return
 
-      let nextEdges = connectEdge(connection, edges)
-      let nextNodes = repositionNodeForBranchConnection(nodes, connection)
-      const loopBodyResult = appendTargetToLoopBodyOnConnect(connection, nextNodes, nextEdges)
-      nextNodes = loopBodyResult.nodes
-      nextEdges = syncAllLoopBodyEdges(loopBodyResult.nodes, loopBodyResult.edges)
-      nextNodes = syncAllLoopBodyGroups(loopBodyResult.nodes, nextEdges)
-      setEdges(nextEdges)
-      setNodes(nextNodes)
+      let nextEdges = connectEdge(normalized, edges)
+      let nextNodes = repositionNodeForBranchConnection(nodes, normalized)
+      const loopBodyResult = appendTargetToLoopBodyOnConnect(normalized, nextNodes, nextEdges)
+      const layout = applyLoopBodyRelayout(loopBodyResult.nodes, loopBodyResult.edges)
+      setEdges(layout.edges)
+      setNodes(layout.nodes)
     },
-    [nodes, edges, setEdges, setNodes],
+    [nodes, edges, setEdges, setNodes, applyLoopBodyRelayout],
   )
 
   const handleAddLoopBodyNode = useCallback(
     (loopNodeId: string, nodeType: TestFlowNodeType) => {
       const result = addNodeToLoopBody(loopNodeId, nodeType, nodes, edges)
       if (!result) return
-      setNodes(result.nodes)
-      setEdges(result.edges)
+      const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+      setNodes(layout.nodes)
+      setEdges(layout.edges)
     },
-    [nodes, edges, setNodes, setEdges],
+    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
   )
 
   const handleRemoveLoopBodyNode = useCallback(
     (loopNodeId: string, bodyNodeId: string) => {
       const result = removeNodeFromLoopBody(loopNodeId, bodyNodeId, nodes, edges)
-      setNodes(result.nodes)
-      setEdges(result.edges)
+      const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+      setNodes(layout.nodes)
+      setEdges(layout.edges)
     },
-    [nodes, edges, setNodes, setEdges],
+    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
   )
 
   const handleReorderLoopBodyNode = useCallback(
     (loopNodeId: string, fromIndex: number, toIndex: number) => {
       const result = reorderLoopBody(loopNodeId, fromIndex, toIndex, nodes, edges)
-      setNodes(result.nodes)
-      setEdges(result.edges)
+      const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+      setNodes(layout.nodes)
+      setEdges(layout.edges)
     },
-    [nodes, edges, setNodes, setEdges],
+    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
   )
 
   const handleAddNode = useCallback(
@@ -208,8 +255,9 @@ export function useWorkflowGraph({
           ),
           edges,
         )
-        setNodes(result.nodes)
-        setEdges(result.edges)
+        const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+        setNodes(layout.nodes)
+        setEdges(layout.edges)
         return
       }
 
@@ -233,7 +281,7 @@ export function useWorkflowGraph({
         ),
       )
     },
-    [nodes, edges, setNodes, setEdges],
+    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
   )
 
   const closeNodeEditor = useCallback(() => setEditingNodeId(null), [])

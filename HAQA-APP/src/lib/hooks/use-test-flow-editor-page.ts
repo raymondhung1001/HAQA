@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
+import { cloneGraphWithFreshIds } from '@/lib/test-flow-graph'
 
 import {
   useCreateTestFlow,
@@ -37,12 +38,14 @@ export function useTestFlowEditorPage(
       : updateMutation.isPending || saveGraphMutation.isPending
 
   const handleSubmit = (formData: TestFlowEditorFormData, graph: TestFlowGraph) => {
+    const persistedGraph = cloneGraphWithFreshIds(graph)
+
     if (options.mode === 'create') {
       createMutation.mutate({
         name: formData.name,
         description: formData.description || undefined,
         isActive: formData.isActive,
-        graph,
+        graph: persistedGraph,
       })
       return
     }
@@ -55,7 +58,7 @@ export function useTestFlowEditorPage(
         isActive: formData.isActive,
       },
     })
-    saveGraphMutation.mutate({ id: options.id, graph })
+    saveGraphMutation.mutate({ id: options.id, graph: persistedGraph })
   }
 
   return {
