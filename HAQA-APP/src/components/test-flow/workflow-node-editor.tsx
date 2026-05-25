@@ -208,10 +208,10 @@ export function WorkflowNodeEditor({
                     <div key={step.id} className="flex items-center gap-2">
                       <span className="w-5 shrink-0 text-xs text-gray-400">{index + 1}.</span>
                       <div className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm text-gray-700 dark:bg-slate-900 dark:text-gray-300">
-                        <span className="font-medium">{step.label}</span>
-                        <span className="ml-2 text-xs text-gray-400">
-                          {getWorkflowNodeLabel(step.nodeType)}
-                        </span>
+                        <span className="font-medium">{step.displayLabel}</span>
+                        {step.label !== step.displayLabel ? (
+                          <span className="ml-2 text-xs text-gray-400">{step.label}</span>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col gap-0.5">
                         <Button

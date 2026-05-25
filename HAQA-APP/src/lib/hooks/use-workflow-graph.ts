@@ -35,6 +35,7 @@ import {
   readLoopBodyNodeIds,
   removeNodeFromLoopBody,
   repositionNodeForBranchConnection,
+  buildWorkflowNodeDisplayLabels,
   resolveLoopBodySteps,
   reorderLoopBody,
   getLoopBodyLayoutDigest,
@@ -111,6 +112,8 @@ export function useWorkflowGraph({
     [nodes, edges, setNodes, setEdges],
   )
 
+  const displayLabelByNodeId = useMemo(() => buildWorkflowNodeDisplayLabels(nodes), [nodes])
+
   const flowNodes = useMemo(
     () =>
       (nodes ?? []).map((node) => {
@@ -135,6 +138,7 @@ export function useWorkflowGraph({
           origin: WORKFLOW_NODE_ORIGIN,
           data: {
             ...data,
+            displayLabel: displayLabelByNodeId.get(node.id),
             loopBodySteps,
             onEdit: () => setEditingNodeId(node.id),
             onSwapLeft: isMainFlowNode ? () => handleSwapNode(node.id, 'left') : undefined,
@@ -144,7 +148,7 @@ export function useWorkflowGraph({
           },
         }
       }),
-    [nodes, handleSwapNode],
+    [nodes, handleSwapNode, displayLabelByNodeId],
   )
 
   const editorNodeTypes = useMemo(

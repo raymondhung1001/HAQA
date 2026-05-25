@@ -421,7 +421,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script
   const Icon = style.icon
-  const name = nodeData.label || nodeType
+  const name = nodeData.displayLabel ?? nodeData.label || nodeType
   const description = nodeData.description?.trim()
   const branches = isBranchingNodeType(nodeType) ? (getNodeOutputBranches(nodeData) ?? []) : []
   const bodySteps = Array.isArray(nodeData.loopBodySteps) ? nodeData.loopBodySteps : []

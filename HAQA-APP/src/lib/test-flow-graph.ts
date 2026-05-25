@@ -9,8 +9,10 @@ import {
 } from '@/components/test-flow/workflow-node-layout'
 import {
   getWorkflowNodeLabel,
+  getWorkflowNodeTypeOrdinals,
   isLoopBodyWorkNodeType,
   isTestFlowNodeType,
+  resolveWorkflowNodeDisplayLabel,
 } from '@/components/test-flow/workflow-node-definitions'
 
 const WORKFLOW_NODE_TYPE = 'workflow' as const
@@ -39,6 +41,8 @@ export interface WorkflowNodeData {
   onSwapRight?: () => void
   canSwapLeft?: boolean
   canSwapRight?: boolean
+  /** Canvas display name; computed when duplicate types need disambiguation. */
+  displayLabel?: string
 }
 
 export interface TestFlowGraphNode {
@@ -348,7 +352,10 @@ export function getNodeOutputBranches(data: WorkflowNodeData): IfElseBranch[] {
 export interface LoopBodyStep {
   id: string
   label: string
+  /** Type label with optional ordinal when duplicates exist (e.g. "Script 1"). */
+  displayLabel: string
   nodeType: TestFlowNodeType
+  typeOrdinal?: number
 }
 
 export function readLoopBodyNodeIds(config?: Record<string, unknown> | null): string[] {
@@ -371,6 +378,65 @@ export function normalizeLoopBodyNodeIds(
   })
 }
 
+function getNodeTypeFromMap(
+  nodeMap: Map<string, Node>,
+  nodeId: string,
+): TestFlowNodeType | undefined {
+  const node = nodeMap.get(nodeId)
+  if (!node) return undefined
+  return (node.data as WorkflowNodeData).nodeType ?? 'script'
+}
+
+/** Main-flow workflow nodes in canvas order (left to right), excluding start/end. */
+export function collectMainFlowOrderedNodeIds(nodes: Node[]): string[] {
+  return nodes
+    .filter((node) => {
+      if (node.type === LOOP_BODY_GROUP_NODE_TYPE) return false
+      if (node.parentId?.endsWith('-loop-body')) return false
+
+      const data = node.data as WorkflowNodeData
+      const nodeType = data.nodeType ?? 'script'
+      if (nodeType === 'start' || nodeType === 'end') return false
+
+      return node.type === WORKFLOW_NODE_TYPE
+    })
+    .sort(
+      (left, right) =>
+        left.position.x - right.position.x || left.position.y - right.position.y,
+    )
+    .map((node) => node.id)
+}
+
+export function buildWorkflowNodeDisplayLabels(nodes: Node[]): Map<string, string> {
+  const labels = new Map<string, string>()
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
+  const getNodeType = (nodeId: string) => getNodeTypeFromMap(nodeMap, nodeId)
+
+  const applyForOrderedIds = (orderedIds: string[]) => {
+    const ordinals = getWorkflowNodeTypeOrdinals(orderedIds, getNodeType)
+    for (const id of orderedIds) {
+      const node = nodeMap.get(id)
+      if (!node) continue
+      const data = node.data as WorkflowNodeData
+      const nodeType = data.nodeType ?? 'script'
+      labels.set(
+        id,
+        resolveWorkflowNodeDisplayLabel(nodeType, data.label, ordinals.get(id)),
+      )
+    }
+  }
+
+  for (const node of nodes) {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+    applyForOrderedIds(readLoopBodyNodeIds(data.config))
+  }
+
+  applyForOrderedIds(collectMainFlowOrderedNodeIds(nodes))
+
+  return labels
+}
+
 export function resolveLoopBodySteps(
   bodyNodeIds: string[] | undefined | null,
   nodes: Node[] | undefined | null,
@@ -378,6 +444,7 @@ export function resolveLoopBodySteps(
   const ids = Array.isArray(bodyNodeIds) ? bodyNodeIds : []
   const nodeList = Array.isArray(nodes) ? nodes : []
   const nodeMap = new Map(nodeList.map((node) => [node.id, node]))
+  const ordinals = getWorkflowNodeTypeOrdinals(ids, (nodeId) => getNodeTypeFromMap(nodeMap, nodeId))
 
   return ids
     .map((id) => nodeMap.get(id))
@@ -385,11 +452,16 @@ export function resolveLoopBodySteps(
     .map((node) => {
       const data = node.data as WorkflowNodeData
       const nodeType = data.nodeType ?? 'script'
+      const typeOrdinal = ordinals.get(node.id)
+      const label = data.label?.trim() || getWorkflowNodeLabel(nodeType)
+      const displayLabel = resolveWorkflowNodeDisplayLabel(nodeType, data.label, typeOrdinal)
 
       return {
         id: node.id,
-        label: data.label?.trim() || getWorkflowNodeLabel(nodeType),
+        label,
+        displayLabel,
         nodeType,
+        typeOrdinal,
       }
     })
 }
