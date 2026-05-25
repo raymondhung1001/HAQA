@@ -24,6 +24,8 @@ import {
   isBranchingNodeType,
   isLoopBodyBranchIndex,
   isLoopNodeType,
+  LOOP_BODY_BRANCH_ID,
+  LOOP_DONE_BRANCH_ID,
 } from '@/lib/test-flow-graph'
 import {
   IF_ELSE_NODE_LAYOUT,
@@ -277,6 +279,13 @@ function LoopWorkflowNode({
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const nodeHeight = getLoopNodeHeight(showSwap)
+  const hasLoopBody = bodySteps.length > 0
+  const visibleBranches = hasLoopBody
+    ? branches.filter((branch) => branch.id === LOOP_BODY_BRANCH_ID)
+    : branches
+  const visibleRows = hasLoopBody
+    ? visibleBranches
+    : branches
 
   return (
     <div
@@ -327,8 +336,8 @@ function LoopWorkflowNode({
       </header>
 
       <div className="shrink-0">
-        {branches.map((branch, index) => {
-          const isLoopBodyRow = isLoopBodyBranchIndex(index)
+        {visibleRows.map((branch) => {
+          const isLoopBodyRow = branch.id === LOOP_BODY_BRANCH_ID
 
           return (
             <div
@@ -361,21 +370,48 @@ function LoopWorkflowNode({
 
       <WorkflowNodeReorderFooter nodeData={nodeData} borderClassName={toneClass.footerBorder} />
 
-      {branches.map((branch, index) => (
-        <Handle
-          key={branch.id}
-          id={branch.id}
-          type="source"
-          position={Position.Right}
-          style={{
-            top: getLoopBranchHandleTopPercent(index, showSwap),
-          }}
-          className={cn(
-            '!h-2.5 !w-2.5 !border-2 !bg-white',
-            getBranchHandleColorClass(index, branches.length, 'loop'),
-          )}
-        />
-      ))}
+      {visibleBranches.map((branch) => {
+        const branchIndex = branches.findIndex((item) => item.id === branch.id)
+
+        return (
+          <Handle
+            key={branch.id}
+            id={branch.id}
+            type="source"
+            position={Position.Right}
+            style={{
+              top: getLoopBranchHandleTopPercent(branchIndex, showSwap),
+            }}
+            className={cn(
+              '!h-2.5 !w-2.5 !border-2 !bg-white',
+              getBranchHandleColorClass(branchIndex, branches.length, 'loop'),
+            )}
+          />
+        )
+      })}
+      {!hasLoopBody
+        ? branches
+            .filter((branch) => branch.id === LOOP_DONE_BRANCH_ID)
+            .map((branch) => {
+              const branchIndex = branches.findIndex((item) => item.id === branch.id)
+
+              return (
+                <Handle
+                  key={branch.id}
+                  id={branch.id}
+                  type="source"
+                  position={Position.Right}
+                  style={{
+                    top: getLoopBranchHandleTopPercent(branchIndex, showSwap),
+                  }}
+                  className={cn(
+                    '!h-2.5 !w-2.5 !border-2 !bg-white',
+                    getBranchHandleColorClass(branchIndex, branches.length, 'loop'),
+                  )}
+                />
+              )
+            })
+        : null}
     </div>
   )
 }

@@ -185,8 +185,9 @@ export function WorkflowNodeEditor({
               <p>
                 <span className="font-medium text-gray-800 dark:text-gray-100">Loop</span> enters the
                 body. After each iteration the flow returns to the loop node.{' '}
-                <span className="font-medium text-gray-800 dark:text-gray-100">Done</span> continues
-                the main flow when the loop finishes.
+                <span className="font-medium text-gray-800 dark:text-gray-100">Done</span> on the loop
+                body box continues the main flow when the loop finishes (on the loop node only when the
+                body is empty).
               </p>
             </Callout>
           )}
@@ -276,7 +277,7 @@ export function WorkflowNodeEditor({
             <Callout
               variant="orange"
               title="Break exits (end of body)"
-              description="Handles appear on the loop body box edge. Wire If / Else branch outputs to main-flow steps for mid-body breaks, or to other body steps to branch inside the iteration."
+              description="Break handles appear on the upper-right of the loop body box; Done is on the lower-right. Wire If / Else branch outputs to main-flow steps for mid-body breaks, or to other body steps inside the iteration."
             >
               <div className="flex justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
