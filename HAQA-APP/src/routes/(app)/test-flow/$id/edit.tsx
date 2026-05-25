@@ -5,12 +5,12 @@ import { QueryState } from '@/components/query-state'
 import { TestFlowEditor } from '@/components/test-flow-editor'
 import { useTestFlowEditorPage } from '@/lib/hooks'
 import { useTestFlow } from '@/queries/test-flow-queries'
-import {
-  graphToReactFlow,
-  type TestFlowDetail,
-  type TestFlowGraph,
-} from '@/lib/test-flow-graph'
-import type { TestFlowEditorFormData } from '@/components/test-flow-editor'
+import { graphToReactFlow } from '@/lib/test-flow-graph'
+import type {
+  TestFlowDetail,
+  TestFlowEditorFormData,
+  TestFlowEditorSubmitHandler,
+} from '@/types'
 
 export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
   component: EditTestFlowPage,
@@ -57,7 +57,7 @@ function EditTestFlowEditor({
   layoutClassName: string
   isSubmitting: boolean
   onCancel: () => void
-  onSubmit: (formData: TestFlowEditorFormData, graph: TestFlowGraph) => void
+  onSubmit: TestFlowEditorSubmitHandler
 }) {
   const { nodes, edges } = graphToReactFlow(data.latestVersion)
 

@@ -4,6 +4,7 @@ import { SearchInput } from '@/components/search-input'
 import { SortToggleGroup, type SortToggleOption } from '@/components/sort-toggle-group'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '@/types'
 
 interface ListToolbarProps<TSort extends string> {
   searchValue: string
@@ -14,7 +15,7 @@ interface ListToolbarProps<TSort extends string> {
   onSortChange: (value: TSort) => void
   limit: number
   onLimitChange: (limit: number) => void
-  pageSizeOptions?: number[]
+  pageSizeOptions?: readonly PageSizeOption[]
   className?: string
 }
 
@@ -27,7 +28,7 @@ export function ListToolbar<TSort extends string>({
   onSortChange,
   limit,
   onLimitChange,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
   className,
 }: ListToolbarProps<TSort>) {
   return (

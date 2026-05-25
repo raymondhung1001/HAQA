@@ -52,7 +52,7 @@ export interface ApiRequestOptions extends RequestInit {
 /**
  * Response wrapper that includes the raw Response object
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data: T
   response: Response
   status: number
@@ -131,7 +131,7 @@ function getBaseUrl(customBaseUrl?: string): string {
 /**
  * API request wrapper that handles authentication, CSRF tokens, and error handling
  */
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   url: string,
   options: ApiRequestOptions = {}
 ): Promise<T | ApiResponse<T>> {
@@ -177,12 +177,12 @@ export async function apiRequest<T = any>(
       headers,
       credentials: 'include',
     })
-  } catch (error: any) {
-    // Handle connection errors
+  } catch (error: unknown) {
+    const err = error as { code?: string; cause?: { code?: string }; message?: string }
     if (
-      error?.code === 'ECONNREFUSED' ||
-      error?.cause?.code === 'ECONNREFUSED' ||
-      error?.message?.includes('fetch failed')
+      err?.code === 'ECONNREFUSED' ||
+      err?.cause?.code === 'ECONNREFUSED' ||
+      err?.message?.includes('fetch failed')
     ) {
       const errorMessage = `Cannot connect to API server at ${baseUrl}. Please ensure the API server is running.`
       console.error(errorMessage, error)
@@ -233,7 +233,7 @@ export async function apiRequest<T = any>(
 /**
  * Convenience methods for common HTTP methods
  */
-export async function apiGet<T = any>(
+export async function apiGet<T = unknown>(
   url: string,
   options?: Omit<ApiRequestOptions, 'method'>
 ): Promise<T> {
@@ -241,9 +241,9 @@ export async function apiGet<T = any>(
   return result as T
 }
 
-export async function apiPost<T = any>(
+export async function apiPost<T = unknown>(
   url: string,
-  body?: any,
+  body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
 ): Promise<T> {
   const result = await apiRequest<T>(url, {
@@ -255,9 +255,9 @@ export async function apiPost<T = any>(
   return result as T
 }
 
-export async function apiPut<T = any>(
+export async function apiPut<T = unknown>(
   url: string,
-  body?: any,
+  body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
 ): Promise<T> {
   const result = await apiRequest<T>(url, {
@@ -269,9 +269,9 @@ export async function apiPut<T = any>(
   return result as T
 }
 
-export async function apiPatch<T = any>(
+export async function apiPatch<T = unknown>(
   url: string,
-  body?: any,
+  body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
 ): Promise<T> {
   const result = await apiRequest<T>(url, {
@@ -283,7 +283,7 @@ export async function apiPatch<T = any>(
   return result as T
 }
 
-export async function apiDelete<T = any>(
+export async function apiDelete<T = unknown>(
   url: string,
   options?: Omit<ApiRequestOptions, 'method'>
 ): Promise<T> {
@@ -292,6 +292,13 @@ export async function apiDelete<T = any>(
 }
 
 import type { TestFlowDetail, TestFlowGraph } from '@/lib/test-flow-graph'
+import type {
+  CreateTestFlowInput,
+  JsonValue,
+  PaginatedTestFlows,
+  SearchTestFlowsParams,
+  UpdateTestFlowInput,
+} from '@/types'
 
 export function unwrapData<T>(response: { data?: T } | T): T {
   return ((response as { data?: T })?.data ?? response) as T
@@ -301,43 +308,23 @@ export function unwrapData<T>(response: { data?: T } | T): T {
  * API Client object for backward compatibility
  */
 export const apiClient = {
-  createTestFlow: async (data: {
-    name: string
-    description?: string
-    isActive?: boolean
-    graph?: TestFlowGraph
-  }) => {
-    return apiPost('/test-flow', data)
+  createTestFlow: async (data: CreateTestFlowInput) => {
+    return apiPost('/test-flow', data as JsonValue)
   },
-  getTestFlow: async (id: string) => {
+  getTestFlow: async (id: string): Promise<TestFlowDetail> => {
     const response = await apiGet<{ data?: TestFlowDetail } | TestFlowDetail>(`/test-flow/${id}`)
     return unwrapData(response)
   },
-  updateTestFlow: async (
-    id: string,
-    data: {
-      name?: string
-      description?: string
-      isActive?: boolean
-    },
-  ) => {
-    return apiPatch(`/test-flow/${id}`, data)
+  updateTestFlow: async (id: string, data: UpdateTestFlowInput) => {
+    return apiPatch(`/test-flow/${id}`, data as JsonValue)
   },
   saveTestFlowGraph: async (id: string, graph: TestFlowGraph) => {
-    const response = await apiPut<{ data?: TestFlowDetail['latestVersion'] } | TestFlowDetail['latestVersion']>(
-      `/test-flow/${id}/graph`,
-      graph,
-    )
+    const response = await apiPut<
+      { data?: TestFlowDetail['latestVersion'] } | TestFlowDetail['latestVersion']
+    >(`/test-flow/${id}/graph`, graph as JsonValue)
     return unwrapData(response)
   },
-  searchTestFlows: async (params?: {
-    query?: string
-    isActive?: boolean
-    userId?: number
-    page?: number
-    limit?: number
-    sortBy?: 'createdAt' | 'updatedAt'
-  }) => {
+  searchTestFlows: async (params?: SearchTestFlowsParams): Promise<{ data?: PaginatedTestFlows } | PaginatedTestFlows> => {
     const queryParams = new URLSearchParams()
     if (params?.query) queryParams.append('query', params.query)
     if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())

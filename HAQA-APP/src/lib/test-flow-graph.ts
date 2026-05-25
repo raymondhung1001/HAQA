@@ -1,4 +1,5 @@
 import type { Connection, Edge, Node } from '@xyflow/react'
+import type { ScriptLanguage } from '@/types/workflow'
 import { addEdge } from '@xyflow/react'
 import {
   IF_ELSE_NODE_LAYOUT,
@@ -26,7 +27,7 @@ export interface WorkflowNodeData {
   nodeType: TestFlowNodeType
   label: string
   description?: string
-  scriptLanguage?: 'javascript' | 'python' | 'bash'
+  scriptLanguage?: ScriptLanguage
   scriptContent?: string
   scriptDependencies?: Record<string, unknown>
   config?: Record<string, unknown>
@@ -42,7 +43,7 @@ export interface TestFlowGraphNode {
   id: string
   nodeType: TestFlowNodeType
   label?: string
-  scriptLanguage?: 'javascript' | 'python' | 'bash'
+  scriptLanguage?: ScriptLanguage
   scriptContent?: string
   scriptDependencies?: Record<string, unknown>
   config?: Record<string, unknown>

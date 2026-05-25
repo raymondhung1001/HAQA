@@ -38,12 +38,12 @@ import {
   type WorkflowNodeData,
 } from '@/lib/test-flow-graph'
 
-interface UseWorkflowGraphOptions {
-  initialNodes?: Node[]
-  initialEdges?: Edge[]
-}
+import type { UseWorkflowGraphOptions, UseWorkflowGraphReturn } from '@/types'
 
-export function useWorkflowGraph({ initialNodes, initialEdges }: UseWorkflowGraphOptions = {}) {
+export function useWorkflowGraph({
+  initialNodes,
+  initialEdges,
+}: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn {
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialNodes ?? createDefaultNodes())
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges ?? [])
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)

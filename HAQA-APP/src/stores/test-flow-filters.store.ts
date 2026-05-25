@@ -1,40 +1,33 @@
 import { Store } from '@tanstack/react-store'
 
-export interface TestFlowFilters {
-  searchQuery: string
-  page: number
-  limit: number
-  sortBy: 'createdAt' | 'updatedAt'
-}
+import {
+  defaultTestFlowFilters,
+  mergeTestFlowFilters,
+  parseTestFlowFilters,
+  type TestFlowFilters,
+  type TestFlowSortBy,
+} from '@/types'
 
-const defaultFilters: TestFlowFilters = {
-  searchQuery: '',
-  page: 1,
-  limit: 10,
-  sortBy: 'createdAt',
-}
-
-// Load from localStorage if available
 const loadFromStorage = (): TestFlowFilters => {
-  if (typeof window === 'undefined') return defaultFilters
-  
+  if (typeof window === 'undefined') return defaultTestFlowFilters
+
   try {
     const stored = localStorage.getItem('testFlowFilters')
     if (stored) {
-      const parsed = JSON.parse(stored)
-      return { ...defaultFilters, ...parsed }
+      const parsed: unknown = JSON.parse(stored)
+      return mergeTestFlowFilters(parseTestFlowFilters(parsed))
     }
   } catch (error) {
     console.warn('Failed to load test flow filters from localStorage', error)
   }
-  
-  return defaultFilters
+
+  return defaultTestFlowFilters
 }
 
-// Create the store with initial state from localStorage
+export type { TestFlowFilters, TestFlowSortBy }
+
 export const testFlowFiltersStore = new Store<TestFlowFilters>(loadFromStorage())
 
-// Persist to localStorage on changes
 testFlowFiltersStore.subscribe(() => {
   if (typeof window !== 'undefined') {
     try {
@@ -46,41 +39,39 @@ testFlowFiltersStore.subscribe(() => {
   }
 })
 
-// Helper functions for updating the store
 export const testFlowFiltersActions = {
   setSearchQuery: (query: string) => {
     testFlowFiltersStore.setState((prev) => ({
       ...prev,
       searchQuery: query,
-      page: 1, // Reset to page 1 when searching
+      page: 1,
     }))
   },
-  
+
   setPage: (page: number) => {
     testFlowFiltersStore.setState((prev) => ({
       ...prev,
       page,
     }))
   },
-  
+
   setLimit: (limit: number) => {
     testFlowFiltersStore.setState((prev) => ({
       ...prev,
       limit,
-      page: 1, // Reset to page 1 when limit changes
+      page: 1,
     }))
   },
-  
-  setSortBy: (sortBy: 'createdAt' | 'updatedAt') => {
+
+  setSortBy: (sortBy: TestFlowSortBy) => {
     testFlowFiltersStore.setState((prev) => ({
       ...prev,
       sortBy,
-      page: 1, // Reset to page 1 when sort changes
+      page: 1,
     }))
   },
-  
+
   reset: () => {
-    testFlowFiltersStore.setState(defaultFilters)
+    testFlowFiltersStore.setState(defaultTestFlowFilters)
   },
 }
-

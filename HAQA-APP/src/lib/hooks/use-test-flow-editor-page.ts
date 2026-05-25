@@ -5,26 +5,19 @@ import {
   useSaveTestFlowGraph,
   useUpdateTestFlow,
 } from '@/queries/test-flow-queries'
-import type { TestFlowEditorFormData } from '@/components/test-flow-editor'
-import type { TestFlowGraph } from '@/lib/test-flow-graph'
+import type {
+  TestFlowEditorFormData,
+  TestFlowEditorPageResult,
+  TestFlowGraph,
+  UseTestFlowEditorPageOptions,
+} from '@/types'
 
 export const TEST_FLOW_EDITOR_LAYOUT_CLASS =
   'min-h-[calc(100dvh-4rem)] rounded-none border-x-0 border-t-0 shadow-none lg:min-h-[calc(100dvh-7rem)] lg:rounded-xl lg:border lg:shadow-sm'
 
-interface UseCreateTestFlowEditorPageOptions {
-  mode: 'create'
-}
-
-interface UseEditTestFlowEditorPageOptions {
-  mode: 'edit'
-  id: string
-}
-
-type UseTestFlowEditorPageOptions =
-  | UseCreateTestFlowEditorPageOptions
-  | UseEditTestFlowEditorPageOptions
-
-export function useTestFlowEditorPage(options: UseTestFlowEditorPageOptions) {
+export function useTestFlowEditorPage(
+  options: UseTestFlowEditorPageOptions,
+): TestFlowEditorPageResult {
   const navigate = useNavigate()
 
   const createMutation = useCreateTestFlow({

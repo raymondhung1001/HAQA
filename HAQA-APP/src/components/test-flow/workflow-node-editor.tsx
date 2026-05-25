@@ -22,6 +22,7 @@ import {
 } from '@/components/test-flow/workflow-node-definitions'
 import { useWorkflowNodeEditorForm } from '@/lib/hooks/use-workflow-node-editor-form'
 import { isElseBranchIndex, type TestFlowNodeType, type WorkflowNodeData } from '@/lib/test-flow-graph'
+import type { ScriptLanguage } from '@/types/workflow'
 
 interface WorkflowNodeEditorProps {
   node: Node | null
@@ -312,7 +313,7 @@ export function WorkflowNodeEditor({
                 <select
                   value={scriptLanguage}
                   onChange={(e) =>
-                    setScriptLanguage(e.target.value as 'javascript' | 'python' | 'bash')
+                    setScriptLanguage(e.target.value as ScriptLanguage)
                   }
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >

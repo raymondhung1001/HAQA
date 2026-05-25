@@ -5,10 +5,10 @@ import { StatusBadge } from '@/components/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Testflow } from '@/queries/test-flow-queries'
+import type { TestFlow } from '@/types'
 
 interface TestFlowCardProps {
-  testFlow: Testflow
+  testFlow: TestFlow
 }
 
 export function TestFlowCard({ testFlow }: TestFlowCardProps) {

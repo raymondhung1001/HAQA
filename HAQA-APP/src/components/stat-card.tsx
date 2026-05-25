@@ -1,12 +1,13 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+import type { StatCardColor } from '@/types'
 
 interface StatCardProps {
   icon: React.ReactNode
   title: string
   value: string
   description: string
-  color: 'blue' | 'green' | 'purple' | 'orange'
+  color: StatCardColor
 }
 
 const colorVariants = {

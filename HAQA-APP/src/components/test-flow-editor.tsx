@@ -20,14 +20,10 @@ import {
   reactFlowToGraph,
   WORKFLOW_EDGE_OPTIONS,
   WORKFLOW_NODE_ORIGIN,
-  type TestFlowGraph,
 } from '@/lib/test-flow-graph'
+import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
-export interface TestFlowEditorFormData {
-  name: string
-  description: string
-  isActive: boolean
-}
+export type { TestFlowEditorFormData } from '@/types'
 
 interface TestFlowEditorProps {
   title: string

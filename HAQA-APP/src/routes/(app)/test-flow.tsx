@@ -15,11 +15,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePaginatedScroll, useSessionRedirect, useTestFlowFilters } from '@/lib/hooks'
 import { isSessionExpiredError } from '@/lib/hooks/use-session-redirect'
 import { useSearchTestFlows, useSearchTestFlowsSuspense } from '@/queries/test-flow-queries'
-
-const SORT_OPTIONS = [
-  { value: 'createdAt' as const, label: 'Latest Created' },
-  { value: 'updatedAt' as const, label: 'Recently Updated' },
-]
+import { TEST_FLOW_SORT_OPTIONS, type TestFlowSortBy } from '@/types'
 
 export const Route = createFileRoute('/(app)/test-flow')({
   component: TestFlowsPage,
@@ -53,7 +49,7 @@ function TestFlowsPage() {
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search test flow..."
           sortBy={filters.sortBy}
-          sortOptions={SORT_OPTIONS}
+          sortOptions={TEST_FLOW_SORT_OPTIONS}
           onSortChange={setSortBy}
           limit={filters.limit}
           onLimitChange={setLimit}
@@ -100,7 +96,7 @@ function TestFlowResults({
   debouncedSearchQuery: string
   page: number
   limit: number
-  sortBy: 'createdAt' | 'updatedAt'
+  sortBy: TestFlowSortBy
   onPageChange: (page: number) => void
 }) {
   const { data: searchResults, isFetching } = useSearchTestFlowsSuspense({

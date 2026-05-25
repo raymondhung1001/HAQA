@@ -18,21 +18,23 @@ import {
   removeLoopBreakExit,
   resolveLoopBodySteps,
   type IfElseBranch,
-  type LoopBodyStep,
   type WorkflowNodeData,
 } from '@/lib/test-flow-graph'
+import type { UseWorkflowNodeEditorFormReturn } from '@/types'
+import type { ScriptLanguage } from '@/types/workflow'
 
 const MIN_IF_ELSE_BRANCHES = 2
 
-export function useWorkflowNodeEditorForm(node: Node | null, allNodes: Node[] = []) {
+export function useWorkflowNodeEditorForm(
+  node: Node | null,
+  allNodes: Node[] = [],
+): UseWorkflowNodeEditorFormReturn {
   const nodeData = (node?.data ?? {}) as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
 
   const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
-  const [scriptLanguage, setScriptLanguage] = useState<'javascript' | 'python' | 'bash'>(
-    'javascript',
-  )
+  const [scriptLanguage, setScriptLanguage] = useState<ScriptLanguage>('javascript')
   const [scriptContent, setScriptContent] = useState('')
   const [branches, setBranches] = useState<IfElseBranch[]>([])
   const [breakExits, setBreakExits] = useState<IfElseBranch[]>([])

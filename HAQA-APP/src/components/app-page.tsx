@@ -1,10 +1,11 @@
 import { Navigation } from '@/components/navigation'
 import { Container } from '@/components/ui/container'
 import { cn } from '@/lib/utils'
+import type { ContainerSize } from '@/types'
 
 interface AppPageProps {
   children: React.ReactNode
-  size?: 'default' | '2xl'
+  size?: ContainerSize
   className?: string
   containerClassName?: string
 }

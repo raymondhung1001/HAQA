@@ -2,7 +2,7 @@ import { FormField } from '@/components/form-field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import type { TestFlowEditorFormData } from '@/components/test-flow-editor'
+import type { TestFlowEditorFormData } from '@/types'
 
 interface TestFlowMetadataFormProps {
   formData: TestFlowEditorFormData
