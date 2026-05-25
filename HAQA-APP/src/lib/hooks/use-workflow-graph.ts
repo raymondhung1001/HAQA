@@ -25,6 +25,7 @@ import {
   isLoopNodeType,
   isValidWorkflowConnection,
   migrateLoopNodeConfig,
+  normalizeLoopBodyBreakTargetConnection,
   pruneEdgesForRemovedBranches,
   LOOP_BODY_GROUP_NODE_TYPE,
   readIfElseBranches,
@@ -121,11 +122,12 @@ export function useWorkflowGraph({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!isValidWorkflowConnection(connection, nodes)) return
+      const normalized = normalizeLoopBodyBreakTargetConnection(connection, nodes)
+      if (!isValidWorkflowConnection(normalized, nodes)) return
 
-      let nextEdges = connectEdge(connection, edges)
-      let nextNodes = repositionNodeForBranchConnection(nodes, connection)
-      const loopBodyResult = appendTargetToLoopBodyOnConnect(connection, nextNodes, nextEdges)
+      let nextEdges = connectEdge(normalized, edges)
+      let nextNodes = repositionNodeForBranchConnection(nodes, normalized)
+      const loopBodyResult = appendTargetToLoopBodyOnConnect(normalized, nextNodes, nextEdges)
       nextNodes = loopBodyResult.nodes
       nextEdges = syncAllLoopBodyEdges(loopBodyResult.nodes, loopBodyResult.edges)
       nextNodes = syncAllLoopBodyGroups(loopBodyResult.nodes, nextEdges)

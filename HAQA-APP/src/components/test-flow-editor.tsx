@@ -123,6 +123,7 @@ function TestFlowEditorCanvas({
               proOptions={{ hideAttribution: true }}
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
+              connectionRadius={28}
               deleteKeyCode={['Backspace', 'Delete']}
               fitView
             >

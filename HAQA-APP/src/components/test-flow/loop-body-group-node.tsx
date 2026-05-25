@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Handle, Position, useStore, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import { LOOP_DONE_BRANCH_ID, type IfElseBranch } from '@/lib/test-flow-graph'
 import { getBranchHandleColorClass } from '@/lib/test-flow-graph'
 import {
-  getLoopBodyBreakHandleTopCalc,
+  getLoopBodyBreakHandleCenterY,
   getLoopBodyDoneHandleBottomPx,
   LOOP_BODY_GROUP,
 } from '@/components/test-flow/workflow-node-layout'
@@ -19,27 +19,117 @@ export interface LoopBodyGroupNodeData {
 const exitHandleClass =
   'pointer-events-auto !h-3 !w-3 !border-2 !bg-white shadow-sm transition-shadow hover:!shadow-md'
 
-/** Half-on border (right edge). */
-const breakExitHandleStyle = (top: string): CSSProperties => ({
-  top,
-  right: 0,
-  transform: 'translate(50%, -50%)',
+const HANDLE_SIZE_PX = 12
+
+/** Shared vertical anchor for break in/out handles on the right border. */
+const breakHandleRowStyle = (topPx: number): Pick<CSSProperties, 'top' | 'transform'> => ({
+  top: topPx,
+  transform: 'translateY(-50%)',
+})
+
+/** Incoming from body: Left position on the right border (edge approaches from the left, no U-turn). */
+const breakExitTargetHandleStyle = (topPx: number): CSSProperties => ({
+  ...breakHandleRowStyle(topPx),
+  left: '100%',
+  marginLeft: -HANDLE_SIZE_PX / 2,
+})
+
+/** Outgoing to main flow: Right position on the same border row. */
+const breakExitSourceHandleStyle = (topPx: number): CSSProperties => ({
+  ...breakHandleRowStyle(topPx),
+  right: -HANDLE_SIZE_PX / 2,
 })
 
 const doneExitHandleStyle: CSSProperties = {
   top: 'auto',
-  bottom: getLoopBodyDoneHandleBottomPx(),
-  right: 0,
-  transform: 'translate(50%, 50%)',
+  bottom: getLoopBodyDoneHandleBottomPx() - HANDLE_SIZE_PX / 2,
+  right: -HANDLE_SIZE_PX / 2,
+  transform: 'translateY(50%)',
 }
 
-export function LoopBodyGroupNode({ selected, data }: NodeProps) {
+/** Default: label in the rail beside the handle. Connected: shift above the incoming edge. */
+function getBreakExitLabelStyle(
+  topPx: number,
+  isConnected: boolean,
+  exitRailWidth: number,
+): CSSProperties {
+  if (!isConnected) {
+    return {
+      top: topPx,
+      right: 10,
+      transform: 'translateY(-50%)',
+      maxWidth: exitRailWidth - 12,
+    }
+  }
+
+  return {
+    top: topPx - 8,
+    right: 6,
+    transform: 'translateY(-100%)',
+    maxWidth: exitRailWidth - 8,
+    textAlign: 'right',
+  }
+}
+
+export function LoopBodyGroupNode({ id, selected, data, height }: NodeProps) {
   const breakExits = Array.isArray(data?.breakExits) ? (data.breakExits as IfElseBranch[]) : []
-  const { exitRailWidth } = LOOP_BODY_GROUP
+  const { exitRailWidth, minHeight } = LOOP_BODY_GROUP
   const hasBreaks = breakExits.length > 0
+  const updateNodeInternals = useUpdateNodeInternals()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [measuredHeight, setMeasuredHeight] = useState(minHeight)
+
+  const nodeHeight =
+    typeof height === 'number' && height > 0 ? height : measuredHeight
+
+  const breakExitKey = breakExits.map((b) => b.id).join(',')
+
+  const connectedBreakIds = useStore(
+    useCallback(
+      (state) => {
+        const connected = new Set<string>()
+        for (const edge of state.edges) {
+          if (edge.target !== id || !edge.targetHandle) continue
+          for (const exit of breakExits) {
+            if (
+              edge.targetHandle === `${exit.id}-target` ||
+              edge.targetHandle === exit.id
+            ) {
+              connected.add(exit.id)
+            }
+          }
+        }
+        return connected
+      },
+      [id, breakExitKey],
+    ),
+  )
+
+  const refreshHandleBounds = useCallback(() => {
+    const el = rootRef.current
+    if (el) {
+      const nextHeight = el.offsetHeight
+      if (nextHeight > 0) setMeasuredHeight(nextHeight)
+    }
+    updateNodeInternals(id)
+  }, [id, updateNodeInternals])
+
+  useEffect(() => {
+    refreshHandleBounds()
+  }, [refreshHandleBounds, breakExitKey, height])
+
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+
+    const observer = new ResizeObserver(() => refreshHandleBounds())
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [refreshHandleBounds])
 
   return (
     <div
+      ref={rootRef}
       className={cn(
         'relative box-border h-full w-full overflow-visible rounded-xl border-2 border-dashed border-green-400/80 bg-green-50/25 dark:border-green-600/70 dark:bg-green-950/15',
         selected && 'ring-2 ring-green-400/40 ring-offset-2',
@@ -59,17 +149,7 @@ export function LoopBodyGroupNode({ selected, data }: NodeProps) {
             <span className="mb-1 shrink-0 text-center text-[8px] font-bold uppercase tracking-wider text-orange-600/90 dark:text-orange-400/90">
               Break
             </span>
-            <div className="flex min-h-0 flex-1 flex-col justify-evenly py-0.5">
-              {breakExits.map((breakExit) => (
-                <span
-                  key={breakExit.id}
-                  className="truncate text-right text-[8px] font-medium leading-tight text-orange-700/80 dark:text-orange-300/80"
-                  title={breakExit.label}
-                >
-                  {breakExit.label}
-                </span>
-              ))}
-            </div>
+            <div className="min-h-0 flex-1" />
           </div>
         ) : (
           <div className="min-h-0 flex-1" />
@@ -90,22 +170,50 @@ export function LoopBodyGroupNode({ selected, data }: NodeProps) {
         </div>
       </aside>
 
-      {breakExits.map((breakExit, index) => (
-        <Handle
-          key={breakExit.id}
-          id={breakExit.id}
-          type="source"
-          position={Position.Right}
-          style={breakExitHandleStyle(
-            getLoopBodyBreakHandleTopCalc(index, breakExits.length),
-          )}
-          className={cn(
-            exitHandleClass,
-            getBranchHandleColorClass(index, breakExits.length, 'if-else'),
-          )}
-          title={`Break: ${breakExit.label}`}
-        />
-      ))}
+      {breakExits.map((breakExit, index) => {
+        const topPx = getLoopBodyBreakHandleCenterY(nodeHeight, index, breakExits.length)
+        const isConnected = connectedBreakIds.has(breakExit.id)
+
+        return (
+          <span
+            key={`label-${breakExit.id}`}
+            className="pointer-events-none absolute z-10 truncate text-right text-[8px] font-medium leading-tight text-orange-700/80 transition-[top,transform] duration-150 dark:text-orange-300/80"
+            style={getBreakExitLabelStyle(topPx, isConnected, exitRailWidth)}
+            title={breakExit.label}
+          >
+            {breakExit.label}
+          </span>
+        )
+      })}
+
+      {breakExits.map((breakExit, index) => {
+        const topPx = getLoopBodyBreakHandleCenterY(nodeHeight, index, breakExits.length)
+        const handleClass = cn(
+          exitHandleClass,
+          getBranchHandleColorClass(index, breakExits.length, 'if-else'),
+        )
+
+        return (
+          <Fragment key={breakExit.id}>
+            <Handle
+              id={`${breakExit.id}-target`}
+              type="target"
+              position={Position.Left}
+              style={breakExitTargetHandleStyle(topPx)}
+              className={handleClass}
+              title={`${breakExit.label} — connect a body branch here`}
+            />
+            <Handle
+              id={breakExit.id}
+              type="source"
+              position={Position.Right}
+              style={breakExitSourceHandleStyle(topPx)}
+              className={cn(handleClass, '!pointer-events-auto')}
+              title={`${breakExit.label} — wire to main flow`}
+            />
+          </Fragment>
+        )
+      })}
 
       <Handle
         id={LOOP_DONE_BRANCH_ID}

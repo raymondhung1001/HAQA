@@ -1,6 +1,6 @@
 import type { Connection, Edge, Node } from '@xyflow/react'
 import type { ScriptLanguage } from '@/types/workflow'
-import { addEdge } from '@xyflow/react'
+import { addEdge, Position } from '@xyflow/react'
 import {
   IF_ELSE_NODE_LAYOUT,
   LOOP_BODY_GROUP,
@@ -75,16 +75,52 @@ export const WORKFLOW_EDGE_OPTIONS = {
   },
 }
 
+function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
+  return (
+    typeof edge.target === 'string' &&
+    edge.target.endsWith('-loop-body') &&
+    typeof edge.targetHandle === 'string' &&
+    edge.targetHandle.endsWith('-target')
+  )
+}
+
+/** Map drops on the visible break source dot to the target handle id. */
+export function normalizeLoopBodyBreakTargetConnection(
+  connection: Connection,
+  nodes: Node[],
+): Connection {
+  if (!connection.target || !connection.targetHandle) return connection
+
+  const targetNode = nodes.find((node) => node.id === connection.target)
+  if (!targetNode || !isLoopBodyGroupNode(targetNode)) return connection
+
+  const breakExits = Array.isArray(targetNode.data?.breakExits)
+    ? (targetNode.data.breakExits as IfElseBranch[])
+    : []
+
+  if (connection.targetHandle.endsWith('-target')) return connection
+
+  const branch = breakExits.find((exit) => exit.id === connection.targetHandle)
+  if (!branch) return connection
+
+  return { ...connection, targetHandle: `${branch.id}-target` }
+}
+
 export function withWorkflowEdgeDefaults(edge: Edge): Edge {
   const isDoneEdge = edge.sourceHandle === LOOP_DONE_BRANCH_ID
+  const isBreakTarget = isLoopBodyBreakTargetEdge(edge)
 
   return {
     ...edge,
     ...WORKFLOW_EDGE_OPTIONS,
+    ...(isBreakTarget
+      ? { targetPosition: Position.Left, sourcePosition: Position.Right }
+      : {}),
     pathOptions: {
       ...WORKFLOW_EDGE_OPTIONS.pathOptions,
       ...(edge.pathOptions ?? {}),
       ...(isDoneEdge ? { offset: 52 } : {}),
+      ...(isBreakTarget ? { offset: 12 } : {}),
     },
     style: {
       ...WORKFLOW_EDGE_OPTIONS.style,
@@ -447,14 +483,15 @@ export function findLoopBodyEntryNodeIds(
 /** Steps with no further body successors — iteration paths end here before continue-back. */
 export function findLoopBodyLeafNodeIds(bodyNodeIds: string[], edges: Edge[]): string[] {
   const bodySet = getLoopBodyMemberSet(bodyNodeIds)
-  const outgoingToBody = new Set<string>()
+  const outgoingToBodyOrOutside = new Set<string>()
 
-  for (const edge of getLoopBodyMemberEdges(edges, bodySet)) {
-    outgoingToBody.add(edge.source)
+  for (const edge of edges) {
+    if (bodySet.has(edge.source) && !isLoopBackEdge(edge)) {
+      outgoingToBodyOrOutside.add(edge.source)
+    }
   }
 
-  const leaves = bodyNodeIds.filter((id) => !outgoingToBody.has(id))
-  return leaves.length > 0 ? leaves : bodyNodeIds.slice(-1)
+  return bodyNodeIds.filter((id) => !outgoingToBodyOrOutside.has(id))
 }
 
 /** BFS order from entry nodes for layout; disconnected members follow bodyNodeIds order. */
@@ -1095,7 +1132,21 @@ export function applyLoopNodeConfigUpdate(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const migratedConfig = migrateLoopNodeConfig(config)
+  let migratedConfig = migrateLoopNodeConfig(config)
+  
+  const bodyIds = readLoopBodyNodeIds(migratedConfig)
+  const hasIfElse = bodyIds.some((id) => {
+    const node = nodes.find((n) => n.id === id)
+    return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+  })
+
+  if (!hasIfElse && Array.isArray(migratedConfig.breakExits)) {
+    migratedConfig = {
+      ...migratedConfig,
+      breakExits: [],
+    }
+  }
+
   const updatedNodes = nodes.map((node) =>
     node.id === nodeId
       ? {
@@ -1207,24 +1258,54 @@ export function applyLoopBodyUpdate(
     new Set(nodes.map((node) => node.id)),
   )
 
-  const positionedNodes = layoutLoopBodyNodes(loopNode, validIds, nodes, edges).map((node) => {
+  const hasIfElse = validIds.some((id) => {
+    const node = nodes.find((n) => n.id === id)
+    return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+  })
+
+  const nextLoopNode = { ...loopNode }
+  if (!hasIfElse) {
+    const currentConfig = (nextLoopNode.data as WorkflowNodeData).config ?? {}
+    nextLoopNode.data = {
+      ...nextLoopNode.data,
+      config: {
+        ...currentConfig,
+        breakExits: [],
+      },
+    }
+  }
+
+  const positionedNodes = layoutLoopBodyNodes(nextLoopNode, validIds, nodes, edges).map((node) => {
     if (node.id !== loopNodeId) return node
+
+    const currentConfig = (node.data as WorkflowNodeData).config ?? {}
+    const nextConfig = {
+      ...currentConfig,
+      bodyNodeIds: validIds,
+    }
+
+    if (!hasIfElse && Array.isArray(nextConfig.breakExits)) {
+      nextConfig.breakExits = []
+    }
 
     return {
       ...node,
       data: {
         ...node.data,
-        config: {
-          ...((node.data as WorkflowNodeData).config ?? {}),
-          bodyNodeIds: validIds,
-        },
+        config: nextConfig,
       },
     }
   })
 
+  let nextEdges = edges
+  if (!hasIfElse) {
+    const groupId = getLoopBodyGroupId(loopNodeId)
+    nextEdges = pruneEdgesForRemovedBranches(edges, groupId, [])
+  }
+
   return {
     nodes: positionedNodes,
-    edges: syncLoopBodyEdges(loopNodeId, validIds, positionedNodes, edges),
+    edges: syncLoopBodyEdges(loopNodeId, validIds, positionedNodes, nextEdges),
   }
 }
 
@@ -1620,7 +1701,11 @@ export function repositionNodeForBranchConnection(
   if (!connection.source || !connection.target) return nodes
 
   const sourceNode = nodes.find((node) => node.id === connection.source)
-  if (!sourceNode) return nodes
+  const targetNode = nodes.find((node) => node.id === connection.target)
+  if (!sourceNode || !targetNode) return nodes
+
+  // Never move the loop body shell when wiring branches to Break / Done handles.
+  if (isLoopBodyGroupNode(targetNode)) return nodes
 
   const handle = connection.sourceHandle
   if (!handle) return nodes
@@ -1658,9 +1743,6 @@ export function repositionNodeForBranchConnection(
 
   const branches = getNodeOutputBranches(sourceNode.data as WorkflowNodeData)
   if (!branches.some((branch) => branch.id === handle)) return nodes
-
-  const targetNode = nodes.find((node) => node.id === connection.target)
-  if (!targetNode) return nodes
 
   const position = getBranchOutputPositionForConnection(
     sourceNode,
@@ -1705,6 +1787,18 @@ export function isValidWorkflowConnection(
       ? (sourceNode.data.breakExits as IfElseBranch[])
       : []
     if (!breakExits.some((branch) => branch.id === handle)) return false
+
+    // Break edges are only valid if there is an if-else node in the loop body
+    const loopNodeId = (sourceNode.data as any)?.loopNodeId
+    const loopNode = nodes.find((n) => n.id === loopNodeId)
+    if (!loopNode) return false
+    const bodyIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
+    const hasIfElse = bodyIds.some((id) => {
+      const node = nodes.find((n) => n.id === id)
+      return (node?.data as WorkflowNodeData)?.nodeType === 'if-else'
+    })
+    if (!hasIfElse) return false
+
     return isCanvasLayoutNode(targetNode, nodes)
   }
 
@@ -1734,6 +1828,24 @@ export function isValidWorkflowConnection(
 
     if (isCanvasLayoutNode(targetNode, nodes)) {
       return true
+    }
+
+    if (isLoopBodyGroupNode(targetNode)) {
+      const loopNodeId = (targetNode.data as any)?.loopNodeId
+      if (loopNodeId === owningLoop.id) {
+        const breakExits = Array.isArray(targetNode.data?.breakExits)
+          ? (targetNode.data.breakExits as IfElseBranch[])
+          : []
+        if (
+          breakExits.some(
+            (branch) =>
+              connection.targetHandle === `${branch.id}-target` ||
+              connection.targetHandle === branch.id,
+          )
+        ) {
+          return true
+        }
+      }
     }
 
     return false
@@ -2042,6 +2154,7 @@ export function pruneEdgesForRemovedBranches(
   return edges.filter((edge) => {
     if (edge.source !== sourceNodeId) return true
     if (!edge.sourceHandle) return true
+    if (edge.sourceHandle === LOOP_DONE_BRANCH_ID) return true
     return branchIds.has(edge.sourceHandle)
   })
 }

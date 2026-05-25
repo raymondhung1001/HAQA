@@ -279,32 +279,45 @@ export function WorkflowNodeEditor({
               title="Break exits (end of body)"
               description="Break handles appear on the upper-right of the loop body box; Done is on the lower-right. Wire If / Else branch outputs to main-flow steps for mid-body breaks, or to other body steps inside the iteration."
             >
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add
-                </Button>
-              </div>
+              {loopBodySteps.some(step => step.nodeType === 'if-else') ? (
+                <>
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
 
-              <div className="space-y-2">
-                {breakExits.length === 0 ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    No break exits yet. Add one to expose a handle after the body completes.
+                  <div className="space-y-2">
+                    {breakExits.length === 0 ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No break exits yet. Add one to expose a handle after the body completes.
+                      </p>
+                    ) : (
+                      breakExits.map((branch, index) => (
+                        <BranchListInputRow
+                          key={branch.id}
+                          index={index}
+                          value={branch.label}
+                          onChange={(value) => handleLoopBreakLabelChange(branch.id, value)}
+                          placeholder="Break condition label"
+                          onRemove={() => handleRemoveBranch(branch.id)}
+                          removeTitle="Remove break exit"
+                        />
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600 dark:text-amber-500 font-medium">
+                    Add an If / Else node to the loop body to configure break exits.
                   </p>
-                ) : (
-                  breakExits.map((branch, index) => (
-                    <BranchListInputRow
-                      key={branch.id}
-                      index={index}
-                      value={branch.label}
-                      onChange={(value) => handleLoopBreakLabelChange(branch.id, value)}
-                      placeholder="Break condition label"
-                      onRemove={() => handleRemoveBranch(branch.id)}
-                      removeTitle="Remove break exit"
-                    />
-                  ))
-                )}
-              </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Break exits are only available when there is a conditional branch inside the loop body.
+                  </p>
+                </div>
+              )}
             </Callout>
           )}
 
