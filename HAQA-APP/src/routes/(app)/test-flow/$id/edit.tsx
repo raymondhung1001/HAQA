@@ -1,50 +1,64 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Container } from '@/components/ui/container'
+import { createFileRoute } from '@tanstack/react-router'
+
 import { Navigation } from '@/components/navigation'
+import { QueryState } from '@/components/query-state'
 import { TestFlowEditor } from '@/components/test-flow-editor'
+import { useTestFlowEditorPage } from '@/lib/hooks'
+import { useTestFlow } from '@/queries/test-flow-queries'
 import {
-  useTestFlow,
-  useUpdateTestFlow,
-  useSaveTestFlowGraph,
-} from '@/queries/test-flow-queries'
-import { graphToReactFlow } from '@/lib/test-flow-graph'
+  graphToReactFlow,
+  type TestFlowDetail,
+  type TestFlowGraph,
+} from '@/lib/test-flow-graph'
+import type { TestFlowEditorFormData } from '@/components/test-flow-editor'
 
 export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
   component: EditTestFlowPage,
 })
 
 function EditTestFlowPage() {
-  const navigate = useNavigate()
   const { id } = Route.useParams()
   const { data, isLoading, error } = useTestFlow(id)
-
-  const updateMutation = useUpdateTestFlow()
-  const saveGraphMutation = useSaveTestFlowGraph({
-    onSuccess: () => {
-      navigate({ to: '/test-flow' })
-    },
+  const { handleCancel, handleSubmit, isSubmitting, layoutClassName } = useTestFlowEditorPage({
+    mode: 'edit',
+    id,
   })
 
-  if (isLoading) {
-    return (
-      <Navigation>
-        <Container size="2xl">
-          <p className="text-gray-600 dark:text-gray-400">Loading test flow...</p>
-        </Container>
-      </Navigation>
-    )
-  }
+  return (
+    <QueryState
+      isLoading={isLoading}
+      error={error ?? undefined}
+      isEmpty={!data}
+      loadingMessage="Loading test flow..."
+      errorMessage="Failed to load test flow."
+      emptyMessage="Test flow not found."
+    >
+      {data ? (
+        <EditTestFlowEditor
+          data={data}
+          layoutClassName={layoutClassName}
+          isSubmitting={isSubmitting}
+          onCancel={handleCancel}
+          onSubmit={handleSubmit}
+        />
+      ) : null}
+    </QueryState>
+  )
+}
 
-  if (error || !data) {
-    return (
-      <Navigation>
-        <Container size="2xl">
-          <p className="text-red-600">Failed to load test flow.</p>
-        </Container>
-      </Navigation>
-    )
-  }
-
+function EditTestFlowEditor({
+  data,
+  layoutClassName,
+  isSubmitting,
+  onCancel,
+  onSubmit,
+}: {
+  data: TestFlowDetail
+  layoutClassName: string
+  isSubmitting: boolean
+  onCancel: () => void
+  onSubmit: (formData: TestFlowEditorFormData, graph: TestFlowGraph) => void
+}) {
   const { nodes, edges } = graphToReactFlow(data.latestVersion)
 
   return (
@@ -60,27 +74,17 @@ function EditTestFlowPage() {
           }}
           initialNodes={nodes}
           initialEdges={edges}
-          isSubmitting={updateMutation.isPending || saveGraphMutation.isPending}
-          className="min-h-[calc(100dvh-4rem)] rounded-none border-x-0 border-t-0 shadow-none lg:min-h-[calc(100dvh-7rem)] lg:rounded-xl lg:border lg:shadow-sm"
-          onCancel={() => navigate({ to: '/test-flow' })}
-          onSubmit={(formData, graph) => {
-            updateMutation.mutate({
-              id,
-              data: {
-                name: formData.name,
-                description: formData.description || undefined,
-                isActive: formData.isActive,
-              },
-            })
-            saveGraphMutation.mutate({ id, graph })
-          }}
+          isSubmitting={isSubmitting}
+          className={layoutClassName}
+          onCancel={onCancel}
+          onSubmit={onSubmit}
         />
-        {data.latestVersion && (
+        {data.latestVersion ? (
           <p className="px-4 py-2 text-xs text-gray-500 lg:px-0">
             Current version: v{data.latestVersion.versionNumber}. Saving creates a new version
             snapshot.
           </p>
-        )}
+        ) : null}
       </div>
     </Navigation>
   )

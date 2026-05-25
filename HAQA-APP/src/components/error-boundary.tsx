@@ -1,5 +1,6 @@
 import { Component, ReactNode } from 'react'
-import { SessionExpiredError } from '@/lib/api-client'
+
+import { isSessionExpiredError, redirectToLoginIfNeeded } from '@/lib/hooks/use-session-redirect'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -25,13 +26,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
     
-    // Handle session expiration errors - redirect immediately
-    if (error instanceof SessionExpiredError || error.message.includes('Session expired')) {
-      // Use window.location for a hard redirect to ensure complete logout
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login'
-        return // Exit early to prevent further processing
-      }
+    if (isSessionExpiredError(error)) {
+      redirectToLoginIfNeeded()
+      return
     }
     
     // Call onError callback if provided
@@ -47,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       // Check if it's a session expiration error
-      if (this.state.error instanceof SessionExpiredError || this.state.error?.message.includes('Session expired')) {
+      if (isSessionExpiredError(this.state.error)) {
         // Redirect will happen in componentDidCatch, but show message while redirecting
         return (
           <div className="p-4 text-center">

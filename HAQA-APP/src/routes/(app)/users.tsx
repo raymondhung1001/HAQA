@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Container } from '@/components/ui/container'
-import { Navigation } from '@/components/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { User } from 'lucide-react'
+
+import { AppPage } from '@/components/app-page'
+import { PageCard } from '@/components/page-card'
 
 export const Route = createFileRoute('/(app)/users')({
   component: UsersPage,
@@ -10,23 +10,10 @@ export const Route = createFileRoute('/(app)/users')({
 
 function UsersPage() {
   return (
-    <Navigation>
-      <Container size="2xl">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <User className="w-6 h-6" />
-              <CardTitle className="text-2xl">Users</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 dark:text-gray-400">
-              Users management page - Coming soon
-            </p>
-          </CardContent>
-        </Card>
-      </Container>
-    </Navigation>
+    <AppPage>
+      <PageCard icon={User} title="Users">
+        <p className="text-gray-600 dark:text-gray-400">Users management page - Coming soon</p>
+      </PageCard>
+    </AppPage>
   )
 }
-

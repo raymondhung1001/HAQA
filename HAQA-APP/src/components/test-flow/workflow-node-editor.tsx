@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { Node } from '@xyflow/react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+
+import { BranchListInputRow } from '@/components/test-flow/branch-list-row'
+import { Callout } from '@/components/callout'
+import { FormField } from '@/components/form-field'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
   SheetContent,
@@ -9,33 +16,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import {
   getLoopBodyWorkNodeDefinitions,
   getWorkflowNodeLabel,
 } from '@/components/test-flow/workflow-node-definitions'
-import {
-  addIfElseBranch,
-  addLoopBreakExit,
-  DEFAULT_LOOP_BRANCHES,
-  isElseBranchIndex,
-  isLoopNodeType,
-  migrateLoopNodeConfig,
-  normalizeIfElseBranches,
-  normalizeLoopBreakExits,
-  readIfElseBranches,
-  readLoopBodyNodeIds,
-  readLoopBreakExits,
-  removeIfElseBranch,
-  removeLoopBreakExit,
-  resolveLoopBodySteps,
-  type IfElseBranch,
-  type LoopBodyStep,
-  type TestFlowNodeType,
-  type WorkflowNodeData,
-} from '@/lib/test-flow-graph'
-
-const MIN_IF_ELSE_BRANCHES = 2
+import { useWorkflowNodeEditorForm } from '@/lib/hooks/use-workflow-node-editor-form'
+import { isElseBranchIndex, type TestFlowNodeType, type WorkflowNodeData } from '@/lib/test-flow-graph'
 
 interface WorkflowNodeEditorProps {
   node: Node | null
@@ -58,139 +44,52 @@ export function WorkflowNodeEditor({
   onRemoveLoopBodyNode,
   onReorderLoopBodyNode,
 }: WorkflowNodeEditorProps) {
-  const nodeData = (node?.data ?? {}) as WorkflowNodeData
-  const nodeType = nodeData.nodeType ?? 'script'
+  const [nameError, setNameError] = useState<string | undefined>()
+  const [branchError, setBranchError] = useState<string | undefined>()
 
-  const [label, setLabel] = useState('')
-  const [description, setDescription] = useState('')
-  const [scriptLanguage, setScriptLanguage] = useState<'javascript' | 'python' | 'bash'>(
-    'javascript',
-  )
-  const [scriptContent, setScriptContent] = useState('')
-  const [branches, setBranches] = useState<IfElseBranch[]>([])
-  const [breakExits, setBreakExits] = useState<IfElseBranch[]>([])
-
-  const isIfElseNode = nodeType === 'if-else'
-  const isLoopNode = isLoopNodeType(nodeType)
-  const loopBodyWorkDefinitions = useMemo(
-    () => getLoopBodyWorkNodeDefinitions() ?? [],
-    [],
-  )
-
-  const loopBodySteps = useMemo<LoopBodyStep[]>(() => {
-    if (!node || !isLoopNode) return []
-    return resolveLoopBodySteps(readLoopBodyNodeIds(nodeData.config), allNodes)
-  }, [allNodes, isLoopNode, node, nodeData.config])
-
-  useEffect(() => {
-    if (!node) return
-
-    setLabel(nodeData.label ?? getWorkflowNodeLabel(nodeType))
-    setDescription(nodeData.description ?? '')
-    setScriptLanguage(nodeData.scriptLanguage ?? 'javascript')
-    setScriptContent(nodeData.scriptContent ?? '')
-    setBranches(isIfElseNode ? readIfElseBranches(nodeData.config) : [])
-    setBreakExits(isLoopNode ? readLoopBreakExits(nodeData.config) : [])
-  }, [
-    node,
+  const {
+    nodeType,
+    label,
+    setLabel,
+    description,
+    setDescription,
+    scriptLanguage,
+    setScriptLanguage,
+    scriptContent,
+    setScriptContent,
+    branches,
+    breakExits,
     isIfElseNode,
     isLoopNode,
-    nodeData.config,
-    nodeData.description,
-    nodeData.label,
-    nodeData.scriptContent,
-    nodeData.scriptLanguage,
-    nodeType,
-  ])
+    loopBodySteps,
+    minIfElseBranches,
+    handleBranchLabelChange,
+    handleLoopBreakLabelChange,
+    handleAddBranch,
+    handleRemoveBranch,
+    buildSavePayload,
+  } = useWorkflowNodeEditorForm(node, allNodes)
 
-  const handleBranchLabelChange = (branchId: string, nextLabel: string) => {
-    setBranches((current) =>
-      normalizeIfElseBranches(
-        current.map((branch, index) =>
-          branch.id === branchId && !isElseBranchIndex(index, current.length)
-            ? { ...branch, label: nextLabel }
-            : branch,
-        ),
-      ),
-    )
-  }
-
-  const handleLoopBreakLabelChange = (branchId: string, nextLabel: string) => {
-    setBreakExits((current) =>
-      normalizeLoopBreakExits(
-        current.map((branch) =>
-          branch.id === branchId ? { ...branch, label: nextLabel } : branch,
-        ),
-      ),
-    )
-  }
-
-  const handleAddBranch = () => {
-    setBranches((current) => (isLoopNode ? current : addIfElseBranch(current)))
-    if (isLoopNode) {
-      setBreakExits((current) => addLoopBreakExit(current))
-    }
-  }
-
-  const handleRemoveBranch = (branchId: string) => {
-    if (isLoopNode) {
-      setBreakExits((current) => removeLoopBreakExit(current, branchId))
-      return
-    }
-    setBranches((current) => removeIfElseBranch(current, branchId))
-  }
+  const loopBodyWorkDefinitions = getLoopBodyWorkNodeDefinitions() ?? []
 
   const handleSave = () => {
-    if (!node) return
+    setNameError(undefined)
+    setBranchError(undefined)
 
-    const trimmedLabel = label.trim()
-    if (!trimmedLabel) {
-      alert('Please enter a node name')
+    if (!label.trim()) {
+      setNameError('Please enter a node name')
       return
     }
 
-    const normalizedIfElseBranches = normalizeIfElseBranches(
-      branches.map((branch) => ({
-        ...branch,
-        label: branch.label.trim() || branch.id,
-      })),
-    )
-
-    if (nodeType === 'if-else' && normalizedIfElseBranches.length < MIN_IF_ELSE_BRANCHES) {
-      alert('If / Else nodes need at least two output branches')
+    if (nodeType === 'if-else' && branches.length < minIfElseBranches) {
+      setBranchError('If / Else nodes need at least two output branches')
       return
     }
 
-    const normalizedLoopBreakExits = normalizeLoopBreakExits(
-      breakExits.map((branch) => ({
-        ...branch,
-        label: branch.label.trim() || branch.id,
-      })),
-    )
+    const payload = buildSavePayload()
+    if (!payload || !node) return
 
-    onSave(node.id, {
-      label: trimmedLabel,
-      description: description.trim(),
-      scriptLanguage: nodeType === 'script' ? scriptLanguage : nodeData.scriptLanguage,
-      scriptContent: nodeType === 'script' ? scriptContent : nodeData.scriptContent,
-      ...(isIfElseNode
-        ? {
-            config: {
-              ...(nodeData.config ?? {}),
-              branches: normalizedIfElseBranches,
-            },
-          }
-        : isLoopNode
-          ? {
-              config: migrateLoopNodeConfig({
-                ...(nodeData.config ?? {}),
-                branches: [...DEFAULT_LOOP_BRANCHES],
-                breakExits: normalizedLoopBreakExits,
-                bodyNodeIds: readLoopBodyNodeIds(nodeData.config),
-              }),
-            }
-          : {}),
-    })
+    onSave(node.id, payload)
     onOpenChange(false)
   }
 
@@ -205,46 +104,39 @@ export function WorkflowNodeEditor({
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
+          <FormField label="Name" required error={nameError}>
+            <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Enter node name"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Description</label>
-            <textarea
+          <FormField label="Description">
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               rows={3}
               placeholder="Describe what this step does"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Node Type</label>
+          <FormField label="Node Type">
             <p className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-slate-900 dark:text-gray-300">
               {getWorkflowNodeLabel(nodeType)}
             </p>
-          </div>
+          </FormField>
 
-          {nodeType === 'if-else' && (
-            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Output branches</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Add conditional paths before the reserved Else branch.
-                  </p>
-                </div>
+          {isIfElseNode && (
+            <Callout
+              variant="warning"
+              title="Output branches"
+              description="Add conditional paths before the reserved Else branch."
+            >
+              {branchError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">{branchError}</p>
+              ) : null}
+              <div className="flex justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
                   <Plus className="mr-1 h-3.5 w-3.5" />
                   Add
@@ -252,70 +144,58 @@ export function WorkflowNodeEditor({
               </div>
 
               <div className="space-y-2">
-                {(branches ?? []).map((branch, index) => {
-                  const isElseBranch = isElseBranchIndex(index, (branches ?? []).length)
+                {branches.map((branch, index) => {
+                  const isElseBranch = isElseBranchIndex(index, branches.length)
 
                   return (
-                    <div key={branch.id} className="flex items-center gap-2">
-                      <span className="w-5 shrink-0 text-xs text-gray-400">{index + 1}.</span>
-                      {isElseBranch ? (
-                        <div className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm text-gray-700 dark:bg-slate-900 dark:text-gray-300">
-                          Else
-                          <span className="ml-2 text-xs text-gray-400">(reserved)</span>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          value={branch.label}
-                          onChange={(e) => handleBranchLabelChange(branch.id, e.target.value)}
-                          className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-900"
-                          placeholder="Branch label"
-                        />
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0"
-                        disabled={isElseBranch || branches.length <= MIN_IF_ELSE_BRANCHES}
-                        onClick={() => handleRemoveBranch(branch.id)}
-                        title={
-                          isElseBranch
-                            ? 'The Else branch is always kept as the last output'
-                            : branches.length <= MIN_IF_ELSE_BRANCHES
-                              ? 'At least two branches are required'
-                              : 'Remove branch'
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <BranchListInputRow
+                      key={branch.id}
+                      index={index}
+                      value={branch.label}
+                      onChange={(value) => handleBranchLabelChange(branch.id, value)}
+                      placeholder="Branch label"
+                      readOnly={isElseBranch}
+                      readOnlyLabel={
+                        isElseBranch ? (
+                          <>
+                            Else
+                            <span className="ml-2 text-xs text-gray-400">(reserved)</span>
+                          </>
+                        ) : undefined
+                      }
+                      onRemove={() => handleRemoveBranch(branch.id)}
+                      removeDisabled={isElseBranch || branches.length <= minIfElseBranches}
+                      removeTitle={
+                        isElseBranch
+                          ? 'The Else branch is always kept as the last output'
+                          : branches.length <= minIfElseBranches
+                            ? 'At least two branches are required'
+                            : 'Remove branch'
+                      }
+                    />
                   )
                 })}
               </div>
-            </div>
+            </Callout>
           )}
 
           {isLoopNode && (
-            <div className="rounded-md border border-orange-200/70 bg-white/70 px-3 py-2 text-xs text-gray-600 dark:border-orange-900/40 dark:bg-slate-900/40 dark:text-gray-300">
+            <Callout variant="orange">
               <p>
                 <span className="font-medium text-gray-800 dark:text-gray-100">Loop</span> enters the
                 body. After each iteration the flow returns to the loop node.{' '}
                 <span className="font-medium text-gray-800 dark:text-gray-100">Done</span> continues
                 the main flow when the loop finishes.
               </p>
-            </div>
+            </Callout>
           )}
 
           {isLoopNode && (
-            <div className="space-y-3 rounded-lg border border-green-200 bg-green-50/60 p-3 dark:border-green-900/50 dark:bg-green-950/20">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Loop body steps</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Work nodes executed on each iteration via the Loop handle.
-                </p>
-              </div>
-
+            <Callout
+              variant="success"
+              title="Loop body steps"
+              description="Work nodes executed on each iteration via the Loop handle."
+            >
               <div className="space-y-2">
                 {loopBodySteps.length === 0 ? (
                   <p className="rounded-md border border-dashed bg-white px-3 py-2 text-xs text-gray-500 dark:bg-slate-900 dark:text-gray-400">
@@ -388,21 +268,16 @@ export function WorkflowNodeEditor({
                   )
                 })}
               </div>
-            </div>
+            </Callout>
           )}
 
           {isLoopNode && (
-            <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/60 p-3 dark:border-orange-900/50 dark:bg-orange-950/20">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    Break exits (end of body)
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Handles appear at the right edge of the loop body box. Wire If / Else branches
-                    inside the body directly to the main flow for mid-body breaks.
-                  </p>
-                </div>
+            <Callout
+              variant="orange"
+              title="Break exits (end of body)"
+              description="Handles appear at the right edge of the loop body box. Wire If / Else branches inside the body directly to the main flow for mid-body breaks."
+            >
+              <div className="flex justify-end">
                 <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
                   <Plus className="mr-1 h-3.5 w-3.5" />
                   Add
@@ -416,59 +291,46 @@ export function WorkflowNodeEditor({
                   </p>
                 ) : (
                   breakExits.map((branch, index) => (
-                    <div key={branch.id} className="flex items-center gap-2">
-                      <span className="w-5 shrink-0 text-xs text-gray-400">{index + 1}.</span>
-                      <input
-                        type="text"
-                        value={branch.label}
-                        onChange={(e) => handleLoopBreakLabelChange(branch.id, e.target.value)}
-                        className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-900"
-                        placeholder="Break condition label"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => handleRemoveBranch(branch.id)}
-                        title="Remove break exit"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <BranchListInputRow
+                      key={branch.id}
+                      index={index}
+                      value={branch.label}
+                      onChange={(value) => handleLoopBreakLabelChange(branch.id, value)}
+                      placeholder="Break condition label"
+                      onRemove={() => handleRemoveBranch(branch.id)}
+                      removeTitle="Remove break exit"
+                    />
                   ))
                 )}
               </div>
-            </div>
+            </Callout>
           )}
 
           {nodeType === 'script' && (
             <>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Script Language</label>
+              <FormField label="Script Language">
                 <select
                   value={scriptLanguage}
                   onChange={(e) =>
                     setScriptLanguage(e.target.value as 'javascript' | 'python' | 'bash')
                   }
-                  className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="javascript">JavaScript</option>
                   <option value="python">Python</option>
                   <option value="bash">Bash</option>
                 </select>
-              </div>
+              </FormField>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">Script</label>
-                <textarea
+              <FormField label="Script">
+                <Textarea
                   value={scriptContent}
                   onChange={(e) => setScriptContent(e.target.value)}
-                  className="min-h-[220px] w-full rounded-md border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="min-h-[220px] font-mono text-sm"
                   placeholder="// Enter script code"
                   spellCheck={false}
                 />
-              </div>
+              </FormField>
             </>
           )}
         </div>

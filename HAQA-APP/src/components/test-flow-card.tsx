@@ -1,7 +1,9 @@
 import { Link } from '@tanstack/react-router'
+import { Pencil } from 'lucide-react'
+
+import { StatusBadge } from '@/components/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
-import { Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Testflow } from '@/queries/test-flow-queries'
 
@@ -16,37 +18,27 @@ export function TestFlowCard({ testFlow }: TestFlowCardProps) {
         <div className="flex items-center justify-between gap-4">
           <CardTitle className="text-lg">{testFlow.name}</CardTitle>
           <div className="flex items-center gap-2">
-            <span
-              className={`px-2 py-1 text-xs rounded-full ${
-                testFlow.isActive
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-              }`}
-            >
-              {testFlow.isActive ? 'Active' : 'Inactive'}
-            </span>
+            <StatusBadge active={testFlow.isActive ?? false} />
             <Link
               to="/test-flow/$id/edit"
               params={{ id: testFlow.id }}
               className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
             >
-              <Pencil className="w-4 h-4" />
+              <Pencil className="h-4 w-4" />
               Edit
             </Link>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {testFlow.description && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            {testFlow.description}
-          </p>
-        )}
-        {testFlow.createdAt && (
-          <p className="text-xs text-gray-500 mt-2">
+        {testFlow.description ? (
+          <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">{testFlow.description}</p>
+        ) : null}
+        {testFlow.createdAt ? (
+          <p className="mt-2 text-xs text-gray-500">
             Created: {new Date(testFlow.createdAt).toLocaleDateString()}
           </p>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -1,4 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
+
+import { redirectToLoginIfNeeded } from '@/lib/hooks/use-session-redirect'
 import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
 /**
@@ -47,11 +49,7 @@ function handleSessionExpiration(error: unknown) {
     // Clear all queries to prevent retries
     queryClient.clear()
     
-    // Use window.location for a hard redirect to ensure complete logout
-    // This clears any cached state and forces a fresh login
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login'
-    }
+    redirectToLoginIfNeeded()
   }
 }
 
