@@ -995,6 +995,8 @@ function isLoopBodyBranchEdge(edge: Edge, nodes: Node[]): boolean {
   return branches.some((branch) => branch.id === edge.sourceHandle)
 }
 
+const LOOP_BODY_BRANCH_STACK_GAP = 24
+
 /** Horizontal columns: edge tree + editor step order so inserted steps do not overlap. */
 function computeLoopBodyColumns(
   bodyNodeIds: string[],
@@ -1011,6 +1013,13 @@ function computeLoopBodyColumns(
   const bodyEdges = edges.filter(
     (edge) => bodySet.has(edge.source) && bodySet.has(edge.target),
   )
+  const branchTargetIds = new Set<string>()
+  for (const edge of bodyEdges) {
+    if (isLoopBodyBranchEdge(edge, nodes)) {
+      branchTargetIds.add(edge.target)
+    }
+  }
+
   const depths = computeLoopBodyDepths(bodyNodeIds, edges)
   const sortedEdges = [...bodyEdges].sort(
     (left, right) => (depths.get(left.target) ?? 0) - (depths.get(right.target) ?? 0),
@@ -1018,13 +1027,16 @@ function computeLoopBodyColumns(
 
   for (const edge of sortedEdges) {
     const sourceCol = columns.get(edge.source) ?? 0
-    const targetCol = isLoopBodyBranchEdge(edge, nodes) ? sourceCol : sourceCol + 1
+    // Branch siblings share the next column; only sequential edges advance further.
+    const targetCol = sourceCol + 1
 
     columns.set(edge.target, Math.max(columns.get(edge.target) ?? 0, targetCol))
   }
 
   for (let index = 0; index < bodyNodeIds.length; index += 1) {
     const id = bodyNodeIds[index]
+    if (branchTargetIds.has(id)) continue
+
     const listCol =
       index === 0
         ? 0
@@ -1038,6 +1050,61 @@ function computeLoopBodyColumns(
   }
 
   return columns
+}
+
+/** Stack If / Else branch targets vertically so later branches sit under earlier ones. */
+function stackLoopBodyBranchTargetY(
+  bodyNodeIds: string[],
+  edges: Edge[],
+  nodes: Node[],
+  yById: Map<string, number>,
+): void {
+  const bodySet = new Set(bodyNodeIds)
+
+  for (const sourceNode of nodes) {
+    const data = sourceNode.data as WorkflowNodeData
+    if ((data.nodeType ?? '') !== 'if-else') continue
+    if (!bodySet.has(sourceNode.id)) continue
+
+    const branches = getIfElseBranches(data)
+    const branchTargets: { branchIndex: number; targetId: string }[] = []
+
+    for (const edge of edges) {
+      if (edge.source !== sourceNode.id || !bodySet.has(edge.target)) continue
+      if (!edge.sourceHandle) continue
+
+      const branchIndex = branches.findIndex((branch) => branch.id === edge.sourceHandle)
+      if (branchIndex < 0) continue
+
+      branchTargets.push({ branchIndex, targetId: edge.target })
+    }
+
+    if (branchTargets.length <= 1) continue
+
+    branchTargets.sort((left, right) => left.branchIndex - right.branchIndex)
+
+    let previousBottom: number | null = null
+
+    for (const { targetId } of branchTargets) {
+      const targetNode = nodes.find((node) => node.id === targetId)
+      if (!targetNode) continue
+
+      const targetHeight = getLoopBodyMemberVisualHeight(targetNode, nodes, edges)
+      const currentY = yById.get(targetId) ?? 0
+
+      if (previousBottom === null) {
+        yById.set(targetId, currentY)
+        previousBottom = currentY + targetHeight / 2
+        continue
+      }
+
+      const minCenterY = previousBottom + LOOP_BODY_BRANCH_STACK_GAP + targetHeight / 2
+      const nextY = Math.max(currentY, minCenterY)
+
+      yById.set(targetId, nextY)
+      previousBottom = nextY + targetHeight / 2
+    }
+  }
 }
 
 function connectNewLoopBodyMember(
@@ -1090,6 +1157,7 @@ function computeLoopBodyLayoutMetrics(
 
   const depths = computeLoopBodyDepths(bodyNodeIds, edges)
   const yById = computeLoopBodyMemberY(bodyNodeIds, edges, nodes, depths)
+  stackLoopBodyBranchTargetY(bodyNodeIds, edges, nodes, yById)
   const columnsById = computeLoopBodyColumns(bodyNodeIds, edges, nodes)
   const maxColumn = Math.max(0, ...bodyNodeIds.map((id) => columnsById.get(id) ?? 0))
 
