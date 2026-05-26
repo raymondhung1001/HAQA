@@ -66,6 +66,9 @@ const POSITION_TOLERANCE = 10
 /** Vertical center anchor — position.y aligns handle line without custom handle offsets. */
 export const WORKFLOW_NODE_ORIGIN: [number, number] = [0, 0.5]
 
+/** Loop body container uses top-left anchoring; layout math is from the box top edge. */
+export const LOOP_BODY_GROUP_ORIGIN: [number, number] = [0, 0]
+
 /** Shared React Flow edge styling for workflow connections. */
 export const WORKFLOW_EDGE_OPTIONS = {
   type: 'smoothstep' as const,
@@ -85,6 +88,14 @@ function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
     edge.target.endsWith('-loop-body') &&
     typeof edge.targetHandle === 'string' &&
     edge.targetHandle.endsWith('-target')
+  )
+}
+
+function isLoopToBodyEntryEdge(edge: Edge): boolean {
+  return (
+    edge.sourceHandle === LOOP_BODY_BRANCH_ID &&
+    typeof edge.target === 'string' &&
+    !edge.target.endsWith('-loop-body')
   )
 }
 
@@ -113,6 +124,7 @@ export function normalizeLoopBodyBreakTargetConnection(
 export function withWorkflowEdgeDefaults(edge: Edge): Edge {
   const isDoneEdge = edge.sourceHandle === LOOP_DONE_BRANCH_ID
   const isBreakTarget = isLoopBodyBreakTargetEdge(edge)
+  const isLoopToBodyEntry = isLoopToBodyEntryEdge(edge)
   const isLoopBack =
     edge.sourceHandle === LOOP_CONTINUE_SOURCE_HANDLE || edge.data?.loopBack === true
 
@@ -120,6 +132,9 @@ export function withWorkflowEdgeDefaults(edge: Edge): Edge {
     ...edge,
     ...WORKFLOW_EDGE_OPTIONS,
     ...(isBreakTarget
+      ? { targetPosition: Position.Left, sourcePosition: Position.Right }
+      : {}),
+    ...(isLoopToBodyEntry
       ? { targetPosition: Position.Left, sourcePosition: Position.Right }
       : {}),
     ...(isLoopBack
@@ -130,6 +145,7 @@ export function withWorkflowEdgeDefaults(edge: Edge): Edge {
       ...(edge.pathOptions ?? {}),
       ...(isDoneEdge ? { offset: 52 } : {}),
       ...(isBreakTarget ? { offset: 12 } : {}),
+      ...(isLoopToBodyEntry ? { offset: 8, borderRadius: 0 } : {}),
       ...(isLoopBack ? { offset: 56, borderRadius: 28 } : {}),
     },
     style: {
@@ -994,11 +1010,17 @@ function computeLoopBodyLayoutMetrics(
   width: number
   height: number
   positions: Map<string, { x: number; y: number }>
+  entryCenterY: number
 } {
   const { padding, labelHeight, minWidth, minHeight, nodeWidth, bodyNodeHeight } = LOOP_BODY_GROUP
 
   if (bodyNodeIds.length === 0) {
-    return { width: minWidth, height: minHeight, positions: new Map() }
+    return {
+      width: minWidth,
+      height: minHeight,
+      positions: new Map(),
+      entryCenterY: minHeight / 2,
+    }
   }
 
   const depths = computeLoopBodyDepths(bodyNodeIds, edges)
@@ -1068,7 +1090,17 @@ function computeLoopBodyLayoutMetrics(
     positions.set(id, { x: position.x, y: position.y + yShift })
   }
 
-  return { width, height, positions }
+  const entryIds = findLoopBodyEntryNodeIds(bodyNodeIds, edges, loopNodeId)
+  const entryCenterY =
+    entryIds.length > 0
+      ? Math.min(
+          ...entryIds
+            .map((id) => positions.get(id)?.y)
+            .filter((y): y is number => typeof y === 'number'),
+        )
+      : labelHeight + padding + bodyNodeHeight / 2
+
+  return { width, height, positions, entryCenterY }
 }
 
 export function getLoopDoneHandleCenterOffsetY(showFooter = false): number {
@@ -1099,13 +1131,45 @@ function isNestedLoopInParentBody(loopNode: Node): boolean {
   return Boolean(loopNode.parentId?.endsWith('-loop-body'))
 }
 
+function loopNodeShowsReorderFooter(loopNode: Node, nodes: Node[]): boolean {
+  if (isNestedLoopInParentBody(loopNode)) return false
+
+  return (
+    canSwapWorkflowNode(nodes, loopNode.id, 'left') ||
+    canSwapWorkflowNode(nodes, loopNode.id, 'right')
+  )
+}
+
+/** Offset from loop node center (origin [0, 0.5]) to the Loop branch handle center. */
+function getLoopLoopBranchHandleOffsetY(loopNode: Node, nodes: Node[]): number {
+  const data = loopNode.data as WorkflowNodeData
+  const showFooter = loopNodeShowsReorderFooter(loopNode, nodes)
+  const nodeHeight = getLoopNodeHeight(showFooter)
+  const branches = getNodeOutputBranches(data)
+  const branchIndex = Math.max(
+    0,
+    branches.findIndex((branch) => branch.id === LOOP_BODY_BRANCH_ID),
+  )
+  const { paddingY, headerHeight, branchRowHeight } = IF_ELSE_NODE_LAYOUT
+  const handleCenterFromTop =
+    paddingY +
+    headerHeight +
+    branchIndex * branchRowHeight +
+    branchRowHeight / 2
+
+  return handleCenterFromTop - nodeHeight / 2
+}
+
 function getLoopBodyGroupPosition(
   loopNode: Node,
   groupHeight: number,
+  entryCenterYInGroup: number = groupHeight / 2,
+  nodes: Node[] = [],
 ): { x: number; y: number } {
   const { padding } = LOOP_BODY_GROUP
   const loopCardWidth = getLoopCardWidth(loopNode)
-  const y = loopNode.position.y - groupHeight / 2
+  const handleOffsetY = getLoopLoopBranchHandleOffsetY(loopNode, nodes)
+  const y = loopNode.position.y + handleOffsetY - entryCenterYInGroup
 
   return {
     x: loopNode.position.x + loopCardWidth + HORIZONTAL_NODE_GAP - padding,
@@ -1139,21 +1203,21 @@ export function getLoopBodyNodePosition(
 
   if (!targetId || !nodes) {
     const { height } = getLoopBodyGroupSize(totalSteps, breakCount)
-    const groupPosition = getLoopBodyGroupPosition(loopNode, height)
+    const groupPosition = getLoopBodyGroupPosition(loopNode, height, height / 2, nodes)
     return {
       x: groupPosition.x,
       y: groupPosition.y + height / 2,
     }
   }
 
-  const { height, positions } = computeLoopBodyLayoutMetrics(
+  const { height, positions, entryCenterY } = computeLoopBodyLayoutMetrics(
     ids,
     nodes,
     edges ?? [],
     breakCount,
     loopNode.id,
   )
-  const groupPosition = getLoopBodyGroupPosition(loopNode, height)
+  const groupPosition = getLoopBodyGroupPosition(loopNode, height, entryCenterY, nodes)
   const childPosition = positions.get(targetId) ?? { x: 0, y: height / 2 }
 
   return {
@@ -1252,20 +1316,21 @@ export function layoutLoopBodyNodes(
     )
   }
 
-  const { width, height, positions } = computeLoopBodyLayoutMetrics(
+  const { width, height, positions, entryCenterY } = computeLoopBodyLayoutMetrics(
     bodyNodeIds,
     nodes,
     edges,
     breakExits.length,
     loopNode.id,
   )
-  const groupPosition = getLoopBodyGroupPosition(loopNode, height)
+  const groupPosition = getLoopBodyGroupPosition(loopNode, height, entryCenterY, nodes)
 
   const nestedInParentBody = isNestedLoopInParentBody(loopNode)
 
   const groupNode: Node = {
     id: groupId,
     type: LOOP_BODY_GROUP_NODE_TYPE,
+    origin: LOOP_BODY_GROUP_ORIGIN,
     position: groupPosition,
     parentId: loopNode.parentId,
     extent: loopNode.parentId ? ('parent' as const) : undefined,
@@ -1362,11 +1427,11 @@ export function syncAllLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[]
     result = layoutLoopBodyNodes(latestLoopNode, bodyIds, result, edges)
   }
 
-  return repositionNestedLoopBodyGroups(result)
+  return repositionNestedLoopBodyGroups(result, edges)
 }
 
 /** Keep nested inner loop body boxes aligned after parent loop members move. */
-function repositionNestedLoopBodyGroups(nodes: Node[]): Node[] {
+function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[] {
   return nodes.map((node) => {
     if (!isLoopBodyGroupNode(node)) return node
 
@@ -1378,9 +1443,19 @@ function repositionNestedLoopBodyGroups(nodes: Node[]): Node[] {
 
     const groupHeight = Number(node.style?.height ?? LOOP_BODY_GROUP.minHeight)
     const groupWidth = Number(node.style?.width ?? LOOP_BODY_GROUP.minWidth)
+    const loopData = loopNode.data as WorkflowNodeData
+    const bodyIds = readLoopBodyNodeIds(loopData.config)
+    const breakCount = readLoopBreakExits(loopData.config).length
+    const { entryCenterY } = computeLoopBodyLayoutMetrics(
+      bodyIds,
+      nodes,
+      edges,
+      breakCount,
+      loopNode.id,
+    )
     return {
       ...node,
-      position: getLoopBodyGroupPosition(loopNode, groupHeight),
+      position: getLoopBodyGroupPosition(loopNode, groupHeight, entryCenterY, nodes),
       parentId: loopNode.parentId,
       extent: 'parent' as const,
       width: groupWidth,

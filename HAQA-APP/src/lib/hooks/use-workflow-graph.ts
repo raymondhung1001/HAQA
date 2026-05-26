@@ -32,6 +32,7 @@ import {
   normalizeLoopBodyBreakTargetConnection,
   pruneEdgesForRemovedBranches,
   LOOP_BODY_GROUP_NODE_TYPE,
+  LOOP_BODY_GROUP_ORIGIN,
   readIfElseBranches,
   readLoopBodyNodeIds,
   removeNodeFromLoopBody,
@@ -121,6 +122,7 @@ export function useWorkflowGraph({
         if (node.type === LOOP_BODY_GROUP_NODE_TYPE) {
           return {
             ...node,
+            origin: LOOP_BODY_GROUP_ORIGIN,
             draggable: false,
             selectable: false,
             focusable: false,

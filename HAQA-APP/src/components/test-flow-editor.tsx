@@ -90,10 +90,11 @@ function TestFlowEditorCanvas({
     for (const node of flowNodes) {
       const width = Number(node.width ?? node.style?.width ?? 220)
       const height = Number(node.height ?? node.style?.height ?? 120)
-      const left = node.position.x
-      const right = node.position.x + width
-      const top = node.position.y - height / 2
-      const bottom = node.position.y + height / 2
+      const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
+      const left = node.position.x - width * origin[0]
+      const right = left + width
+      const top = node.position.y - height * origin[1]
+      const bottom = top + height
 
       minX = Math.min(minX, left)
       maxX = Math.max(maxX, right)
