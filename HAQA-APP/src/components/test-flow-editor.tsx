@@ -29,6 +29,14 @@ export type { TestFlowEditorFormData } from '@/types'
 const FLOW_BOARD_MIN_ZOOM = 0.2
 const FLOW_BOARD_MAX_ZOOM = 2
 
+/** Keep a small margin before Start; allow more room where the flow grows to the right. */
+const BOARD_PAN_PADDING = {
+  left: 48,
+  right: 480,
+  top: 160,
+  bottom: 280,
+} as const
+
 interface TestFlowEditorProps {
   title: string
   submitLabel: string
@@ -102,12 +110,9 @@ function TestFlowEditorCanvas({
       maxY = Math.max(maxY, bottom)
     }
 
-    const paddingX = 450
-    const paddingY = 320
-
     return [
-      [minX - paddingX, minY - paddingY],
-      [maxX + paddingX, maxY + paddingY],
+      [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
+      [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
     ]
   }, [flowNodes])
 
@@ -167,7 +172,11 @@ function TestFlowEditorCanvas({
               maxZoom={FLOW_BOARD_MAX_ZOOM}
               translateExtent={boardTranslateExtent}
               deleteKeyCode={['Backspace', 'Delete']}
-              fitViewOptions={{ padding: 0.2, minZoom: 0.45, maxZoom: 1.1 }}
+              fitViewOptions={{
+                padding: { left: 0.04, right: 0.16, top: 0.12, bottom: 0.12 },
+                minZoom: 0.45,
+                maxZoom: 1.1,
+              }}
               fitView
             >
               <Background gap={20} size={1} />
