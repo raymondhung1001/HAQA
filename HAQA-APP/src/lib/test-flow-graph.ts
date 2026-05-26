@@ -1325,7 +1325,44 @@ function getLoopBodyGroupPosition(
 
   return {
     x: loopNode.position.x + loopCardWidth + HORIZONTAL_NODE_GAP - padding,
-    y: isNestedLoopInParentBody(loopNode) ? Math.max(y, getNestedLoopBodyTopInset()) : y,
+    y,
+  }
+}
+
+/** Preserve loop-handle ↔ entry-step alignment while respecting nested top inset. */
+function resolveLoopBodyGroupLayout(
+  loopNode: Node,
+  groupHeight: number,
+  entryCenterYInGroup: number,
+  nodes: Node[],
+): { groupPosition: { x: number; y: number }; adjustedLoopNode: Node | null } {
+  const groupPosition = getLoopBodyGroupPosition(
+    loopNode,
+    groupHeight,
+    entryCenterYInGroup,
+    nodes,
+  )
+
+  if (!isNestedLoopInParentBody(loopNode)) {
+    return { groupPosition, adjustedLoopNode: null }
+  }
+
+  const minY = getNestedLoopBodyTopInset()
+  if (groupPosition.y >= minY) {
+    return { groupPosition, adjustedLoopNode: null }
+  }
+
+  const delta = minY - groupPosition.y
+
+  return {
+    groupPosition: { ...groupPosition, y: groupPosition.y + delta },
+    adjustedLoopNode: {
+      ...loopNode,
+      position: {
+        ...loopNode.position,
+        y: loopNode.position.y + delta,
+      },
+    },
   }
 }
 
@@ -1475,7 +1512,12 @@ export function layoutLoopBodyNodes(
     breakExits.length,
     loopNode.id,
   )
-  const groupPosition = getLoopBodyGroupPosition(loopNode, height, entryCenterY, nodes)
+  const { groupPosition, adjustedLoopNode } = resolveLoopBodyGroupLayout(
+    loopNode,
+    height,
+    entryCenterY,
+    nodes,
+  )
 
   const nestedInParentBody = isNestedLoopInParentBody(loopNode)
 
@@ -1500,6 +1542,10 @@ export function layoutLoopBodyNodes(
   }
 
   const updatedNodes = withoutGroup.map((node) => {
+    if (adjustedLoopNode && node.id === adjustedLoopNode.id) {
+      node = adjustedLoopNode
+    }
+
     const stepIndex = layoutOrder.indexOf(node.id)
     if (stepIndex === -1) {
       if (node.parentId === groupId) {
@@ -1584,7 +1630,9 @@ export function syncAllLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[]
 
 /** Keep nested inner loop body boxes aligned after parent loop members move. */
 function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[] {
-  return nodes.map((node) => {
+  const loopNodeAdjustments = new Map<string, Node>()
+
+  const nextNodes = nodes.map((node) => {
     if (!isLoopBodyGroupNode(node)) return node
 
     const loopNodeId = (node.data as { loopNodeId?: string })?.loopNodeId
@@ -1605,9 +1653,20 @@ function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node
       breakCount,
       loopNode.id,
     )
+    const { groupPosition, adjustedLoopNode } = resolveLoopBodyGroupLayout(
+      loopNode,
+      groupHeight,
+      entryCenterY,
+      nodes,
+    )
+
+    if (adjustedLoopNode) {
+      loopNodeAdjustments.set(adjustedLoopNode.id, adjustedLoopNode)
+    }
+
     return {
       ...node,
-      position: getLoopBodyGroupPosition(loopNode, groupHeight, entryCenterY, nodes),
+      position: groupPosition,
       parentId: loopNode.parentId,
       extent: 'parent' as const,
       width: groupWidth,
@@ -1620,6 +1679,10 @@ function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node
       },
     }
   })
+
+  if (loopNodeAdjustments.size === 0) return nextNodes
+
+  return nextNodes.map((node) => loopNodeAdjustments.get(node.id) ?? node)
 }
 
 /** Recompute loop body size/position after graph edits (nodes, edges, or break handles). */
