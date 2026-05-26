@@ -168,20 +168,35 @@ export function useWorkflowGraph({
 
   const flowEdges = useMemo(() => edges.map(withWorkflowEdgeDefaults), [edges])
 
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  nodesRef.current = nodes
+  edgesRef.current = edges
+
   const onConnect = useCallback(
     (connection: Connection) => {
-      const normalized = normalizeLoopBodyBreakTargetConnection(connection, nodes)
-      if (!isValidWorkflowConnection(normalized, nodes)) return
+      const currentNodes = nodesRef.current
+      const currentEdges = edgesRef.current
+      const normalized = normalizeLoopBodyBreakTargetConnection(connection, currentNodes)
+      if (!isValidWorkflowConnection(normalized, currentNodes)) return
 
-      let nextEdges = connectEdge(normalized, edges)
-      let nextNodes = repositionNodeForBranchConnection(nodes, normalized)
+      let nextEdges = connectEdge(normalized, currentEdges)
+      let nextNodes = repositionNodeForBranchConnection(currentNodes, normalized)
       const loopBodyResult = appendTargetToLoopBodyOnConnect(normalized, nextNodes, nextEdges)
       const layout = applyLoopBodyRelayout(loopBodyResult.nodes, loopBodyResult.edges)
       setEdges(layout.edges)
       setNodes(layout.nodes)
     },
-    [nodes, edges, setEdges, setNodes, applyLoopBodyRelayout],
+    [setEdges, setNodes, applyLoopBodyRelayout],
   )
+
+  const isValidConnection = useCallback((connection: Connection) => {
+    const currentNodes = nodesRef.current
+    return isValidWorkflowConnection(
+      normalizeLoopBodyBreakTargetConnection(connection, currentNodes),
+      currentNodes,
+    )
+  }, [])
 
   const handleAddLoopBodyNode = useCallback(
     (loopNodeId: string, nodeType: TestFlowNodeType) => {
@@ -304,6 +319,7 @@ export function useWorkflowGraph({
     onNodesChange,
     onEdgesChange,
     onConnect,
+    isValidConnection,
     startNodeExists,
     endNodeExists,
     editingNode,

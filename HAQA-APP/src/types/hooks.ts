@@ -40,6 +40,7 @@ export interface UseWorkflowGraphReturn {
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
   onConnect: (connection: Connection) => void
+  isValidConnection: (connection: Connection) => boolean
   startNodeExists: boolean
   endNodeExists: boolean
   editingNode: Node | null
