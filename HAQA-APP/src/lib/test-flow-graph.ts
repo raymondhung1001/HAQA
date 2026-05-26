@@ -1455,11 +1455,43 @@ export function isNodeInLoopBody(nodeId: string, loopNode: Node, nodes: Node[]):
 }
 
 export function findLoopNodeForBodyMember(nodeId: string, nodes: Node[]): Node | undefined {
-  return nodes.find((node) => {
+  let deepestLoop: Node | undefined
+  let maxDepth = -1
+
+  for (const node of nodes) {
     const data = node.data as WorkflowNodeData
-    if (!isLoopNodeType(data.nodeType ?? '')) return false
-    return isNodeInLoopBody(nodeId, node, nodes)
-  })
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+    if (!isNodeInLoopBody(nodeId, node, nodes)) continue
+
+    const depth = getLoopNestingDepth(node.id, nodes)
+    if (depth > maxDepth) {
+      maxDepth = depth
+      deepestLoop = node
+    }
+  }
+
+  return deepestLoop
+}
+
+function isLoopBodyBreakIncomingConnection(
+  connection: Connection,
+  targetNode: Node,
+  owningLoop: Node,
+): boolean {
+  if (!isLoopBodyGroupNode(targetNode)) return false
+
+  const loopNodeId = (targetNode.data as { loopNodeId?: string })?.loopNodeId
+  if (loopNodeId !== owningLoop.id) return false
+
+  const breakExits = Array.isArray(targetNode.data?.breakExits)
+    ? (targetNode.data.breakExits as IfElseBranch[])
+    : []
+
+  return breakExits.some(
+    (branch) =>
+      connection.targetHandle === `${branch.id}-target` ||
+      connection.targetHandle === branch.id,
+  )
 }
 
 function sortNodesParentFirst(nodes: Node[]): Node[] {
@@ -2597,30 +2629,19 @@ export function isValidWorkflowConnection(
 
   const owningLoop = findLoopNodeForBodyMember(sourceNode.id, nodes)
   if (owningLoop) {
-    if (isNodeInLoopBody(targetNode.id, owningLoop, nodes)) {
+    if (isLoopBodyBreakIncomingConnection(connection, targetNode, owningLoop)) {
+      return true
+    }
+
+    if (
+      isNodeInLoopBody(targetNode.id, owningLoop, nodes) &&
+      !isLoopBodyGroupNode(targetNode)
+    ) {
       return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
     }
 
     if (isCanvasLayoutNode(targetNode, nodes)) {
       return true
-    }
-
-    if (isLoopBodyGroupNode(targetNode)) {
-      const loopNodeId = (targetNode.data as any)?.loopNodeId
-      if (loopNodeId === owningLoop.id) {
-        const breakExits = Array.isArray(targetNode.data?.breakExits)
-          ? (targetNode.data.breakExits as IfElseBranch[])
-          : []
-        if (
-          breakExits.some(
-            (branch) =>
-              connection.targetHandle === `${branch.id}-target` ||
-              connection.targetHandle === branch.id,
-          )
-        ) {
-          return true
-        }
-      }
     }
 
     return false
