@@ -2540,6 +2540,15 @@ export function hasStartNode(nodes: Node[]): boolean {
   )
 }
 
+export function hasEndNode(nodes: Node[]): boolean {
+  return nodes.some(
+    (node) =>
+      node.data?.nodeType === 'end' ||
+      node.type === 'output' ||
+      node.type === 'end',
+  )
+}
+
 function toDbNodeType(reactFlowType?: string, dataNodeType?: string): TestFlowNodeType {
   if (dataNodeType && isTestFlowNodeType(dataNodeType)) {
     return dataNodeType

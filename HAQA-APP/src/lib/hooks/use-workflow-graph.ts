@@ -25,6 +25,7 @@ import {
   createDefaultNodes,
   createWorkflowNode,
   getNextNodePosition,
+  hasEndNode,
   hasStartNode,
   isLoopNodeType,
   isValidWorkflowConnection,
@@ -99,6 +100,7 @@ export function useWorkflowGraph({
   }, [nodes, edges, setNodes, setEdges])
 
   const startNodeExists = useMemo(() => hasStartNode(nodes), [nodes])
+  const endNodeExists = useMemo(() => hasEndNode(nodes), [nodes])
 
   const editingNode = useMemo(
     () => nodes.find((node) => node.id === editingNodeId) ?? null,
@@ -217,6 +219,9 @@ export function useWorkflowGraph({
       if (nodeType === 'start' && hasStartNode(nodes)) {
         return
       }
+      if (nodeType === 'end' && hasEndNode(nodes)) {
+        return
+      }
 
       const position = getNextNodePosition(nodes, edges)
       setNodes((current) => [...current, createWorkflowNode(nodeType, position)])
@@ -300,6 +305,7 @@ export function useWorkflowGraph({
     onEdgesChange,
     onConnect,
     startNodeExists,
+    endNodeExists,
     editingNode,
     editingNodeId,
     openNodeEditor,

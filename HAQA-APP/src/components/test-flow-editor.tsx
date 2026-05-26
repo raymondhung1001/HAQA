@@ -76,6 +76,7 @@ function TestFlowEditorCanvas({
     onEdgesChange,
     onConnect,
     startNodeExists,
+    endNodeExists,
     editingNode,
     editingNodeId,
     openNodeEditor,
@@ -150,7 +151,11 @@ function TestFlowEditorCanvas({
           ) : null}
 
           <div className="min-h-[220px] flex-1 lg:min-h-0">
-            <NodePalette onAddNode={handleAddNode} hasStartNode={startNodeExists} />
+            <NodePalette
+              onAddNode={handleAddNode}
+              hasStartNode={startNodeExists}
+              hasEndNode={endNodeExists}
+            />
           </div>
         </aside>
 
