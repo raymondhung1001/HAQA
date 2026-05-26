@@ -26,14 +26,14 @@ interface CalloutProps
   description?: string
 }
 
-export function Callout({
+export const Callout = ({
   variant,
   title,
   description,
   className,
   children,
   ...props
-}: CalloutProps) {
+}: CalloutProps) => {
   return (
     <div className={cn(calloutVariants({ variant }), className)} {...props}>
       {title || description ? (

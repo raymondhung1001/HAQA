@@ -7,7 +7,7 @@ interface LogoutButtonProps {
   className?: string
 }
 
-export function LogoutButton({ isLoading, onLogout, className }: LogoutButtonProps) {
+export const LogoutButton = ({ isLoading, onLogout, className }: LogoutButtonProps) => {
   return (
     <div className={cn('px-4 py-4 border-t border-gray-200 dark:border-slate-700', className)}>
       <button

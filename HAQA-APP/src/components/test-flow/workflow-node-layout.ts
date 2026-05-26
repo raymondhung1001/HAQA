@@ -49,11 +49,11 @@ export const WORKFLOW_CONNECTION_GAP = 120
 /** Shared vertical lane for default left/right workflow handles. */
 export const WORKFLOW_HANDLE_LANE_STYLE = { top: '50%' } as const
 
-function getLoopBodyExitBandBounds(groupHeight: number): {
+const getLoopBodyExitBandBounds = (groupHeight: number): {
   breakBandTop: number
   breakBandBottom: number
   doneCenterY: number
-} {
+} => {
   const { railTopPx, railBottomPx, breakHeaderPx, doneZoneHeightPx, doneZoneGapPx } =
     LOOP_BODY_GROUP.exitLayout
 
@@ -70,11 +70,11 @@ function getLoopBodyExitBandBounds(groupHeight: number): {
 }
 
 /** Center Y of a break exit handle inside the loop body group (px from top). */
-export function getLoopBodyBreakHandleCenterY(
+export const getLoopBodyBreakHandleCenterY = (
   groupHeight: number,
   index: number,
   total: number,
-): number {
+): number => {
   const { breakBandTop, breakBandBottom } = getLoopBodyExitBandBounds(groupHeight)
   const span = breakBandBottom - breakBandTop
 
@@ -84,21 +84,21 @@ export function getLoopBodyBreakHandleCenterY(
 }
 
 /** Keep a break handle inside the exit rail band. */
-export function clampLoopBodyBreakHandleCenterY(
+export const clampLoopBodyBreakHandleCenterY = (
   groupHeight: number,
   centerY: number,
-): number {
+): number => {
   const { breakBandTop, breakBandBottom } = getLoopBodyExitBandBounds(groupHeight)
   return Math.min(breakBandBottom, Math.max(breakBandTop, centerY))
 }
 
 /** Center Y of the Done exit handle inside the loop body group (px from top). */
-export function getLoopBodyDoneHandleCenterY(groupHeight: number): number {
+export const getLoopBodyDoneHandleCenterY = (groupHeight: number): number => {
   return getLoopBodyExitBandBounds(groupHeight).doneCenterY
 }
 
 /** CSS top for break handles — scales with loop body height. */
-export function getLoopBodyBreakHandleTopCalc(index: number, total: number): string {
+export const getLoopBodyBreakHandleTopCalc = (index: number, total: number): string => {
   const { railTopPx, breakHeaderPx, railBottomPx, doneZoneHeightPx, doneZoneGapPx } =
     LOOP_BODY_GROUP.exitLayout
   const bandTop = railTopPx + breakHeaderPx
@@ -112,12 +112,12 @@ export function getLoopBodyBreakHandleTopCalc(index: number, total: number): str
 }
 
 /** CSS bottom offset for Done handle — anchored in the Done rail zone. */
-export function getLoopBodyDoneHandleBottomPx(): number {
+export const getLoopBodyDoneHandleBottomPx = (): number => {
   const { railBottomPx, doneZoneHeightPx } = LOOP_BODY_GROUP.exitLayout
   return railBottomPx + doneZoneHeightPx / 2
 }
 
-export function getLoopBodyRowHeight(bodyStepCount: number): number {
+export const getLoopBodyRowHeight = (bodyStepCount: number): number => {
   const { padding, stepHeight } = LOOP_BODY_WRAP
   const { branchRowHeight } = IF_ELSE_NODE_LAYOUT
 

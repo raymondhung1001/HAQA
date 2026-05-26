@@ -11,7 +11,7 @@ let sessionCache: {
 
 const SESSION_CACHE_TTL = 5 * 60 * 1000
 
-function getCachedSession(): { session: unknown | null; isValid: boolean } | null {
+const getCachedSession = (): { session: unknown | null; isValid: boolean } | null => {
   if (!sessionCache) return null
 
   const now = Date.now()
@@ -32,11 +32,11 @@ function getCachedSession(): { session: unknown | null; isValid: boolean } | nul
   return null
 }
 
-function setSessionCache(
+const setSessionCache = (
   session: unknown | null,
   isValid: boolean,
   expiresAt: number | null = null,
-): void {
+): void => {
   const now = Date.now()
   sessionCache = {
     session,
@@ -46,11 +46,11 @@ function setSessionCache(
   }
 }
 
-export function clearSessionCache(): void {
+export const clearSessionCache = (): void => {
   sessionCache = null
 }
 
-async function probeSessionFromCookies(): Promise<boolean> {
+const probeSessionFromCookies = async (): Promise<boolean> => {
   if (typeof window === 'undefined') return false
 
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
@@ -66,7 +66,7 @@ async function probeSessionFromCookies(): Promise<boolean> {
   }
 }
 
-export async function getAuthSession(): Promise<{ session: unknown | null; isValid: boolean }> {
+export const getAuthSession = async (): Promise<{ session: unknown | null; isValid: boolean }> => {
   const cached = getCachedSession()
   if (cached !== null) {
     return cached
@@ -83,14 +83,14 @@ export async function getAuthSession(): Promise<{ session: unknown | null; isVal
   }
 }
 
-export async function isAuthenticated(): Promise<boolean> {
+export const isAuthenticated = async (): Promise<boolean> => {
   const { isValid } = await getAuthSession()
   return isValid
 }
 
-export function setSessionAuthenticated(
+export const setSessionAuthenticated = (
   sessionData: unknown = null,
   expiresAt: number | null = null,
-): void {
+): void => {
   setSessionCache(sessionData || { authenticated: true }, true, expiresAt)
 }

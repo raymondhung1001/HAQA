@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 import { SessionExpiredError, UnauthorizedError } from '@/lib/api-client'
 
-export function isSessionExpiredError(error: unknown): boolean {
+export const isSessionExpiredError = (error: unknown): boolean => {
   return (
     error instanceof SessionExpiredError ||
     error instanceof UnauthorizedError ||
@@ -11,14 +11,14 @@ export function isSessionExpiredError(error: unknown): boolean {
   )
 }
 
-export function redirectToLoginIfNeeded(): void {
+export const redirectToLoginIfNeeded = (): void => {
   if (typeof window === 'undefined') return
   if (window.location.pathname !== '/login') {
     window.location.href = '/login'
   }
 }
 
-export function useSessionRedirect(error: unknown): void {
+export const useSessionRedirect = (error: unknown): void => {
   useEffect(() => {
     if (isSessionExpiredError(error)) {
       redirectToLoginIfNeeded()

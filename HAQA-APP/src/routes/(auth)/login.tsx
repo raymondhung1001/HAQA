@@ -9,26 +9,7 @@ import { Input } from '@/components/ui/input'
 import { useLogin } from '@/queries/auth-queries'
 import { getAuthSession } from '@/lib/auth-session'
 
-export const Route = createFileRoute('/(auth)/login')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    returnUrl: typeof search.returnUrl === 'string' ? search.returnUrl : undefined,
-  }),
-  beforeLoad: async () => {
-    try {
-      const { isValid } = await getAuthSession()
-      if (isValid) {
-        throw redirect({ to: '/' })
-      }
-    } catch (error) {
-      if (error && typeof error === 'object' && 'to' in error) {
-        throw error
-      }
-    }
-  },
-  component: LoginPage,
-})
-
-function LoginPage() {
+const LoginPage = () => {
   const navigate = useNavigate()
   const { returnUrl } = Route.useSearch()
 
@@ -190,3 +171,22 @@ function LoginPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/(auth)/login')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    returnUrl: typeof search.returnUrl === 'string' ? search.returnUrl : undefined,
+  }),
+  beforeLoad: async () => {
+    try {
+      const { isValid } = await getAuthSession()
+      if (isValid) {
+        throw redirect({ to: '/' })
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'to' in error) {
+        throw error
+      }
+    }
+  },
+  component: LoginPage,
+})

@@ -102,13 +102,13 @@ type ToneClass = {
   subtitle: string
 }
 
-function WorkflowNodeReorderFooter({
+const WorkflowNodeReorderFooter = ({
   nodeData,
   borderClassName = 'border-black/5 dark:border-white/10',
 }: {
   nodeData: WorkflowNodeData
   borderClassName?: string
-}) {
+}) => {
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   if (!showSwap) return null
 
@@ -151,7 +151,7 @@ function WorkflowNodeReorderFooter({
   )
 }
 
-function MultiBranchWorkflowNode({
+const MultiBranchWorkflowNode = ({
   nodeData,
   style,
   name,
@@ -169,7 +169,7 @@ function MultiBranchWorkflowNode({
   selected: boolean
   defaultSubtitle: string
   toneClass: ToneClass
-}) {
+}) => {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const nodeHeight = getIfElseNodeHeight(branches.length, showSwap)
@@ -258,7 +258,7 @@ function MultiBranchWorkflowNode({
   )
 }
 
-function LoopWorkflowNode({
+const LoopWorkflowNode = ({
   nodeData,
   style,
   name,
@@ -280,7 +280,7 @@ function LoopWorkflowNode({
   defaultSubtitle: string
   toneClass: ToneClass
   isInLoopBody?: boolean
-}) {
+}) => {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const hasLoopBody = bodySteps.length > 0
@@ -434,7 +434,7 @@ function LoopWorkflowNode({
   )
 }
 
-export function WorkflowNode({ data, selected, parentId }: NodeProps) {
+export const WorkflowNode = ({ data, selected, parentId }: NodeProps) => {
   const nodeData = data as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script

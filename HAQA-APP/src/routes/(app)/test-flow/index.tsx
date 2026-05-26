@@ -15,11 +15,7 @@ import { usePaginatedScroll, useSessionRedirect, useTestFlowFilters } from '@/li
 import { useSearchTestFlows } from '@/queries/test-flow-queries'
 import { TEST_FLOW_SORT_OPTIONS } from '@/types'
 
-export const Route = createFileRoute('/(app)/test-flow/')({
-  component: TestFlowsPage,
-})
-
-function TestFlowsPage() {
+const TestFlowsPage = () => {
   const navigate = useNavigate()
   const { filters, debouncedSearchQuery, searchParams, setSearchQuery, setPage, setLimit, setSortBy } =
     useTestFlowFilters()
@@ -102,3 +98,7 @@ function TestFlowsPage() {
     </AppPage>
   )
 }
+
+export const Route = createFileRoute('/(app)/test-flow/')({
+  component: TestFlowsPage,
+})

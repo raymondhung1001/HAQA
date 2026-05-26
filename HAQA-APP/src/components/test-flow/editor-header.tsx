@@ -11,14 +11,14 @@ interface EditorHeaderProps {
   onSubmit: () => void
 }
 
-export function EditorHeader({
+export const EditorHeader = ({
   title,
   subtitle = 'Configure flow details, add steps, and connect them on the canvas',
   submitLabel,
   isSubmitting = false,
   onCancel,
   onSubmit,
-}: EditorHeaderProps) {
+}: EditorHeaderProps) => {
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-slate-700 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">

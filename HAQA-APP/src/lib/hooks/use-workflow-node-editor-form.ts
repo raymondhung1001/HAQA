@@ -25,10 +25,10 @@ import type { ScriptLanguage } from '@/types/workflow'
 
 const MIN_IF_ELSE_BRANCHES = 2
 
-export function useWorkflowNodeEditorForm(
+export const useWorkflowNodeEditorForm = (
   node: Node | null,
   allNodes: Node[] = [],
-): UseWorkflowNodeEditorFormReturn {
+): UseWorkflowNodeEditorFormReturn => {
   const nodeData = (node?.data ?? {}) as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
 

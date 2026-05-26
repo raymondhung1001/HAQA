@@ -4,11 +4,7 @@ import { User } from 'lucide-react'
 import { AppPage } from '@/components/app-page'
 import { PageCard } from '@/components/page-card'
 
-export const Route = createFileRoute('/(app)/users')({
-  component: UsersPage,
-})
-
-function UsersPage() {
+const UsersPage = () => {
   return (
     <AppPage>
       <PageCard icon={User} title="Users">
@@ -17,3 +13,7 @@ function UsersPage() {
     </AppPage>
   )
 }
+
+export const Route = createFileRoute('/(app)/users')({
+  component: UsersPage,
+})

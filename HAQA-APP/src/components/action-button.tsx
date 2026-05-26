@@ -8,7 +8,7 @@ interface ActionButtonProps {
   onClick: () => void
 }
 
-export function ActionButton({ icon, label, description, onClick }: ActionButtonProps) {
+export const ActionButton = ({ icon, label, description, onClick }: ActionButtonProps) => {
   return (
     <Button
       variant="ghost"

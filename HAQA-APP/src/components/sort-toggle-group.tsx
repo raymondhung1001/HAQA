@@ -13,12 +13,12 @@ interface SortToggleGroupProps<T extends string> {
   className?: string
 }
 
-export function SortToggleGroup<T extends string>({
+export const SortToggleGroup = <T extends string>({
   value,
   options,
   onChange,
   className,
-}: SortToggleGroupProps<T>) {
+}: SortToggleGroupProps<T>) => {
   return (
     <div className={cn('flex items-center gap-2', className)}>
       {options.map((option) => (

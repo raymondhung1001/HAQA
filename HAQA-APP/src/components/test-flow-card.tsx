@@ -9,7 +9,7 @@ interface TestFlowCardProps {
   testFlow: TestFlow
 }
 
-export function TestFlowCard({ testFlow }: TestFlowCardProps) {
+export const TestFlowCard = ({ testFlow }: TestFlowCardProps) => {
   const testFlowId = typeof testFlow.id === 'string' ? testFlow.id : ''
   const editHref = testFlowId ? `/test-flow/${encodeURIComponent(testFlowId)}/edit` : '#'
 

@@ -14,7 +14,7 @@ interface BranchListRowProps {
   className?: string
 }
 
-export function BranchListRow({
+export const BranchListRow = ({
   index,
   children,
   onRemove,
@@ -22,7 +22,7 @@ export function BranchListRow({
   removeTitle = 'Remove',
   trailing,
   className,
-}: BranchListRowProps) {
+}: BranchListRowProps) => {
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <span className="w-5 shrink-0 text-xs text-gray-400">{index + 1}.</span>
@@ -53,14 +53,14 @@ interface BranchListInputRowProps extends Omit<BranchListRowProps, 'children'> {
   readOnlyLabel?: React.ReactNode
 }
 
-export function BranchListInputRow({
+export const BranchListInputRow = ({
   value,
   onChange,
   placeholder,
   readOnly,
   readOnlyLabel,
   ...rowProps
-}: BranchListInputRowProps) {
+}: BranchListInputRowProps) => {
   return (
     <BranchListRow {...rowProps}>
       {readOnly ? (

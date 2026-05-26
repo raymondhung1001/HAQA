@@ -12,13 +12,13 @@ interface DesktopSidebarProps {
   isLoggingOut: boolean
 }
 
-export function DesktopSidebar({
+export const DesktopSidebar = ({
   navItems,
   activePath,
   onNavClick,
   onLogout,
   isLoggingOut,
-}: DesktopSidebarProps) {
+}: DesktopSidebarProps) => {
   return (
     <aside
       className={cn(

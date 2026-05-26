@@ -4,7 +4,7 @@ import { useLogout as useLogoutMutation } from '@/queries/auth-queries'
 import { uiActions } from '@/stores'
 import { redirectToLoginIfNeeded } from '@/lib/hooks/use-session-redirect'
 
-export function useLogoutHandler() {
+export const useLogoutHandler = () => {
   const queryClient = useQueryClient()
 
   const logoutMutation = useLogoutMutation({

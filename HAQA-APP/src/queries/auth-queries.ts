@@ -7,9 +7,9 @@ import type { AuthTokenResponse, LoginRequest } from '@/types'
 
 export type { LoginRequest, AuthTokenResponse } from '@/types'
 
-function unwrapTokenResponse(
+const unwrapTokenResponse = (
   response: { data?: AuthTokenResponse } | AuthTokenResponse,
-): AuthTokenResponse {
+): AuthTokenResponse => {
   const authData: AuthTokenResponse = (response as { data?: AuthTokenResponse })?.data || response
 
   if (!authData?.expiresAt || typeof authData.expiresAt !== 'number') {
@@ -25,12 +25,12 @@ function unwrapTokenResponse(
   }
 }
 
-export function useLogin(
+export const useLogin = (
   options?: Omit<
     UseMutationOptions<AuthTokenResponse, Error, LoginRequest, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
   const { onSuccess: userOnSuccess, ...restOptions } = options ?? {}
 
@@ -54,9 +54,9 @@ export function useLogin(
   })
 }
 
-export function useLogout(
+export const useLogout = (
   options?: Omit<UseMutationOptions<void, Error, void, unknown>, 'mutationFn'>,
-) {
+) => {
   const queryClient = useQueryClient()
   const { onSuccess: userOnSuccess, ...restOptions } = options ?? {}
 

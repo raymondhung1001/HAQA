@@ -5,7 +5,7 @@ interface MobileHeaderProps {
   onMenuOpen: () => void
 }
 
-export function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
+export const MobileHeader = ({ onMenuOpen }: MobileHeaderProps) => {
   return (
     <header className="lg:hidden bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm sticky top-0 z-40">
       <div className="px-4 sm:px-6">

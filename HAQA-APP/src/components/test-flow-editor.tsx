@@ -51,7 +51,7 @@ interface TestFlowEditorProps {
   onSubmit: (formData: TestFlowEditorFormData, graph: TestFlowGraph) => void
 }
 
-function TestFlowEditorCanvas({
+const TestFlowEditorCanvas = ({
   title,
   submitLabel,
   initialFormData,
@@ -61,7 +61,7 @@ function TestFlowEditorCanvas({
   className,
   onCancel,
   onSubmit,
-}: TestFlowEditorProps) {
+}: TestFlowEditorProps) => {
   const [formData, setFormData] = useState(initialFormData)
   const [nameError, setNameError] = useState<string | undefined>()
   const [showFlowHelp, setShowFlowHelp] = useState(false)
@@ -241,7 +241,7 @@ function TestFlowEditorCanvas({
   )
 }
 
-export function TestFlowEditor(props: TestFlowEditorProps) {
+export const TestFlowEditor = (props: TestFlowEditorProps) => {
   return (
     <ReactFlowProvider>
       <TestFlowEditorCanvas {...props} />

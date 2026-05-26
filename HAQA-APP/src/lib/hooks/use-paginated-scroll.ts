@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-export function usePaginatedScroll(onPageChange: (page: number) => void) {
+export const usePaginatedScroll = (onPageChange: (page: number) => void) => {
   return useCallback(
     (page: number) => {
       onPageChange(page)

@@ -2,11 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Home, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export const Route = createFileRoute('/$')({
-  component: NotFoundPage,
-})
-
-function NotFoundPage() {
+const NotFoundPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-12">
       <div className="text-center max-w-md w-full">
@@ -54,4 +50,8 @@ function NotFoundPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/$')({
+  component: NotFoundPage,
+})
 

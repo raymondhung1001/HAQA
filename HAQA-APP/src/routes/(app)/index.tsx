@@ -6,11 +6,7 @@ import { ActionButton } from '@/components/action-button'
 import { AppPage } from '@/components/app-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export const Route = createFileRoute('/(app)/')({
-  component: DashboardPage,
-})
-
-function DashboardPage() {
+const DashboardPage = () => {
   return (
     <AppPage>
       <div className="mb-8">
@@ -81,3 +77,7 @@ function DashboardPage() {
     </AppPage>
   )
 }
+
+export const Route = createFileRoute('/(app)/')({
+  component: DashboardPage,
+})

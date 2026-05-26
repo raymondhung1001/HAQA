@@ -35,7 +35,7 @@ interface WorkflowNodeEditorProps {
   onReorderLoopBodyNode?: (loopNodeId: string, fromIndex: number, toIndex: number) => void
 }
 
-export function WorkflowNodeEditor({
+export const WorkflowNodeEditor = ({
   node,
   allNodes = [],
   open,
@@ -44,7 +44,7 @@ export function WorkflowNodeEditor({
   onAddLoopBodyNode,
   onRemoveLoopBodyNode,
   onReorderLoopBodyNode,
-}: WorkflowNodeEditorProps) {
+}: WorkflowNodeEditorProps) => {
   const [nameError, setNameError] = useState<string | undefined>()
   const [branchError, setBranchError] = useState<string | undefined>()
 

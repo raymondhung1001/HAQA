@@ -4,11 +4,7 @@ import { Settings } from 'lucide-react'
 import { AppPage } from '@/components/app-page'
 import { PageCard } from '@/components/page-card'
 
-export const Route = createFileRoute('/(app)/settings')({
-  component: SettingsPage,
-})
-
-function SettingsPage() {
+const SettingsPage = () => {
   return (
     <AppPage>
       <PageCard icon={Settings} title="Settings">
@@ -17,3 +13,7 @@ function SettingsPage() {
     </AppPage>
   )
 }
+
+export const Route = createFileRoute('/(app)/settings')({
+  component: SettingsPage,
+})

@@ -50,10 +50,10 @@ import {
 
 import type { UseWorkflowGraphOptions, UseWorkflowGraphReturn } from '@/types'
 
-export function useWorkflowGraph({
+export const useWorkflowGraph = ({
   initialNodes,
   initialEdges,
-}: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn {
+}: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn => {
   const defaultNodes = initialNodes ?? createDefaultNodes()
   const defaultEdges = initialEdges ?? createDefaultEdges(defaultNodes)
   const [nodes, setNodes] = useNodesState(defaultNodes)

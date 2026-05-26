@@ -12,11 +12,7 @@ import type {
   TestFlowEditorSubmitHandler,
 } from '@/types'
 
-export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
-  component: EditTestFlowPage,
-})
-
-function EditTestFlowPage() {
+const EditTestFlowPage = () => {
   const { id } = Route.useParams()
   const { data, isLoading, error } = useTestFlow(id)
   const { handleCancel, handleSubmit, isSubmitting, layoutClassName } = useTestFlowEditorPage({
@@ -46,7 +42,7 @@ function EditTestFlowPage() {
   )
 }
 
-function EditTestFlowEditor({
+const EditTestFlowEditor = ({
   data,
   layoutClassName,
   isSubmitting,
@@ -58,7 +54,7 @@ function EditTestFlowEditor({
   isSubmitting: boolean
   onCancel: () => void
   onSubmit: TestFlowEditorSubmitHandler
-}) {
+}) => {
   const { nodes, edges } = graphToReactFlow(data.latestVersion)
 
   return (
@@ -89,3 +85,7 @@ function EditTestFlowEditor({
     </Navigation>
   )
 }
+
+export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
+  component: EditTestFlowPage,
+})

@@ -4,7 +4,7 @@ import { useDebounce } from '@/lib/hooks/use-debounce'
 import { testFlowFiltersActions, testFlowFiltersStore } from '@/stores'
 import type { SearchTestFlowsParams, UseTestFlowFiltersReturn } from '@/types'
 
-export function useTestFlowFilters(debounceMs: number = 500): UseTestFlowFiltersReturn {
+export const useTestFlowFilters = (debounceMs: number = 500): UseTestFlowFiltersReturn => {
   const filters = useStore(testFlowFiltersStore)
   const debouncedSearchQuery = useDebounce(filters.searchQuery, debounceMs)
 

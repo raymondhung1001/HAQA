@@ -10,7 +10,7 @@ interface PageCardHeaderProps {
   className?: string
 }
 
-export function PageCardHeader({ icon: Icon, title, action, className }: PageCardHeaderProps) {
+export const PageCardHeader = ({ icon: Icon, title, action, className }: PageCardHeaderProps) => {
   return (
     <CardHeader className={className}>
       <div className="flex items-center justify-between gap-4">
@@ -33,14 +33,14 @@ interface PageCardProps {
   contentClassName?: string
 }
 
-export function PageCard({
+export const PageCard = ({
   icon,
   title,
   action,
   children,
   className,
   contentClassName,
-}: PageCardProps) {
+}: PageCardProps) => {
   return (
     <Card className={cn(className)}>
       <PageCardHeader icon={icon} title={title} action={action} />

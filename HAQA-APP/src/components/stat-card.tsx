@@ -17,7 +17,7 @@ const colorVariants = {
   orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
 }
 
-export function StatCard({ icon, title, value, description, color }: StatCardProps) {
+export const StatCard = ({ icon, title, value, description, color }: StatCardProps) => {
   return (
     <Card>
       <CardContent className="p-6">

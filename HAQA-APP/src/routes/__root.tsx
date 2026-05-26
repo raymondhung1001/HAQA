@@ -6,32 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import appCss from '../styles.css?url'
 import { queryClient } from '@/queries/query-client'
 
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      {
-        charSet: 'utf-8',
-      },
-      {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
-      },
-      {
-        title: 'HAQA - Test Flow Execution System',
-      },
-    ],
-    links: [
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
-    ],
-  }),
-
-  shellComponent: RootDocument,
-})
-
-function RootDocument({ children }: { children: React.ReactNode }) {
+const RootDocument = ({ children }: { children: React.ReactNode }) => {
   return (
     <html lang="en">
       <head>
@@ -57,3 +32,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     </html>
   )
 }
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      },
+      {
+        title: 'HAQA - Test Flow Execution System',
+      },
+    ],
+    links: [
+      {
+        rel: 'stylesheet',
+        href: appCss,
+      },
+    ],
+  }),
+
+  shellComponent: RootDocument,
+})

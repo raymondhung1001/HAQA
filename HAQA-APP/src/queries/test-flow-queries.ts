@@ -42,7 +42,7 @@ const emptyPaginatedTestFlows = (): PaginatedTestFlows => ({
   totalPages: 0,
 })
 
-function normalizeTestFlowRow(row: unknown): TestFlow | null {
+const normalizeTestFlowRow = (row: unknown): TestFlow | null => {
   if (!row || typeof row !== 'object') return null
   const record = row as Record<string, unknown>
 
@@ -69,7 +69,7 @@ function normalizeTestFlowRow(row: unknown): TestFlow | null {
   }
 }
 
-function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
+const parsePaginatedTestFlows = (response: unknown): PaginatedTestFlows => {
   const data = (response as { data?: unknown })?.data ?? response
   if (isPaginatedTestFlows(data)) {
     return {
@@ -80,13 +80,13 @@ function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
   return emptyPaginatedTestFlows()
 }
 
-export function useSearchTestFlows(
+export const useSearchTestFlows = (
   params?: SearchTestFlowsParams,
   options?: Omit<
     UseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
@@ -105,13 +105,13 @@ export function useSearchTestFlows(
   })
 }
 
-export function useSearchTestFlowsSuspense(
+export const useSearchTestFlowsSuspense = (
   params?: SearchTestFlowsParams,
   options?: Omit<
     UseSuspenseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useSuspenseQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
@@ -129,13 +129,13 @@ export function useSearchTestFlowsSuspense(
   })
 }
 
-export function useTestFlow(
+export const useTestFlow = (
   id: string,
   options?: Omit<
     UseQueryOptions<TestFlowDetail, Error, TestFlowDetail, TestFlowDetailQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useQuery({
     queryKey: testFlowQueryKeys.detail(id),
     queryFn: () => apiClient.getTestFlow(id),
@@ -144,12 +144,12 @@ export function useTestFlow(
   })
 }
 
-export function useCreateTestFlow(
+export const useCreateTestFlow = (
   options?: Omit<
     UseMutationOptions<TestFlowDetail, Error, CreateTestFlowInput, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -164,12 +164,12 @@ export function useCreateTestFlow(
   })
 }
 
-export function useUpdateTestFlow(
+export const useUpdateTestFlow = (
   options?: Omit<
     UseMutationOptions<TestFlow, Error, UpdateTestFlowMutationVariables, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -185,12 +185,12 @@ export function useUpdateTestFlow(
   })
 }
 
-export function useSaveTestFlowGraph(
+export const useSaveTestFlowGraph = (
   options?: Omit<
     UseMutationOptions<TestFlowVersionGraph | null, Error, SaveTestFlowGraphVariables, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({
