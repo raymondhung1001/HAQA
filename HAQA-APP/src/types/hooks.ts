@@ -41,6 +41,7 @@ export interface UseWorkflowGraphReturn {
   onEdgesChange: (changes: EdgeChange[]) => void
   onConnect: (connection: Connection) => void
   startNodeExists: boolean
+  endNodeExists: boolean
   editingNode: Node | null
   editingNodeId: string | null
   openNodeEditor: (nodeId: string) => void

@@ -19,6 +19,7 @@ import {
   getIfElseBranchHandleTopPercent,
   getIfElseNodeHeight,
   getLoopBranchHandleTopPercent,
+  getLoopBranchRowCount,
   getLoopNodeHeight,
   getNodeOutputBranches,
   isBranchingNodeType,
@@ -29,6 +30,8 @@ import {
 } from '@/lib/test-flow-graph'
 import {
   IF_ELSE_NODE_LAYOUT,
+  LOOP_BODY_GROUP,
+  WORKFLOW_HANDLE_LANE_STYLE,
   WORKFLOW_REORDER_FOOTER_HEIGHT,
 } from '@/components/test-flow/workflow-node-layout'
 import { cn } from '@/lib/utils'
@@ -265,6 +268,7 @@ function LoopWorkflowNode({
   selected,
   defaultSubtitle,
   toneClass,
+  isInLoopBody = false,
 }: {
   nodeData: WorkflowNodeData
   style: (typeof NODE_STYLES)[TestFlowNodeType]
@@ -275,17 +279,28 @@ function LoopWorkflowNode({
   selected: boolean
   defaultSubtitle: string
   toneClass: ToneClass
+  isInLoopBody?: boolean
 }) {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
-  const nodeHeight = getLoopNodeHeight(showSwap)
   const hasLoopBody = bodySteps.length > 0
+  const branchRowCount = getLoopBranchRowCount(hasLoopBody)
+  const nodeHeight = getLoopNodeHeight(showSwap, branchRowCount)
   const visibleBranches = hasLoopBody
     ? branches.filter((branch) => branch.id === LOOP_BODY_BRANCH_ID)
     : branches
   const visibleRows = hasLoopBody
     ? visibleBranches
     : branches
+  const loopBranchIndex = Math.max(
+    0,
+    branches.findIndex((branch) => branch.id === LOOP_BODY_BRANCH_ID),
+  )
+  const loopHandleTop = getLoopBranchHandleTopPercent(
+    loopBranchIndex,
+    showSwap,
+    branchRowCount,
+  )
 
   const cardClassName = cn(
     'flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
@@ -302,6 +317,7 @@ function LoopWorkflowNode({
       <Handle
         type="target"
         position={Position.Left}
+        style={isInLoopBody ? WORKFLOW_HANDLE_LANE_STYLE : { top: loopHandleTop }}
         className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
       />
 
@@ -382,7 +398,7 @@ function LoopWorkflowNode({
             type="source"
             position={Position.Right}
             style={{
-              top: getLoopBranchHandleTopPercent(branchIndex, showSwap),
+              top: loopHandleTop,
             }}
             className={cn(
               '!h-2.5 !w-2.5 !border-2 !bg-white',
@@ -404,7 +420,7 @@ function LoopWorkflowNode({
                   type="source"
                   position={Position.Right}
                   style={{
-                    top: getLoopBranchHandleTopPercent(branchIndex, showSwap),
+                    top: getLoopBranchHandleTopPercent(branchIndex, showSwap, branchRowCount),
                   }}
                   className={cn(
                     '!h-2.5 !w-2.5 !border-2 !bg-white',
@@ -418,7 +434,7 @@ function LoopWorkflowNode({
   )
 }
 
-export function WorkflowNode({ data, selected }: NodeProps) {
+export function WorkflowNode({ data, selected, parentId }: NodeProps) {
   const nodeData = data as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script
@@ -427,9 +443,12 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   const description = nodeData.description?.trim()
   const branches = isBranchingNodeType(nodeType) ? (getNodeOutputBranches(nodeData) ?? []) : []
   const bodySteps = Array.isArray(nodeData.loopBodySteps) ? nodeData.loopBodySteps : []
+  const isLoopBodyWorkNode = Boolean(parentId?.endsWith('-loop-body'))
 
   const showTarget = nodeType !== 'start'
   const showSource = nodeType !== 'end' && !isBranchingNodeType(nodeType)
+  const loopBodyWorkNodeHeight = LOOP_BODY_GROUP.bodyNodeHeight
+  const loopBodyWorkNodeWidth = LOOP_BODY_GROUP.nodeWidth
 
   const loopToneClass: ToneClass = {
     headerBorder: 'border-orange-200/80 dark:border-orange-900/50',
@@ -470,6 +489,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
         selected={selected}
         defaultSubtitle={nodeType === 'for-loop' ? 'Iteration' : 'Loop until condition'}
         toneClass={loopToneClass}
+        isInLoopBody={isLoopBodyWorkNode}
       />
     )
   }
@@ -477,21 +497,38 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'relative flex min-h-[72px] min-w-[180px] max-w-[240px] flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        'relative flex flex-col rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow',
+        isLoopBodyWorkNode
+          ? 'min-w-[180px] max-w-[240px] items-center justify-center'
+          : 'min-h-[72px] min-w-[180px] max-w-[240px]',
         style.border,
         style.bg,
         selected && 'ring-2 ring-primary ring-offset-2',
       )}
+      style={
+        isLoopBodyWorkNode
+          ? {
+              height: loopBodyWorkNodeHeight,
+              minWidth: loopBodyWorkNodeWidth,
+            }
+          : undefined
+      }
     >
       {showTarget && (
         <Handle
           type="target"
           position={Position.Left}
+          style={isLoopBodyWorkNode ? WORKFLOW_HANDLE_LANE_STYLE : undefined}
           className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
         />
       )}
 
-      <div className="flex items-start gap-2">
+      <div
+        className={cn(
+          'flex w-full min-w-0 items-start gap-2',
+          isLoopBodyWorkNode && 'items-center',
+        )}
+      >
         <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', style.iconColor)} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{name}</p>
@@ -520,12 +557,13 @@ export function WorkflowNode({ data, selected }: NodeProps) {
         )}
       </div>
 
-      <WorkflowNodeReorderFooter nodeData={nodeData} />
+      {!isLoopBodyWorkNode ? <WorkflowNodeReorderFooter nodeData={nodeData} /> : null}
 
       {showSource && (
         <Handle
           type="source"
           position={Position.Right}
+          style={isLoopBodyWorkNode ? WORKFLOW_HANDLE_LANE_STYLE : undefined}
           className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
         />
       )}

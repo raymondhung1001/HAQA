@@ -43,6 +43,12 @@ export const LOOP_BODY_GROUP = {
 
 export const WORKFLOW_REORDER_FOOTER_HEIGHT = IF_ELSE_NODE_LAYOUT.footerHeight
 
+/** Horizontal gap between adjacent node handles (right handle → left handle). */
+export const WORKFLOW_CONNECTION_GAP = 120
+
+/** Shared vertical lane for default left/right workflow handles. */
+export const WORKFLOW_HANDLE_LANE_STYLE = { top: '50%' } as const
+
 function getLoopBodyExitBandBounds(groupHeight: number): {
   breakBandTop: number
   breakBandBottom: number

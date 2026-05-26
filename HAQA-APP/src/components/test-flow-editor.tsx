@@ -26,8 +26,18 @@ import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
 
-const FLOW_BOARD_MIN_ZOOM = 0.2
-const FLOW_BOARD_MAX_ZOOM = 2
+const FLOW_BOARD_MIN_ZOOM = 0.5
+const FLOW_BOARD_MAX_ZOOM = 1.35
+const FLOW_BOARD_FIT_MIN_ZOOM = 0.5
+const FLOW_BOARD_FIT_MAX_ZOOM = 1
+
+/** Keep a small margin before Start; allow pan room where the flow grows to the right. */
+const BOARD_PAN_PADDING = {
+  left: 48,
+  right: 280,
+  top: 120,
+  bottom: 200,
+} as const
 
 interface TestFlowEditorProps {
   title: string
@@ -66,6 +76,7 @@ function TestFlowEditorCanvas({
     onEdgesChange,
     onConnect,
     startNodeExists,
+    endNodeExists,
     editingNode,
     editingNodeId,
     openNodeEditor,
@@ -90,10 +101,11 @@ function TestFlowEditorCanvas({
     for (const node of flowNodes) {
       const width = Number(node.width ?? node.style?.width ?? 220)
       const height = Number(node.height ?? node.style?.height ?? 120)
-      const left = node.position.x
-      const right = node.position.x + width
-      const top = node.position.y - height / 2
-      const bottom = node.position.y + height / 2
+      const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
+      const left = node.position.x - width * origin[0]
+      const right = left + width
+      const top = node.position.y - height * origin[1]
+      const bottom = top + height
 
       minX = Math.min(minX, left)
       maxX = Math.max(maxX, right)
@@ -101,12 +113,9 @@ function TestFlowEditorCanvas({
       maxY = Math.max(maxY, bottom)
     }
 
-    const paddingX = 450
-    const paddingY = 320
-
     return [
-      [minX - paddingX, minY - paddingY],
-      [maxX + paddingX, maxY + paddingY],
+      [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
+      [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
     ]
   }, [flowNodes])
 
@@ -142,7 +151,11 @@ function TestFlowEditorCanvas({
           ) : null}
 
           <div className="min-h-[220px] flex-1 lg:min-h-0">
-            <NodePalette onAddNode={handleAddNode} hasStartNode={startNodeExists} />
+            <NodePalette
+              onAddNode={handleAddNode}
+              hasStartNode={startNodeExists}
+              hasEndNode={endNodeExists}
+            />
           </div>
         </aside>
 
@@ -161,12 +174,16 @@ function TestFlowEditorCanvas({
               proOptions={{ hideAttribution: true }}
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
-              connectionRadius={28}
+              connectionRadius={10}
               minZoom={FLOW_BOARD_MIN_ZOOM}
               maxZoom={FLOW_BOARD_MAX_ZOOM}
               translateExtent={boardTranslateExtent}
               deleteKeyCode={['Backspace', 'Delete']}
-              fitViewOptions={{ padding: 0.2, minZoom: 0.45, maxZoom: 1.1 }}
+              fitViewOptions={{
+                padding: { left: 0.04, right: 0.14, top: 0.1, bottom: 0.1 },
+                minZoom: FLOW_BOARD_FIT_MIN_ZOOM,
+                maxZoom: FLOW_BOARD_FIT_MAX_ZOOM,
+              }}
               fitView
             >
               <Background gap={20} size={1} />
@@ -187,7 +204,7 @@ function TestFlowEditorCanvas({
               <MiniMap
                 className="!h-36 !w-52 !shadow-md"
                 pannable
-                zoomable
+                zoomable={false}
                 nodeStrokeWidth={3}
               />
             </ReactFlow>
