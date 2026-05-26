@@ -43,6 +43,9 @@ export const LOOP_BODY_GROUP = {
 
 export const WORKFLOW_REORDER_FOOTER_HEIGHT = IF_ELSE_NODE_LAYOUT.footerHeight
 
+/** Shared vertical lane for default left/right workflow handles. */
+export const WORKFLOW_HANDLE_LANE_STYLE = { top: '50%' } as const
+
 function getLoopBodyExitBandBounds(groupHeight: number): {
   breakBandTop: number
   breakBandBottom: number

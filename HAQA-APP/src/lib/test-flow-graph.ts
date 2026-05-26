@@ -489,17 +489,27 @@ export function resolveLoopBodySteps(
     })
 }
 
-export function getLoopNodeHeight(showFooter: boolean): number {
+export function getLoopBranchRowCount(hasLoopBody: boolean): number {
+  return hasLoopBody ? 1 : 2
+}
+
+export function getLoopNodeHeight(showFooter: boolean, branchRowCount = 2): number {
   const { paddingY, headerHeight, branchRowHeight, footerHeight } = IF_ELSE_NODE_LAYOUT
 
-  return paddingY * 2 + headerHeight + branchRowHeight * 2 + (showFooter ? footerHeight : 0)
+  return (
+    paddingY * 2 +
+    headerHeight +
+    branchRowHeight * branchRowCount +
+    (showFooter ? footerHeight : 0)
+  )
 }
 
 export function getLoopBranchHandleTopPercent(
   rowIndex: number,
   showFooter: boolean,
+  branchRowCount = 2,
 ): string {
-  const nodeHeight = getLoopNodeHeight(showFooter)
+  const nodeHeight = getLoopNodeHeight(showFooter, branchRowCount)
   const { paddingY, headerHeight, branchRowHeight } = IF_ELSE_NODE_LAYOUT
 
   const centerY =
@@ -773,7 +783,11 @@ function computeNestedLoopCompoundSize(
   edges: Edge[],
 ): { width: number; height: number; innerWidth: number; innerHeight: number } {
   const loopCardWidth = getLoopCardWidth(loopNode)
-  const loopCardHeight = getLoopNodeHeight(false)
+  const loopData = loopNode.data as WorkflowNodeData
+  const loopCardHeight = getLoopNodeHeight(
+    false,
+    getLoopBranchRowCount(readLoopBodyNodeIds(loopData.config).length > 0),
+  )
   const innerMetrics = getNestedLoopBodyLayoutMetrics(loopNode, nodes, edges)
 
   if (!innerMetrics) {
@@ -1091,6 +1105,25 @@ function computeLoopBodyLayoutMetrics(
   }
 
   const entryIds = findLoopBodyEntryNodeIds(bodyNodeIds, edges, loopNodeId)
+  const entryIdSet = new Set(entryIds)
+
+  for (const id of bodyNodeIds) {
+    if (entryIdSet.has(id)) continue
+
+    const node = nodes.find((member) => member.id === id)
+    const nodeType = (node?.data as WorkflowNodeData | undefined)?.nodeType ?? ''
+    if (!node || !isLoopNodeType(nodeType)) continue
+
+    const position = positions.get(id)
+    if (!position) continue
+
+    const handleOffset = getLoopLoopBranchHandleOffsetFromConfig(
+      (node.data as WorkflowNodeData).config,
+      false,
+    )
+    positions.set(id, { x: position.x, y: position.y - handleOffset })
+  }
+
   const entryCenterY =
     entryIds.length > 0
       ? Math.min(
@@ -1141,23 +1174,23 @@ function loopNodeShowsReorderFooter(loopNode: Node, nodes: Node[]): boolean {
 }
 
 /** Offset from loop node center (origin [0, 0.5]) to the Loop branch handle center. */
+function getLoopLoopBranchHandleOffsetFromConfig(
+  config: Record<string, unknown> | undefined,
+  showFooter: boolean,
+): number {
+  const branchRowCount = getLoopBranchRowCount(readLoopBodyNodeIds(config).length > 0)
+  const nodeHeight = getLoopNodeHeight(showFooter, branchRowCount)
+  const { paddingY, headerHeight, branchRowHeight } = IF_ELSE_NODE_LAYOUT
+  const handleCenterFromTop = paddingY + headerHeight + branchRowHeight / 2
+
+  return handleCenterFromTop - nodeHeight / 2
+}
+
 function getLoopLoopBranchHandleOffsetY(loopNode: Node, nodes: Node[]): number {
   const data = loopNode.data as WorkflowNodeData
   const showFooter = loopNodeShowsReorderFooter(loopNode, nodes)
-  const nodeHeight = getLoopNodeHeight(showFooter)
-  const branches = getNodeOutputBranches(data)
-  const branchIndex = Math.max(
-    0,
-    branches.findIndex((branch) => branch.id === LOOP_BODY_BRANCH_ID),
-  )
-  const { paddingY, headerHeight, branchRowHeight } = IF_ELSE_NODE_LAYOUT
-  const handleCenterFromTop =
-    paddingY +
-    headerHeight +
-    branchIndex * branchRowHeight +
-    branchRowHeight / 2
 
-  return handleCenterFromTop - nodeHeight / 2
+  return getLoopLoopBranchHandleOffsetFromConfig(data.config, showFooter)
 }
 
 function getLoopBodyGroupPosition(
