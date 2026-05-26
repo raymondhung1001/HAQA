@@ -7,6 +7,7 @@ import {
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
+  ConnectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { Edge, Node } from '@xyflow/react'
@@ -75,6 +76,7 @@ function TestFlowEditorCanvas({
     onNodesChange,
     onEdgesChange,
     onConnect,
+    isValidConnection,
     startNodeExists,
     endNodeExists,
     editingNode,
@@ -168,13 +170,15 @@ function TestFlowEditorCanvas({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              isValidConnection={isValidConnection}
+              connectionMode={ConnectionMode.Loose}
               onNodeDoubleClick={(_, node) => openNodeEditor(node.id)}
               nodesDraggable={false}
               nodeOrigin={WORKFLOW_NODE_ORIGIN}
               proOptions={{ hideAttribution: true }}
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
-              connectionRadius={10}
+              connectionRadius={24}
               minZoom={FLOW_BOARD_MIN_ZOOM}
               maxZoom={FLOW_BOARD_MAX_ZOOM}
               translateExtent={boardTranslateExtent}
@@ -214,10 +218,10 @@ function TestFlowEditorCanvas({
             <p className="pointer-events-none absolute bottom-3 left-16 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
               Add nodes from the palette to grow the flow to the right, connect handles to build a
               branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
-              the canvas, add break exits on the loop body box for mid-iteration exits, use the
-              arrow buttons on a main-flow step to swap its order, connect handles between steps,
-              double-click or use the edit button to configure a node, and press Delete to remove a
-              selected node.
+              the canvas, wire If / Else branches to orange Break handles on the loop body rail (then
+              out to main flow), use blue Done to continue after the loop, use the arrow buttons on a
+              main-flow step to swap its order, connect handles between steps, double-click or use the
+              edit button to configure a node, and press Delete to remove a selected node.
             </p>
           ) : null}
         </section>

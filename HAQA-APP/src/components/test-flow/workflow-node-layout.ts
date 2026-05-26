@@ -22,7 +22,7 @@ export const LOOP_BODY_GROUP = {
   /** Workflow node visual height used for vertical fit (min-h-[72px] + content). */
   bodyNodeHeight: 96,
   /** Right-side rail for Done + break exit handles on the loop body box. */
-  exitRailWidth: 56,
+  exitRailWidth: 64,
   /** Pixel layout for exit rail (matches loop-body-group-node aside). */
   exitLayout: {
     railTopPx: 32,
@@ -81,6 +81,15 @@ export function getLoopBodyBreakHandleCenterY(
   if (total <= 1) return breakBandTop + span / 2
 
   return breakBandTop + (index / (total - 1)) * span
+}
+
+/** Keep a break handle inside the exit rail band. */
+export function clampLoopBodyBreakHandleCenterY(
+  groupHeight: number,
+  centerY: number,
+): number {
+  const { breakBandTop, breakBandBottom } = getLoopBodyExitBandBounds(groupHeight)
+  return Math.min(breakBandBottom, Math.max(breakBandTop, centerY))
 }
 
 /** Center Y of the Done exit handle inside the loop body group (px from top). */

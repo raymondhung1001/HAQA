@@ -276,8 +276,8 @@ export function WorkflowNodeEditor({
           {isLoopNode && (
             <Callout
               variant="orange"
-              title="Break exits (end of body)"
-              description="Break handles appear on the upper-right of the loop body box; Done is on the lower-right. Wire If / Else branch outputs to main-flow steps for mid-body breaks, or to other body steps inside the iteration."
+              title="Break exits"
+              description="Break handles sit on the right rail of the loop body box, aligned with If / Else branch rows. Wire a branch to the orange handle, then wire the outer dot to the next main-flow step."
             >
               {loopBodySteps.some(step => step.nodeType === 'if-else') ? (
                 <>
@@ -291,7 +291,7 @@ export function WorkflowNodeEditor({
                   <div className="space-y-2">
                     {breakExits.length === 0 ? (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        No break exits yet. Add one to expose a handle after the body completes.
+                        No break exits yet. Add one to expose an aligned handle on the loop body rail.
                       </p>
                     ) : (
                       breakExits.map((branch, index) => (
