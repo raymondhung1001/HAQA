@@ -162,7 +162,7 @@ function TestFlowEditorCanvas({
               proOptions={{ hideAttribution: true }}
               defaultEdgeOptions={WORKFLOW_EDGE_OPTIONS}
               connectionLineType={ConnectionLineType.SmoothStep}
-              connectionRadius={28}
+              connectionRadius={10}
               minZoom={FLOW_BOARD_MIN_ZOOM}
               maxZoom={FLOW_BOARD_MAX_ZOOM}
               translateExtent={boardTranslateExtent}

@@ -4,6 +4,7 @@ import { addEdge, Position } from '@xyflow/react'
 import {
   IF_ELSE_NODE_LAYOUT,
   LOOP_BODY_GROUP,
+  WORKFLOW_CONNECTION_GAP,
   getLoopBodyBreakHandleCenterY,
   getLoopBodyDoneHandleCenterY,
 } from '@/components/test-flow/workflow-node-layout'
@@ -57,7 +58,7 @@ export interface TestFlowGraphNode {
   positionY?: number
 }
 
-const HORIZONTAL_NODE_GAP = 300
+const HORIZONTAL_NODE_GAP = WORKFLOW_CONNECTION_GAP
 const VERTICAL_BRANCH_OFFSET = 120
 export const LOOP_BODY_GROUP_NODE_TYPE = 'loop-body-group' as const
 const FLOW_BOARD_Y = 200
@@ -74,12 +75,64 @@ export const WORKFLOW_EDGE_OPTIONS = {
   type: 'smoothstep' as const,
   animated: true,
   pathOptions: {
-    borderRadius: 16,
-    offset: 28,
+    borderRadius: 10,
+    offset: 10,
   },
   style: {
     strokeWidth: 2,
   },
+} as const
+
+export { WORKFLOW_CONNECTION_GAP } from '@/components/test-flow/workflow-node-layout'
+
+function getWorkflowNodeLayoutWidth(node: Node): number {
+  if (isLoopBodyGroupNode(node)) {
+    return Number(node.style?.width ?? LOOP_BODY_GROUP.minWidth)
+  }
+
+  const data = node.data as WorkflowNodeData
+  const nodeType = data.nodeType ?? 'script'
+
+  if (nodeType === 'if-else' || isLoopNodeType(nodeType)) {
+    return IF_ELSE_NODE_LAYOUT.minWidth
+  }
+
+  return LOOP_BODY_GROUP.nodeWidth
+}
+
+/** Main-flow footprint from node left edge through any attached loop body group. */
+function getCanvasNodeLayoutSpan(node: Node, nodes: Node[]): number {
+  const baseWidth = getWorkflowNodeLayoutWidth(node)
+  const data = node.data as WorkflowNodeData
+
+  if (!isLoopNodeType(data.nodeType ?? '')) {
+    return baseWidth
+  }
+
+  const group = nodes.find((candidate) => candidate.id === getLoopBodyGroupId(node.id))
+  if (!group) {
+    return baseWidth
+  }
+
+  const groupWidth = Number(group.style?.width ?? LOOP_BODY_GROUP.minWidth)
+  return baseWidth + HORIZONTAL_NODE_GAP - LOOP_BODY_GROUP.padding + groupWidth
+}
+
+function getTargetPositionAfterNode(
+  sourceNode: Node,
+  nodes: Node[],
+  offsetY = 0,
+  options?: { useCanvasSpan?: boolean },
+): { x: number; y: number } {
+  const width =
+    options?.useCanvasSpan === false
+      ? getWorkflowNodeLayoutWidth(sourceNode)
+      : getCanvasNodeLayoutSpan(sourceNode, nodes)
+
+  return {
+    x: sourceNode.position.x + width + HORIZONTAL_NODE_GAP,
+    y: sourceNode.position.y + offsetY,
+  }
 }
 
 function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
@@ -122,7 +175,6 @@ export function normalizeLoopBodyBreakTargetConnection(
 }
 
 export function withWorkflowEdgeDefaults(edge: Edge): Edge {
-  const isDoneEdge = edge.sourceHandle === LOOP_DONE_BRANCH_ID
   const isBreakTarget = isLoopBodyBreakTargetEdge(edge)
   const isLoopToBodyEntry = isLoopToBodyEntryEdge(edge)
   const isLoopBack =
@@ -143,10 +195,8 @@ export function withWorkflowEdgeDefaults(edge: Edge): Edge {
     pathOptions: {
       ...WORKFLOW_EDGE_OPTIONS.pathOptions,
       ...(edge.pathOptions ?? {}),
-      ...(isDoneEdge ? { offset: 52 } : {}),
-      ...(isBreakTarget ? { offset: 12 } : {}),
-      ...(isLoopToBodyEntry ? { offset: 8, borderRadius: 0 } : {}),
-      ...(isLoopBack ? { offset: 56, borderRadius: 28 } : {}),
+      ...(isLoopToBodyEntry ? { borderRadius: 0 } : {}),
+      ...(isLoopBack ? { borderRadius: 10 } : {}),
     },
     style: {
       ...WORKFLOW_EDGE_OPTIONS.style,
@@ -683,17 +733,18 @@ function getBranchOutputPositionForConnection(
   const offsetY = index === -1 ? 0 : getBranchOffsetY(index, branches.length)
 
   if (sourceNode.parentId && targetNode.parentId === sourceNode.parentId) {
-    return {
-      x: sourceNode.position.x + HORIZONTAL_NODE_GAP,
-      y: sourceNode.position.y + offsetY,
-    }
+    return getTargetPositionAfterNode(sourceNode, nodes, offsetY, { useCanvasSpan: false })
   }
 
   const nodeMap = new Map(nodes.map((node) => [node.id, node]))
   const flatSource = flattenNodePosition(sourceNode, nodeMap)
+  const width =
+    isCanvasLayoutNode(sourceNode, nodes)
+      ? getCanvasNodeLayoutSpan(sourceNode, nodes)
+      : getWorkflowNodeLayoutWidth(sourceNode)
 
   return {
-    x: flatSource.x + HORIZONTAL_NODE_GAP,
+    x: flatSource.x + width + HORIZONTAL_NODE_GAP,
     y: flatSource.y + offsetY,
   }
 }
@@ -1628,7 +1679,26 @@ export function prepareLoadedFlowGraph(
   const syncedNodes = syncAllLoopBodyGroups(nodes, edges)
   const syncedEdges = syncAllLoopBodyEdges(syncedNodes, edges)
 
-  return { nodes: syncedNodes, edges: syncedEdges }
+  return relayoutMainFlowCanvasNodes({ nodes: syncedNodes, edges: syncedEdges })
+}
+
+/** Re-space main-flow canvas nodes using uniform handle-to-handle gaps. */
+export function relayoutMainFlowCanvasNodes({
+  nodes,
+  edges = [],
+}: {
+  nodes: Node[]
+  edges?: Edge[]
+}): { nodes: Node[]; edges: Edge[] } {
+  const ordered = getWorkflowNodeOrder(nodes)
+  if (ordered.length === 0) {
+    return { nodes, edges }
+  }
+
+  return {
+    nodes: mergeMainFlowRelayout(nodes, relayoutOrderedNodes(ordered, nodes)),
+    edges,
+  }
 }
 
 export function applyLoopNodeConfigUpdate(
@@ -2057,13 +2127,13 @@ export function cloneGraphWithFreshIds(graph: TestFlowGraph): TestFlowGraph {
 }
 
 export function createDefaultNodes(): Node[] {
-  return [
-    createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y }),
-    createWorkflowNode('end', {
-      x: FLOW_BOARD_START_X + HORIZONTAL_NODE_GAP,
-      y: FLOW_BOARD_Y,
-    }),
-  ]
+  const start = createWorkflowNode('start', { x: FLOW_BOARD_START_X, y: FLOW_BOARD_Y })
+  const end = createWorkflowNode('end', {
+    x: FLOW_BOARD_START_X + getWorkflowNodeLayoutWidth(start) + HORIZONTAL_NODE_GAP,
+    y: FLOW_BOARD_Y,
+  })
+
+  return [start, end]
 }
 
 export function createDefaultEdges(nodes: Node[]): Edge[] {
@@ -2128,6 +2198,7 @@ export function getBranchOutputPosition(
   sourceNode: Node,
   handleId: string,
   branches?: IfElseBranch[],
+  nodes: Node[] = [],
 ): { x: number; y: number } {
   const data = sourceNode.data as WorkflowNodeData
   const nodeType = data.nodeType ?? ''
@@ -2135,12 +2206,9 @@ export function getBranchOutputPosition(
     branches ??
     (isBranchingNodeType(nodeType) ? getNodeOutputBranches(data) : [])
   const index = branchList.findIndex((branch) => branch.id === handleId)
-  let offsetY = index === -1 ? 0 : getBranchOffsetY(index, branchList.length)
+  const offsetY = index === -1 ? 0 : getBranchOffsetY(index, branchList.length)
 
-  return {
-    x: sourceNode.position.x + HORIZONTAL_NODE_GAP,
-    y: sourceNode.position.y + offsetY,
-  }
+  return getTargetPositionAfterNode(sourceNode, nodes, offsetY)
 }
 
 /** @deprecated Use getBranchOutputPosition */
@@ -2158,7 +2226,7 @@ function branchHasTarget(
   nodes: Node[],
   edges: Edge[],
 ): boolean {
-  const position = getBranchOutputPosition(branchNode, branchId)
+  const position = getBranchOutputPosition(branchNode, branchId, undefined, nodes)
   const outgoing = edges.filter((edge) => edge.source === branchNode.id)
 
   return (
@@ -2184,7 +2252,7 @@ function getNextBranchSlot(
       if (isLoopNodeType(nodeType) && branch.id === LOOP_BODY_BRANCH_ID) continue
 
       if (!branchHasTarget(branchNode, branch.id, nodes, edges)) {
-        return getBranchOutputPosition(branchNode, branch.id, branches)
+        return getBranchOutputPosition(branchNode, branch.id, branches, nodes)
       }
     }
   }
@@ -2233,13 +2301,15 @@ export function getNextNodePosition(
   const branchSlot = getNextBranchSlot(canvasNodes, edges)
   if (branchSlot) return branchSlot
 
-  const rightmost = canvasNodes.reduce((current, node) =>
-    node.position.x >= current.position.x ? node : current,
+  const rightmostEdge = canvasNodes.reduce(
+    (maxRight, node) =>
+      Math.max(maxRight, node.position.x + getCanvasNodeLayoutSpan(node, existingNodes)),
+    FLOW_BOARD_START_X,
   )
 
   return {
-    x: rightmost.position.x + HORIZONTAL_NODE_GAP,
-    y: rightmost.position.y,
+    x: rightmostEdge + HORIZONTAL_NODE_GAP,
+    y: FLOW_BOARD_Y,
   }
 }
 
@@ -2640,15 +2710,22 @@ export function canSwapWorkflowNode(
   return true
 }
 
-function relayoutOrderedNodes(ordered: Node[]): Node[] {
-  return ordered.map((node, index) => ({
-    ...node,
-    origin: WORKFLOW_NODE_ORIGIN,
-    position: {
-      x: FLOW_BOARD_START_X + index * HORIZONTAL_NODE_GAP,
-      y: FLOW_BOARD_Y,
-    },
-  }))
+function relayoutOrderedNodes(ordered: Node[], allNodes: Node[]): Node[] {
+  let nextX = FLOW_BOARD_START_X
+
+  return ordered.map((node) => {
+    const positioned = {
+      ...node,
+      origin: WORKFLOW_NODE_ORIGIN,
+      position: {
+        x: nextX,
+        y: FLOW_BOARD_Y,
+      },
+    }
+
+    nextX += getCanvasNodeLayoutSpan(positioned, allNodes) + HORIZONTAL_NODE_GAP
+    return positioned
+  })
 }
 
 export function alignWorkflowNodePositions(nodes: Node[]): Node[] {
@@ -2714,7 +2791,7 @@ export function swapAdjacentWorkflowNode(
   const rightNodeId = direction === 'left' ? nodeA.id : nodeB.id
 
   return {
-    nodes: mergeMainFlowRelayout(nodes, relayoutOrderedNodes(nextOrdered)),
+    nodes: mergeMainFlowRelayout(nodes, relayoutOrderedNodes(nextOrdered, nodes)),
     edges: remapEdgesAfterAdjacentSwap(edges, leftNodeId, rightNodeId),
   }
 }
