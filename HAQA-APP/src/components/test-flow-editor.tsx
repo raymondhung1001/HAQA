@@ -26,15 +26,17 @@ import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
 
-const FLOW_BOARD_MIN_ZOOM = 0.2
-const FLOW_BOARD_MAX_ZOOM = 2
+const FLOW_BOARD_MIN_ZOOM = 0.5
+const FLOW_BOARD_MAX_ZOOM = 1.35
+const FLOW_BOARD_FIT_MIN_ZOOM = 0.5
+const FLOW_BOARD_FIT_MAX_ZOOM = 1
 
-/** Keep a small margin before Start; allow more room where the flow grows to the right. */
+/** Keep a small margin before Start; allow pan room where the flow grows to the right. */
 const BOARD_PAN_PADDING = {
   left: 48,
-  right: 480,
-  top: 160,
-  bottom: 280,
+  right: 280,
+  top: 120,
+  bottom: 200,
 } as const
 
 interface TestFlowEditorProps {
@@ -173,9 +175,9 @@ function TestFlowEditorCanvas({
               translateExtent={boardTranslateExtent}
               deleteKeyCode={['Backspace', 'Delete']}
               fitViewOptions={{
-                padding: { left: 0.04, right: 0.16, top: 0.12, bottom: 0.12 },
-                minZoom: 0.45,
-                maxZoom: 1.1,
+                padding: { left: 0.04, right: 0.14, top: 0.1, bottom: 0.1 },
+                minZoom: FLOW_BOARD_FIT_MIN_ZOOM,
+                maxZoom: FLOW_BOARD_FIT_MAX_ZOOM,
               }}
               fitView
             >
@@ -197,7 +199,7 @@ function TestFlowEditorCanvas({
               <MiniMap
                 className="!h-36 !w-52 !shadow-md"
                 pannable
-                zoomable
+                zoomable={false}
                 nodeStrokeWidth={3}
               />
             </ReactFlow>
