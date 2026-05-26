@@ -72,6 +72,8 @@ export const WorkflowNodeEditor = ({
   } = useWorkflowNodeEditorForm(node, allNodes)
 
   const loopBodyWorkDefinitions = getLoopBodyWorkNodeDefinitions() ?? []
+  const nodeId = node?.id
+  const hasConditionalLoopStep = loopBodySteps.some((step) => step.nodeType === 'if-else')
 
   const handleSave = () => {
     setNameError(undefined)
@@ -88,10 +90,25 @@ export const WorkflowNodeEditor = ({
     }
 
     const payload = buildSavePayload()
-    if (!payload || !node) return
+    if (!payload || !nodeId) return
 
-    onSave(node.id, payload)
+    onSave(nodeId, payload)
     onOpenChange(false)
+  }
+
+  const handleReorderLoopBodyStep = (fromIndex: number, toIndex: number) => {
+    if (!nodeId) return
+    onReorderLoopBodyNode?.(nodeId, fromIndex, toIndex)
+  }
+
+  const handleRemoveLoopBodyStep = (bodyNodeId: string) => {
+    if (!nodeId) return
+    onRemoveLoopBodyNode?.(nodeId, bodyNodeId)
+  }
+
+  const handleAddLoopBodyWorkNode = (nodeType: TestFlowNodeType) => {
+    if (!nodeId) return
+    onAddLoopBodyNode?.(nodeId, nodeType)
   }
 
   return (
@@ -220,7 +237,7 @@ export const WorkflowNodeEditor = ({
                           size="icon"
                           className="h-7 w-7"
                           disabled={index === 0}
-                          onClick={() => onReorderLoopBodyNode?.(node!.id, index, index - 1)}
+                          onClick={() => handleReorderLoopBodyStep(index, index - 1)}
                           title="Move step up"
                         >
                           <ChevronUp className="h-3.5 w-3.5" />
@@ -231,7 +248,7 @@ export const WorkflowNodeEditor = ({
                           size="icon"
                           className="h-7 w-7"
                           disabled={index === loopBodySteps.length - 1}
-                          onClick={() => onReorderLoopBodyNode?.(node!.id, index, index + 1)}
+                          onClick={() => handleReorderLoopBodyStep(index, index + 1)}
                           title="Move step down"
                         >
                           <ChevronDown className="h-3.5 w-3.5" />
@@ -242,7 +259,7 @@ export const WorkflowNodeEditor = ({
                         variant="outline"
                         size="icon"
                         className="shrink-0"
-                        onClick={() => onRemoveLoopBodyNode?.(node!.id, step.id)}
+                        onClick={() => handleRemoveLoopBodyStep(step.id)}
                         title="Remove from loop body"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -262,7 +279,7 @@ export const WorkflowNodeEditor = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => onAddLoopBodyNode?.(node!.id, definition.type)}
+                      onClick={() => handleAddLoopBodyWorkNode(definition.type)}
                     >
                       <Icon className="mr-1 h-3.5 w-3.5" />
                       {definition.label}
@@ -279,7 +296,7 @@ export const WorkflowNodeEditor = ({
               title="Break exits"
               description="Break handles sit on the right rail of the loop body box, aligned with If / Else branch rows. Wire a branch to the orange handle, then wire the outer dot to the next main-flow step."
             >
-              {loopBodySteps.some(step => step.nodeType === 'if-else') ? (
+              {hasConditionalLoopStep ? (
                 <>
                   <div className="flex justify-end">
                     <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>

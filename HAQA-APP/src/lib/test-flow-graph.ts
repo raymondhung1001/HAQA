@@ -1151,69 +1151,82 @@ function connectNewLoopBodyMember(
   return edges
 }
 
-function computeLoopBodyLayoutMetrics(
-  bodyNodeIds: string[],
-  nodes: Node[],
-  edges: Edge[],
-  breakCount: number,
-  loopNodeId: string,
-): {
+type LoopBodyLayoutMetrics = {
   width: number
   height: number
   positions: Map<string, { x: number; y: number }>
   entryCenterY: number
   breakHandleCenterYs: Record<string, number>
-} {
-  const { padding, labelHeight, minWidth, minHeight, nodeWidth, bodyNodeHeight } = LOOP_BODY_GROUP
+}
 
-  if (bodyNodeIds.length === 0) {
-    return {
-      width: minWidth,
-      height: minHeight,
-      positions: new Map(),
-      entryCenterY: minHeight / 2,
-      breakHandleCenterYs: {},
-    }
-  }
+const getEmptyLoopBodyLayoutMetrics = (): LoopBodyLayoutMetrics => ({
+  width: LOOP_BODY_GROUP.minWidth,
+  height: LOOP_BODY_GROUP.minHeight,
+  positions: new Map(),
+  entryCenterY: LOOP_BODY_GROUP.minHeight / 2,
+  breakHandleCenterYs: {},
+})
 
-  const depths = computeLoopBodyDepths(bodyNodeIds, edges)
-  const yById = computeLoopBodyMemberY(bodyNodeIds, edges, nodes, depths)
-  stackLoopBodyBranchTargetY(bodyNodeIds, edges, nodes, yById)
-  const columnsById = computeLoopBodyColumns(bodyNodeIds, edges, nodes)
-  const maxColumn = Math.max(0, ...bodyNodeIds.map((id) => columnsById.get(id) ?? 0))
-
-  const widthById = new Map<string, number>()
+const collectLoopBodyColumnWidths = (
+  bodyNodeIds: string[],
+  nodes: Node[],
+  edges: Edge[],
+  columnsById: Map<string, number>,
+) => {
   const widthByColumn = new Map<number, number>()
+
   for (const id of bodyNodeIds) {
     const node = nodes.find((member) => member.id === id)
     const memberWidth = node
       ? getLoopBodyMemberVisualWidth(node, nodes, edges)
-      : nodeWidth
-    widthById.set(id, memberWidth)
+      : LOOP_BODY_GROUP.nodeWidth
     const column = columnsById.get(id) ?? 0
     widthByColumn.set(column, Math.max(widthByColumn.get(column) ?? 0, memberWidth))
   }
 
+  return widthByColumn
+}
+
+const getLoopBodyColumnContentSpan = (
+  widthByColumn: Map<number, number>,
+  maxColumn: number,
+): number => {
   let contentSpan = 0
+
   for (let column = 0; column <= maxColumn; column += 1) {
-    const columnWidth = widthByColumn.get(column) ?? nodeWidth
+    const columnWidth = widthByColumn.get(column) ?? LOOP_BODY_GROUP.nodeWidth
     if (column > 0) contentSpan += HORIZONTAL_NODE_GAP
     contentSpan += columnWidth
   }
 
-  const railWidth = LOOP_BODY_GROUP.exitRailWidth
-  const width = Math.max(minWidth, padding * 2 + contentSpan + railWidth)
-  const loopNode = nodes.find((node) => node.id === loopNodeId)
-  const leftAlignContent = Boolean(loopNode?.parentId?.endsWith('-loop-body'))
-  const startX = leftAlignContent ? padding : (width - contentSpan - railWidth) / 2
+  return contentSpan
+}
 
+const getLoopBodyColumnStarts = (
+  startX: number,
+  maxColumn: number,
+  widthByColumn: Map<number, number>,
+): Map<number, number> => {
   const columnStartX = new Map<number, number>()
   let columnX = startX
+
   for (let column = 0; column <= maxColumn; column += 1) {
     columnStartX.set(column, columnX)
-    columnX += (widthByColumn.get(column) ?? nodeWidth) + HORIZONTAL_NODE_GAP
+    columnX += (widthByColumn.get(column) ?? LOOP_BODY_GROUP.nodeWidth) + HORIZONTAL_NODE_GAP
   }
 
+  return columnStartX
+}
+
+const buildLoopBodyMemberPositions = (
+  bodyNodeIds: string[],
+  nodes: Node[],
+  edges: Edge[],
+  columnsById: Map<string, number>,
+  yById: Map<string, number>,
+  columnStartX: Map<number, number>,
+  startX: number,
+) => {
   const positions = new Map<string, { x: number; y: number }>()
   let minEdge = Infinity
   let maxEdge = -Infinity
@@ -1222,7 +1235,7 @@ function computeLoopBodyLayoutMetrics(
     const node = nodes.find((member) => member.id === id)
     const memberHeight = node
       ? getLoopBodyMemberVisualHeight(node, nodes, edges)
-      : bodyNodeHeight
+      : LOOP_BODY_GROUP.bodyNodeHeight
     const column = columnsById.get(id) ?? 0
     const centerY = yById.get(id) ?? 0
     const columnLeft = columnStartX.get(column) ?? startX
@@ -1236,15 +1249,24 @@ function computeLoopBodyLayoutMetrics(
     maxEdge = Math.max(maxEdge, centerY + memberHeight / 2)
   }
 
-  const contentHeight = Math.max(bodyNodeHeight, maxEdge - minEdge)
-  const height = Math.max(minHeight, labelHeight + padding + contentHeight + padding)
-  const yShift = labelHeight + padding - minEdge
+  return { positions, minEdge, maxEdge }
+}
 
+const shiftLoopBodyPositions = (
+  positions: Map<string, { x: number; y: number }>,
+  yShift: number,
+) => {
   for (const [id, position] of positions) {
     positions.set(id, { x: position.x, y: position.y + yShift })
   }
+}
 
-  const entryIds = findLoopBodyEntryNodeIds(bodyNodeIds, edges, loopNodeId)
+const alignNestedLoopEntryHandles = (
+  bodyNodeIds: string[],
+  entryIds: string[],
+  nodes: Node[],
+  positions: Map<string, { x: number; y: number }>,
+) => {
   const entryIdSet = new Set(entryIds)
 
   for (const id of bodyNodeIds) {
@@ -1263,15 +1285,67 @@ function computeLoopBodyLayoutMetrics(
     )
     positions.set(id, { x: position.x, y: position.y - handleOffset })
   }
+}
 
-  const entryCenterY =
-    entryIds.length > 0
-      ? Math.min(
-          ...entryIds
-            .map((id) => positions.get(id)?.y)
-            .filter((y): y is number => typeof y === 'number'),
-        )
-      : labelHeight + padding + bodyNodeHeight / 2
+const getLoopBodyEntryCenterY = (
+  entryIds: string[],
+  positions: Map<string, { x: number; y: number }>,
+): number => {
+  if (entryIds.length === 0) {
+    return LOOP_BODY_GROUP.labelHeight + LOOP_BODY_GROUP.padding + LOOP_BODY_GROUP.bodyNodeHeight / 2
+  }
+
+  const entryYs = entryIds
+    .map((id) => positions.get(id)?.y)
+    .filter((y): y is number => typeof y === 'number')
+
+  return Math.min(...entryYs)
+}
+
+function computeLoopBodyLayoutMetrics(
+  bodyNodeIds: string[],
+  nodes: Node[],
+  edges: Edge[],
+  breakCount: number,
+  loopNodeId: string,
+): LoopBodyLayoutMetrics {
+  const { padding, labelHeight, minWidth, minHeight, bodyNodeHeight } = LOOP_BODY_GROUP
+
+  if (bodyNodeIds.length === 0) {
+    return getEmptyLoopBodyLayoutMetrics()
+  }
+
+  const depths = computeLoopBodyDepths(bodyNodeIds, edges)
+  const yById = computeLoopBodyMemberY(bodyNodeIds, edges, nodes, depths)
+  stackLoopBodyBranchTargetY(bodyNodeIds, edges, nodes, yById)
+  const columnsById = computeLoopBodyColumns(bodyNodeIds, edges, nodes)
+  const maxColumn = Math.max(0, ...bodyNodeIds.map((id) => columnsById.get(id) ?? 0))
+  const widthByColumn = collectLoopBodyColumnWidths(bodyNodeIds, nodes, edges, columnsById)
+  const contentSpan = getLoopBodyColumnContentSpan(widthByColumn, maxColumn)
+  const railWidth = LOOP_BODY_GROUP.exitRailWidth
+  const width = Math.max(minWidth, padding * 2 + contentSpan + railWidth)
+  const loopNode = nodes.find((node) => node.id === loopNodeId)
+  const leftAlignContent = Boolean(loopNode?.parentId?.endsWith('-loop-body'))
+  const startX = leftAlignContent ? padding : (width - contentSpan - railWidth) / 2
+  const columnStartX = getLoopBodyColumnStarts(startX, maxColumn, widthByColumn)
+  const { positions, minEdge, maxEdge } = buildLoopBodyMemberPositions(
+    bodyNodeIds,
+    nodes,
+    edges,
+    columnsById,
+    yById,
+    columnStartX,
+    startX,
+  )
+
+  const contentHeight = Math.max(bodyNodeHeight, maxEdge - minEdge)
+  const height = Math.max(minHeight, labelHeight + padding + contentHeight + padding)
+  const yShift = labelHeight + padding - minEdge
+  shiftLoopBodyPositions(positions, yShift)
+
+  const entryIds = findLoopBodyEntryNodeIds(bodyNodeIds, edges, loopNodeId)
+  alignNestedLoopEntryHandles(bodyNodeIds, entryIds, nodes, positions)
+  const entryCenterY = getLoopBodyEntryCenterY(entryIds, positions)
 
   const loopBreakExits = readLoopBreakExits((loopNode?.data as WorkflowNodeData | undefined)?.config)
   const breakHandleCenterYs = computeBreakHandleCenterYs(
@@ -2792,6 +2866,92 @@ export function repositionNodeForBranchConnection(
   )
 }
 
+const validateLoopBodyGroupSourceConnection = (
+  sourceNode: Node,
+  targetNode: Node,
+  sourceHandle: string | null | undefined,
+  nodes: Node[],
+): boolean | undefined => {
+  if (!isLoopBodyGroupNode(sourceNode)) return undefined
+  if (!sourceHandle) return false
+
+  const loopNodeId = (sourceNode.data as { loopNodeId?: string })?.loopNodeId
+  if (typeof loopNodeId !== 'string' || loopNodeId.length === 0) return false
+
+  if (sourceHandle === LOOP_DONE_BRANCH_ID) {
+    return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
+  }
+
+  const breakExits = getBreakExitsForLoopBodyGroup(sourceNode, nodes)
+  if (!breakExits.some((branch) => branch.id === sourceHandle)) return false
+
+  const loopNode = nodes.find((node) => node.id === loopNodeId)
+  if (!loopNode) return false
+
+  const bodyIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
+  if (!loopBodyHasIfElseNode(loopNodeId, bodyIds, nodes)) return false
+
+  return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
+}
+
+const validateLoopNodeSourceConnection = (
+  sourceNode: Node,
+  targetNode: Node,
+  targetType: string,
+  sourceHandle: string | null | undefined,
+  nodes: Node[],
+): boolean | undefined => {
+  const sourceType = (sourceNode.data as WorkflowNodeData)?.nodeType ?? ''
+  if (!isLoopNodeType(sourceType)) return undefined
+
+  if (sourceHandle === LOOP_BODY_BRANCH_ID) {
+    return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
+  }
+
+  if (sourceHandle === LOOP_DONE_BRANCH_ID) {
+    const bodyIds = readLoopBodyNodeIds((sourceNode.data as WorkflowNodeData).config)
+    if (bodyIds.length > 0) return false
+    return isCanvasLayoutNode(targetNode, nodes)
+  }
+
+  return false
+}
+
+const hasValidBranchingSourceHandle = (
+  sourceNode: Node,
+  sourceType: string,
+  sourceHandle: string | null | undefined,
+): boolean => {
+  if (!isBranchingWorkNodeType(sourceType)) return true
+  if (!sourceHandle) return false
+
+  const branches = getIfElseBranches(sourceNode.data as WorkflowNodeData)
+  return branches.some((branch) => branch.id === sourceHandle)
+}
+
+const validateLoopBodyMemberConnection = (
+  sourceNode: Node,
+  targetNode: Node,
+  targetType: string,
+  nodes: Node[],
+): boolean | undefined => {
+  const owningLoop = findLoopNodeForBodyMember(sourceNode.id, nodes)
+  if (!owningLoop) return undefined
+
+  if (
+    isNodeInLoopBody(targetNode.id, owningLoop, nodes) &&
+    !isLoopBodyGroupNode(targetNode)
+  ) {
+    return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
+  }
+
+  if (isCanvasLayoutNode(targetNode, nodes)) {
+    return true
+  }
+
+  return false
+}
+
 export function isValidWorkflowConnection(
   connection: Connection,
   nodes: Node[],
@@ -2811,60 +2971,32 @@ export function isValidWorkflowConnection(
     return true
   }
 
-  if (isLoopBodyGroupNode(sourceNode)) {
-    if (!handle) return false
+  const loopBodyGroupResult = validateLoopBodyGroupSourceConnection(
+    sourceNode,
+    targetNode,
+    handle,
+    nodes,
+  )
+  if (loopBodyGroupResult !== undefined) return loopBodyGroupResult
 
-    const loopNodeId = (sourceNode.data as { loopNodeId?: string })?.loopNodeId
-    if (typeof loopNodeId !== 'string' || loopNodeId.length === 0) return false
+  const loopNodeResult = validateLoopNodeSourceConnection(
+    sourceNode,
+    targetNode,
+    targetType,
+    handle,
+    nodes,
+  )
+  if (loopNodeResult !== undefined) return loopNodeResult
 
-    if (handle === LOOP_DONE_BRANCH_ID) {
-      return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
-    }
+  if (!hasValidBranchingSourceHandle(sourceNode, sourceType, handle)) return false
 
-    const breakExits = getBreakExitsForLoopBodyGroup(sourceNode, nodes)
-    if (!breakExits.some((branch) => branch.id === handle)) return false
-
-    const loopNode = nodes.find((n) => n.id === loopNodeId)
-    if (!loopNode) return false
-    const bodyIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
-    if (!loopBodyHasIfElseNode(loopNodeId, bodyIds, nodes)) return false
-
-    return isValidLoopGroupExitTarget(loopNodeId, targetNode, nodes)
-  }
-
-  if (isLoopNodeType(sourceType)) {
-    if (handle === LOOP_BODY_BRANCH_ID) {
-      return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
-    }
-    if (handle === LOOP_DONE_BRANCH_ID) {
-      const bodyIds = readLoopBodyNodeIds((sourceNode.data as WorkflowNodeData).config)
-      if (bodyIds.length > 0) return false
-      return isCanvasLayoutNode(targetNode, nodes)
-    }
-    return false
-  }
-
-  if (isBranchingWorkNodeType(sourceType)) {
-    if (!handle) return false
-    const branches = getIfElseBranches(sourceNode.data as WorkflowNodeData)
-    if (!branches.some((branch) => branch.id === handle)) return false
-  }
-
-  const owningLoop = findLoopNodeForBodyMember(sourceNode.id, nodes)
-  if (owningLoop) {
-    if (
-      isNodeInLoopBody(targetNode.id, owningLoop, nodes) &&
-      !isLoopBodyGroupNode(targetNode)
-    ) {
-      return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
-    }
-
-    if (isCanvasLayoutNode(targetNode, nodes)) {
-      return true
-    }
-
-    return false
-  }
+  const loopBodyMemberResult = validateLoopBodyMemberConnection(
+    sourceNode,
+    targetNode,
+    targetType,
+    nodes,
+  )
+  if (loopBodyMemberResult !== undefined) return loopBodyMemberResult
 
   const targetLoop = findLoopNodeForBodyMember(targetNode.id, nodes)
   if (targetLoop && isCanvasLayoutNode(sourceNode, nodes)) {

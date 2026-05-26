@@ -50,6 +50,60 @@ import {
 
 import type { UseWorkflowGraphOptions, UseWorkflowGraphReturn } from '@/types'
 
+const patchWorkflowNodeData = (
+  nodes: Node[],
+  nodeId: string,
+  updates: Partial<WorkflowNodeData>,
+): Node[] => {
+  return nodes.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            ...updates,
+            config: updates.config
+              ? {
+                  ...(node.data?.config as Record<string, unknown> | undefined),
+                  ...updates.config,
+                }
+              : node.data?.config,
+          },
+        }
+      : node,
+  )
+}
+
+const patchLoopNodeData = (
+  nodes: Node[],
+  nodeId: string,
+  updates: Partial<WorkflowNodeData>,
+): Node[] => {
+  return nodes.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            ...updates,
+          },
+        }
+      : node,
+  )
+}
+
+const pruneEdgesForIfElseUpdate = (
+  edges: Edge[],
+  nodeId: string,
+  nodeType: string | undefined,
+  updates: Partial<WorkflowNodeData>,
+): Edge[] => {
+  if (!updates.config?.branches || nodeType !== 'if-else') return edges
+
+  const branches = readIfElseBranches(updates.config)
+  return branches.length > 0 ? pruneEdgesForRemovedBranches(edges, nodeId, branches) : edges
+}
+
 export const useWorkflowGraph = ({
   initialNodes,
   initialEdges,
@@ -282,14 +336,7 @@ export const useWorkflowGraph = ({
       const existing = currentNodes.find((node) => node.id === nodeId)
       const nodeType = (existing?.data as WorkflowNodeData)?.nodeType
 
-      let nextEdges = currentEdges
-
-      if (updates.config?.branches && nodeType === 'if-else') {
-        const branches = readIfElseBranches(updates.config)
-        if (branches.length > 0) {
-          nextEdges = pruneEdgesForRemovedBranches(nextEdges, nodeId, branches)
-        }
-      }
+      const nextEdges = pruneEdgesForIfElseUpdate(currentEdges, nodeId, nodeType, updates)
 
       if (isLoopNodeType(nodeType ?? '') && updates.config) {
         const mergedConfig = migrateLoopNodeConfig({
@@ -299,17 +346,7 @@ export const useWorkflowGraph = ({
         const result = applyLoopNodeConfigUpdate(
           nodeId,
           mergedConfig,
-          currentNodes.map((node) =>
-            node.id === nodeId
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    ...updates,
-                  },
-                }
-              : node,
-          ),
+          patchLoopNodeData(currentNodes, nodeId, updates),
           nextEdges,
         )
         const layout = applyLoopBodyRelayout(result.nodes, result.edges)
@@ -317,24 +354,7 @@ export const useWorkflowGraph = ({
         return
       }
 
-      const nextNodes = currentNodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                ...updates,
-                config: updates.config
-                  ? {
-                      ...(node.data?.config as Record<string, unknown> | undefined),
-                      ...updates.config,
-                    }
-                  : node.data?.config,
-              },
-            }
-          : node,
-      )
-
+      const nextNodes = patchWorkflowNodeData(currentNodes, nodeId, updates)
       commitGraph(nextNodes, nextEdges)
     },
     [applyLoopBodyRelayout, commitGraph],

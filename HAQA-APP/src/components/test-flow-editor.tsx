@@ -39,6 +39,41 @@ const BOARD_PAN_PADDING = {
   bottom: 200,
 } as const
 
+const DEFAULT_BOARD_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
+  [-1000, -1000],
+  [2000, 2000],
+]
+
+const getFlowNodeBounds = (node: Node) => {
+  const width = Number(node.width ?? node.style?.width ?? 220)
+  const height = Number(node.height ?? node.style?.height ?? 120)
+  const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
+  const left = node.position.x - width * origin[0]
+  const top = node.position.y - height * origin[1]
+
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom: top + height,
+  }
+}
+
+const getBoardTranslateExtent = (flowNodes: Node[]): [[number, number], [number, number]] => {
+  if (flowNodes.length === 0) return DEFAULT_BOARD_TRANSLATE_EXTENT
+
+  const bounds = flowNodes.map(getFlowNodeBounds)
+  const minX = Math.min(...bounds.map((bound) => bound.left))
+  const maxX = Math.max(...bounds.map((bound) => bound.right))
+  const minY = Math.min(...bounds.map((bound) => bound.top))
+  const maxY = Math.max(...bounds.map((bound) => bound.bottom))
+
+  return [
+    [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
+    [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
+  ]
+}
+
 interface TestFlowEditorProps {
   title: string
   submitLabel: string
@@ -89,36 +124,7 @@ const TestFlowEditorCanvas = ({
     handleReorderLoopBodyNode,
   } = useWorkflowGraph({ initialNodes, initialEdges })
 
-  const boardTranslateExtent = useMemo<[[number, number], [number, number]]>(() => {
-    if (flowNodes.length === 0) {
-      return [[-1000, -1000], [2000, 2000]]
-    }
-
-    let minX = Number.POSITIVE_INFINITY
-    let maxX = Number.NEGATIVE_INFINITY
-    let minY = Number.POSITIVE_INFINITY
-    let maxY = Number.NEGATIVE_INFINITY
-
-    for (const node of flowNodes) {
-      const width = Number(node.width ?? node.style?.width ?? 220)
-      const height = Number(node.height ?? node.style?.height ?? 120)
-      const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
-      const left = node.position.x - width * origin[0]
-      const right = left + width
-      const top = node.position.y - height * origin[1]
-      const bottom = top + height
-
-      minX = Math.min(minX, left)
-      maxX = Math.max(maxX, right)
-      minY = Math.min(minY, top)
-      maxY = Math.max(maxY, bottom)
-    }
-
-    return [
-      [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
-      [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
-    ]
-  }, [flowNodes])
+  const boardTranslateExtent = useMemo(() => getBoardTranslateExtent(flowNodes), [flowNodes])
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {

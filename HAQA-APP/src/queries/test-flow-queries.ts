@@ -8,7 +8,7 @@ import {
   type UseMutationOptions,
 } from '@tanstack/react-query'
 
-import { apiClient, SessionExpiredError, UnauthorizedError, unwrapData } from '@/lib/api-client'
+import { apiClient, unwrapData } from '@/lib/api-client'
 import { testFlowQueryKeys } from '@/types'
 import type {
   CreateTestFlowInput,
@@ -90,15 +90,8 @@ export const useSearchTestFlows = (
   return useQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows(params)
-        return parsePaginatedTestFlows(response)
-      } catch (error) {
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        throw error
-      }
+      const response = await apiClient.searchTestFlows(params)
+      return parsePaginatedTestFlows(response)
     },
     enabled: true,
     ...options,
@@ -115,15 +108,8 @@ export const useSearchTestFlowsSuspense = (
   return useSuspenseQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows(params)
-        return parsePaginatedTestFlows(response)
-      } catch (error) {
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        throw error
-      }
+      const response = await apiClient.searchTestFlows(params)
+      return parsePaginatedTestFlows(response)
     },
     ...options,
   })

@@ -20,17 +20,18 @@ export const useTestFlowEditorPage = (
   options: UseTestFlowEditorPageOptions,
 ): TestFlowEditorPageResult => {
   const navigate = useNavigate()
+  const navigateToList = () => navigate({ to: '/test-flow/', replace: true })
 
   const createMutation = useCreateTestFlow({
-    onSuccess: () => navigate({ to: '/test-flow/', replace: true }),
+    onSuccess: navigateToList,
   })
 
   const updateMutation = useUpdateTestFlow()
   const saveGraphMutation = useSaveTestFlowGraph({
-    onSuccess: () => navigate({ to: '/test-flow/', replace: true }),
+    onSuccess: navigateToList,
   })
 
-  const handleCancel = () => navigate({ to: '/test-flow/', replace: true })
+  const handleCancel = navigateToList
 
   const isSubmitting =
     options.mode === 'create'
@@ -39,12 +40,15 @@ export const useTestFlowEditorPage = (
 
   const handleSubmit = (formData: TestFlowEditorFormData, graph: TestFlowGraph) => {
     const persistedGraph = cloneGraphWithFreshIds(graph)
+    const flowDetails = {
+      name: formData.name,
+      description: formData.description || undefined,
+      isActive: formData.isActive,
+    }
 
     if (options.mode === 'create') {
       createMutation.mutate({
-        name: formData.name,
-        description: formData.description || undefined,
-        isActive: formData.isActive,
+        ...flowDetails,
         graph: persistedGraph,
       })
       return
@@ -52,11 +56,7 @@ export const useTestFlowEditorPage = (
 
     updateMutation.mutate({
       id: options.id,
-      data: {
-        name: formData.name,
-        description: formData.description || undefined,
-        isActive: formData.isActive,
-      },
+      data: flowDetails,
     })
     saveGraphMutation.mutate({ id: options.id, graph: persistedGraph })
   }

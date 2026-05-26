@@ -137,6 +137,15 @@ interface AuthTokenPayload {
 
 let refreshInFlight: Promise<boolean> | null = null
 
+const appendSearchParam = (
+  queryParams: URLSearchParams,
+  key: string,
+  value: string | number | boolean | undefined,
+) => {
+  if (value === undefined || value === '' || value === 0) return
+  queryParams.append(key, String(value))
+}
+
 const unwrapAuthTokenPayload = (response: unknown): AuthTokenPayload | null => {
   const payload = (response as { data?: AuthTokenPayload })?.data ?? response
   if (!payload || typeof payload !== 'object') {
@@ -211,7 +220,8 @@ export const apiRequest = async <T = unknown>(
   
   // Determine if URL is absolute or relative
   const isAbsoluteUrl = url.startsWith('http://') || url.startsWith('https://')
-  const fullUrl = isAbsoluteUrl ? url : `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+  const relativePath = url.startsWith('/') ? url : `/${url}`
+  const fullUrl = isAbsoluteUrl ? url : `${baseUrl}${relativePath}`
 
   const method = (fetchOptions.method || 'GET').toUpperCase()
   
@@ -395,14 +405,16 @@ export const apiClient = {
     >(`/test-flow/${id}/graph`, graph as JsonValue)
     return unwrapData(response)
   },
-  searchTestFlows: async (params?: SearchTestFlowsParams): Promise<{ data?: PaginatedTestFlows } | PaginatedTestFlows> => {
+  searchTestFlows: async (
+    params?: SearchTestFlowsParams,
+  ): Promise<{ data?: PaginatedTestFlows } | PaginatedTestFlows> => {
     const queryParams = new URLSearchParams()
-    if (params?.query) queryParams.append('query', params.query)
-    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
-    if (params?.userId) queryParams.append('userId', params.userId.toString())
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
-    if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
+    appendSearchParam(queryParams, 'query', params?.query)
+    appendSearchParam(queryParams, 'isActive', params?.isActive)
+    appendSearchParam(queryParams, 'userId', params?.userId)
+    appendSearchParam(queryParams, 'page', params?.page)
+    appendSearchParam(queryParams, 'limit', params?.limit)
+    appendSearchParam(queryParams, 'sortBy', params?.sortBy)
 
     const queryString = queryParams.toString()
     const endpoint = queryString ? `/test-flow?${queryString}` : '/test-flow'
