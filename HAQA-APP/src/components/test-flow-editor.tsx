@@ -7,7 +7,6 @@ import {
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
-  ConnectionMode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { Edge, Node } from '@xyflow/react'
@@ -171,7 +170,6 @@ function TestFlowEditorCanvas({
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               isValidConnection={isValidConnection}
-              connectionMode={ConnectionMode.Loose}
               onNodeDoubleClick={(_, node) => openNodeEditor(node.id)}
               nodesDraggable={false}
               nodeOrigin={WORKFLOW_NODE_ORIGIN}
