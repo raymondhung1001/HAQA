@@ -13,11 +13,13 @@ import {
   readLoopBodyNodeIds,
 } from './branch-config'
 import {
+  isLoopBackEdge,
   isLoopBodyBreakTargetEdge,
   normalizeLoopBodyBreakTargetConnection,
   withWorkflowEdgeDefaults,
   isUiOnlyEdge,
 } from './edge-helpers'
+import { isLoopBodyWorkNodeType } from './workflow-node-meta'
 import {
   getBreakExitsForLoopBodyGroup,
   findLoopNodeForBodyMember,
@@ -155,7 +157,9 @@ function countEdgesBySourceHandle(
 }
 
 function countIncomingEdges(edges: Edge[], targetId: string): number {
-  return edges.filter((edge) => edge.target === targetId).length
+  return edges.filter(
+    (edge) => edge.target === targetId && !isLoopBackEdge(edge),
+  ).length
 }
 
 function countOutgoingEdges(edges: Edge[], sourceId: string): number {

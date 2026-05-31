@@ -57,7 +57,7 @@ import {
   canSwapWorkflowNode,
   getBranchOffsetY,
 } from './layout'
-import { isTestFlowNodeType } from './workflow-node-meta'
+import { isLoopBodyWorkNodeType, isTestFlowNodeType } from './workflow-node-meta'
 
 export {
   deriveLoopBodyLayoutOrder,
