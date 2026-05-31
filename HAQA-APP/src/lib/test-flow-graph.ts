@@ -2463,6 +2463,112 @@ export function removeNodeFromLoopBody(
   return applyLoopBodyUpdate(loopNodeId, nextIds, nextNodes, prunedEdges)
 }
 
+export type DeleteWorkflowNodesResult = {
+  nodes: Node[]
+  edges: Edge[]
+  deletedNodeIds: string[]
+  blocked: {
+    loopBodyGroup: boolean
+  }
+}
+
+function getWorkflowNodeType(node: Node): TestFlowNodeType | undefined {
+  const nodeType = (node.data as WorkflowNodeData)?.nodeType
+  return nodeType && isTestFlowNodeType(nodeType) ? nodeType : undefined
+}
+
+function isProtectedWorkflowNode(node: Node): 'group' | null {
+  if (isLoopBodyGroupNode(node)) return 'group'
+  return null
+}
+
+/** Collects a node id and all nested loop body members when deleting a loop. */
+export function collectCascadeDeletionIds(nodeId: string, nodes: Node[]): string[] {
+  const node = nodes.find((candidate) => candidate.id === nodeId)
+  if (!node) return []
+
+  const ids = new Set<string>([nodeId])
+  const nodeType = getWorkflowNodeType(node) ?? 'script'
+
+  if (!isLoopNodeType(nodeType)) return [nodeId]
+
+  for (const bodyId of readLoopBodyNodeIds((node.data as WorkflowNodeData).config)) {
+    for (const cascadeId of collectCascadeDeletionIds(bodyId, nodes)) {
+      ids.add(cascadeId)
+    }
+  }
+
+  return [...ids]
+}
+
+export function deleteWorkflowNodes(
+  requestedIds: string[],
+  nodes: Node[],
+  edges: Edge[],
+): DeleteWorkflowNodesResult {
+  const blocked = { loopBodyGroup: false }
+  const uniqueRequested = [...new Set(requestedIds)]
+
+  const allowedIds = uniqueRequested.filter((id) => {
+    const node = nodes.find((candidate) => candidate.id === id)
+    if (!node) return false
+
+    if (isProtectedWorkflowNode(node) === 'group') {
+      blocked.loopBodyGroup = true
+      return false
+    }
+
+    return true
+  })
+
+  if (allowedIds.length === 0) {
+    return { nodes, edges, deletedNodeIds: [], blocked }
+  }
+
+  const directDeleteSet = new Set(allowedIds)
+  const cascadeDeleteSet = new Set<string>()
+  for (const id of allowedIds) {
+    for (const cascadeId of collectCascadeDeletionIds(id, nodes)) {
+      cascadeDeleteSet.add(cascadeId)
+    }
+  }
+
+  let nextNodes = nodes
+  let nextEdges = edges
+  const deletedNodeIds: string[] = []
+
+  for (const id of allowedIds) {
+    const owningLoop = findLoopNodeForBodyMember(id, nodes)
+    if (
+      owningLoop &&
+      !directDeleteSet.has(owningLoop.id) &&
+      isNodeInLoopBody(id, owningLoop, nodes)
+    ) {
+      const result = removeNodeFromLoopBody(owningLoop.id, id, nextNodes, nextEdges)
+      nextNodes = result.nodes
+      nextEdges = result.edges
+      deletedNodeIds.push(id)
+    }
+  }
+
+  const hardDeleteIds = [...cascadeDeleteSet].filter((id) => !deletedNodeIds.includes(id))
+  if (hardDeleteIds.length > 0) {
+    const hardDeleteSet = new Set(hardDeleteIds)
+    nextNodes = nextNodes.filter((node) => !hardDeleteSet.has(node.id))
+    nextEdges = nextEdges.filter(
+      (edge) => !hardDeleteSet.has(edge.source) && !hardDeleteSet.has(edge.target),
+    )
+    deletedNodeIds.push(...hardDeleteIds)
+  }
+
+  return {
+    nodes: nextNodes,
+    edges: nextEdges,
+    deletedNodeIds: [...new Set(deletedNodeIds)],
+    blocked,
+  }
+}
+
 export function reorderLoopBodyNodeIds(
   bodyNodeIds: string[],
   fromIndex: number,

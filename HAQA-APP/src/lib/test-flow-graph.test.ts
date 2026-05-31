@@ -5,13 +5,16 @@ import {
   DEFAULT_IF_ELSE_BRANCHES,
   LOOP_BODY_BRANCH_ID,
   LOOP_BODY_GROUP_NODE_TYPE,
+  collectCascadeDeletionIds,
   connectEdge,
   createWorkflowNode,
+  deleteWorkflowNodes,
   getLoopBodyGroupId,
   isLoopBodyBreakTargetEdge,
   isUiOnlyEdge,
   isValidWorkflowConnection,
   reactFlowToGraph,
+  syncLoopBodyGraphLayout,
 } from '@/lib/test-flow-graph'
 import { validateTestFlowGraph } from '@/lib/test-flow-validation'
 
@@ -255,5 +258,113 @@ describe('connectEdge duplicate guard', () => {
     const next = connectEdge({ source: start.id, target: end.id }, edges, nodes)
 
     expect(next).toHaveLength(1)
+  })
+})
+
+describe('deleteWorkflowNodes', () => {
+  it('allows deletion of start and end nodes', () => {
+    const start = createWorkflowNode('start')
+    const end = createWorkflowNode('end')
+    const script = createWorkflowNode('script')
+    const nodes = [start, script, end]
+    const edges = [
+      makeEdge(start.id, script.id),
+      makeEdge(script.id, end.id),
+    ]
+
+    const result = deleteWorkflowNodes([start.id, end.id], nodes, edges)
+
+    expect(result.blocked.loopBodyGroup).toBe(false)
+    expect(result.deletedNodeIds).toEqual(expect.arrayContaining([start.id, end.id]))
+    expect(result.nodes).toHaveLength(1)
+    expect(result.nodes[0]?.id).toBe(script.id)
+  })
+
+  it('cascades loop deletion to all body steps', () => {
+    const start = createWorkflowNode('start', { x: 0, y: 0 })
+    const loop = createWorkflowNode('for-loop', { x: 200, y: 0 })
+    const bodyScript = createWorkflowNode('script', { x: 0, y: 0 })
+    const end = createWorkflowNode('end', { x: 400, y: 0 })
+
+    loop.data = {
+      ...loop.data,
+      config: {
+        bodyNodeIds: [bodyScript.id],
+        breakExits: [],
+      },
+    }
+
+    const layout = syncLoopBodyGraphLayout(
+      [start, loop, bodyScript, end],
+      [
+        makeEdge(start.id, loop.id),
+        makeEdge(loop.id, bodyScript.id, { sourceHandle: LOOP_BODY_BRANCH_ID }),
+      ],
+    )
+
+    const result = deleteWorkflowNodes([loop.id], layout.nodes, layout.edges)
+
+    expect(result.deletedNodeIds).toContain(loop.id)
+    expect(result.deletedNodeIds).toContain(bodyScript.id)
+    expect(result.nodes.some((node) => node.id === bodyScript.id)).toBe(false)
+    expect(result.nodes.some((node) => node.id === loop.id)).toBe(false)
+    expect(result.nodes.some((node) => node.id === start.id)).toBe(true)
+  })
+
+  it('removes a loop body step through removeNodeFromLoopBody semantics', () => {
+    const loop = createWorkflowNode('for-loop', { x: 0, y: 0 })
+    const bodyA = createWorkflowNode('script', { x: 0, y: 0 })
+    const bodyB = createWorkflowNode('script', { x: 100, y: 0 })
+
+    loop.data = {
+      ...loop.data,
+      config: {
+        bodyNodeIds: [bodyA.id, bodyB.id],
+        breakExits: [],
+      },
+    }
+
+    const layout = syncLoopBodyGraphLayout(
+      [loop, bodyA, bodyB],
+      [
+        makeEdge(loop.id, bodyA.id, { sourceHandle: LOOP_BODY_BRANCH_ID }),
+        makeEdge(bodyA.id, bodyB.id),
+      ],
+    )
+
+    const result = deleteWorkflowNodes([bodyA.id], layout.nodes, layout.edges)
+
+    expect(result.deletedNodeIds).toEqual([bodyA.id])
+    expect(result.nodes.some((node) => node.id === bodyA.id)).toBe(false)
+    expect(result.nodes.some((node) => node.id === bodyB.id)).toBe(true)
+
+    const updatedLoop = result.nodes.find((node) => node.id === loop.id)
+    expect(updatedLoop?.data?.config?.bodyNodeIds).toEqual([bodyB.id])
+  })
+
+  it('collects nested loop body members when deleting an outer loop', () => {
+    const outerLoop = createWorkflowNode('for-loop')
+    const innerLoop = createWorkflowNode('for-loop')
+    const innerBody = createWorkflowNode('script')
+
+    outerLoop.data = {
+      ...outerLoop.data,
+      config: { bodyNodeIds: [innerLoop.id], breakExits: [] },
+    }
+    innerLoop.data = {
+      ...innerLoop.data,
+      config: { bodyNodeIds: [innerBody.id], breakExits: [] },
+    }
+
+    const cascade = collectCascadeDeletionIds(outerLoop.id, [outerLoop, innerLoop, innerBody])
+
+    expect(cascade).toEqual(expect.arrayContaining([outerLoop.id, innerLoop.id, innerBody.id]))
+    expect(cascade).toHaveLength(3)
+  })
+
+  it('creates workflow nodes without forcing deletable false on start/end', () => {
+    expect(createWorkflowNode('start').deletable).toBeUndefined()
+    expect(createWorkflowNode('end').deletable).toBeUndefined()
+    expect(createWorkflowNode('script').deletable).toBeUndefined()
   })
 })

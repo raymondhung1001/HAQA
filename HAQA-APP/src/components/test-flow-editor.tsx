@@ -351,7 +351,9 @@ const TestFlowEditorCanvas = ({
               Else branches to orange Break handles on the loop body rail (then out to main flow), use
               blue Done to continue after the loop, use the arrow buttons on a main-flow step to swap
               its order, connect handles between steps, double-click or use the edit button to
-              configure a node, and press Delete to remove a selected node.
+              configure a node, press Delete to remove selected nodes or edges (loop entry and
+              loop-back connections are protected), and remove loop body steps from the node editor
+              or by selecting them on the canvas.
             </p>
           ) : null}
         </section>

@@ -25,6 +25,7 @@ import {
   createDefaultEdges,
   createDefaultNodes,
   createWorkflowNode,
+  deleteWorkflowNodes,
   getNextNodePosition,
   hasEndNode,
   hasStartNode,
@@ -117,9 +118,11 @@ export const useWorkflowGraph = ({
   const layoutDigestRef = useRef(getLoopBodyLayoutDigest(defaultNodes, defaultEdges))
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
+  const editingNodeIdRef = useRef(editingNodeId)
 
   nodesRef.current = nodes
   edgesRef.current = edges
+  editingNodeIdRef.current = editingNodeId
 
   const applyLoopBodyRelayout = useCallback(
     (nextNodes: Node[], nextEdges: Edge[]) => {
@@ -145,30 +148,57 @@ export const useWorkflowGraph = ({
       const filtered = changes.filter((change) => change.type !== 'position')
       if (filtered.length === 0) return
 
+      const removeIds = filtered
+        .filter((change): change is NodeChange & { type: 'remove'; id: string } => change.type === 'remove')
+        .map((change) => change.id)
+      const otherChanges = filtered.filter((change) => change.type !== 'remove')
+
+      if (removeIds.length > 0) {
+        const result = deleteWorkflowNodes(removeIds, nodesRef.current, edgesRef.current)
+
+        if (result.deletedNodeIds.length === 0) {
+          return
+        }
+
+        if (result.deletedNodeIds.includes(editingNodeIdRef.current ?? '')) {
+          setEditingNodeId(null)
+        }
+
+        const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+        commitGraph(layout.nodes, layout.edges)
+      }
+
+      if (otherChanges.length === 0) return
+
       setNodes((currentNodes) => {
-        const nextNodes = applyNodeChanges(filtered, currentNodes)
+        const nextNodes = applyNodeChanges(otherChanges, currentNodes)
         nodesRef.current = nextNodes
         return nextNodes
       })
     },
-    [setNodes],
+    [applyLoopBodyRelayout, commitGraph, setNodes],
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       if (changes.length === 0) return
 
+      let blockedSystemEdge = false
       const filtered = changes.filter((change) => {
         if (change.type !== 'remove') return true
 
         const edge = edgesRef.current.find((candidate) => candidate.id === change.id)
         if (edge?.deletable === false || edge?.data?.system === true) {
-          toast.error('This connection is managed automatically and cannot be removed.')
+          blockedSystemEdge = true
           return false
         }
 
         return true
       })
+
+      if (blockedSystemEdge) {
+        toast.error('This connection is managed automatically and cannot be removed.')
+      }
 
       if (filtered.length === 0) return
 
