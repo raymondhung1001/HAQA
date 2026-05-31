@@ -7,6 +7,7 @@ interface EditorHeaderProps {
   subtitle?: string
   submitLabel: string
   isSubmitting?: boolean
+  saveDisabled?: boolean
   onCancel: () => void
   onSubmit: () => void
 }
@@ -16,6 +17,7 @@ export const EditorHeader = ({
   subtitle = 'Configure flow details, add steps, and connect them on the canvas',
   submitLabel,
   isSubmitting = false,
+  saveDisabled = false,
   onCancel,
   onSubmit,
 }: EditorHeaderProps) => {
@@ -41,7 +43,11 @@ export const EditorHeader = ({
         <Button variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={onSubmit} disabled={isSubmitting}>
+        <Button
+          onClick={onSubmit}
+          disabled={isSubmitting || saveDisabled}
+          data-testid="test-flow-save-button"
+        >
           {isSubmitting ? 'Saving...' : submitLabel}
         </Button>
       </div>

@@ -57,6 +57,9 @@ const normalizeTestFlowRow = (row: unknown): TestFlow | null => {
   const rawUserId = record.userId ?? record.user_id
   const rawCreatedAt = record.createdAt ?? record.created_at
   const rawUpdatedAt = record.updatedAt ?? record.updated_at
+  const rawLatestVersion =
+    record.latestVersionNumber ?? record.latest_version_number
+  const rawNodeCount = record.nodeCount ?? record.node_count
 
   return {
     id: rawId,
@@ -66,6 +69,13 @@ const normalizeTestFlowRow = (row: unknown): TestFlow | null => {
     userId: typeof rawUserId === 'number' ? rawUserId : undefined,
     createdAt: typeof rawCreatedAt === 'string' ? rawCreatedAt : undefined,
     updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : undefined,
+    latestVersionNumber:
+      typeof rawLatestVersion === 'number'
+        ? rawLatestVersion
+        : rawLatestVersion === null
+          ? null
+          : undefined,
+    nodeCount: typeof rawNodeCount === 'number' ? rawNodeCount : undefined,
   }
 }
 

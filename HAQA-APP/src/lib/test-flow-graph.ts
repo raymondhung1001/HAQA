@@ -200,6 +200,14 @@ export function withWorkflowEdgeDefaults(edge: Edge): Edge {
   return {
     ...edge,
     ...WORKFLOW_EDGE_OPTIONS,
+    ...(typeof edge.label === 'string' && edge.label.length > 0
+      ? {
+          label: edge.label,
+          labelShowBg: true,
+          labelStyle: { fontSize: 11, fontWeight: 500 },
+          labelBgStyle: { fill: 'rgba(255,255,255,0.92)' },
+        }
+      : {}),
     ...(isBreakTarget
       ? { targetPosition: Position.Left, sourcePosition: Position.Right }
       : {}),
@@ -2610,6 +2618,31 @@ export function createDefaultEdges(nodes: Node[]): Edge[] {
   ]
 }
 
+/** True when the canvas is still the default Start → End stub (ignores loop-body-group nodes and loop-back edges). */
+export function isEmptyStarterGraph(nodes: Node[], edges: Edge[]): boolean {
+  const workflowNodes = nodes.filter((node) => !isLoopBodyGroupNode(node))
+  if (workflowNodes.length !== 2) return false
+
+  const startNode = workflowNodes.find(
+    (node) => (node.data as WorkflowNodeData)?.nodeType === 'start',
+  )
+  const endNode = workflowNodes.find(
+    (node) => (node.data as WorkflowNodeData)?.nodeType === 'end',
+  )
+  if (!startNode || !endNode) return false
+
+  const mainEdges = edges.filter(
+    (edge) =>
+      edge.sourceHandle !== LOOP_CONTINUE_SOURCE_HANDLE && edge.data?.loopBack !== true,
+  )
+
+  return (
+    mainEdges.length === 1 &&
+    mainEdges[0]?.source === startNode.id &&
+    mainEdges[0]?.target === endNode.id
+  )
+}
+
 export function createWorkflowNode(
   nodeType: TestFlowNodeType,
   position?: { x: number; y: number },
@@ -3139,6 +3172,7 @@ export function reactFlowToGraph(
 export function graphToReactFlow(version: TestFlowVersionGraph | null): {
   nodes: Node[]
   edges: Edge[]
+  viewport?: { x: number; y: number; zoom: number }
 } {
   if (!version) {
     const nodes = createDefaultNodes()
@@ -3168,18 +3202,62 @@ export function graphToReactFlow(version: TestFlowVersionGraph | null): {
     },
   }))
 
-  const baseEdges = version.edges.map((edge) =>
-    withWorkflowEdgeDefaults({
+  const baseEdges = version.edges.map((edge) => {
+    let label = edge.label
+    if (!label && edge.sourceHandle) {
+      const source = version.nodes.find((node) => node.id === edge.sourceNodeId)
+      if (source?.nodeType === 'if-else') {
+        const branch = getIfElseBranches({
+          nodeType: 'if-else',
+          label: source.label ?? 'if-else',
+          config: source.config as Record<string, unknown> | undefined,
+        }).find((item) => item.id === edge.sourceHandle)
+        label = branch?.label
+      }
+    }
+
+    return withWorkflowEdgeDefaults({
       id: edge.id,
       source: edge.sourceNodeId,
       target: edge.targetNodeId,
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
-      label: edge.label,
-    }),
-  )
+      label,
+    })
+  })
 
-  return prepareLoadedFlowGraph(baseNodes, baseEdges)
+  return {
+    ...prepareLoadedFlowGraph(baseNodes, baseEdges),
+    viewport: readViewportFromUiLayout(version.uiLayoutJson),
+  }
+}
+
+export function readViewportFromUiLayout(
+  uiLayoutJson: Record<string, unknown> | null | undefined,
+): { x: number; y: number; zoom: number } | undefined {
+  if (!uiLayoutJson) return undefined
+
+  const viewport = uiLayoutJson.viewport
+  if (!viewport || typeof viewport !== 'object') return undefined
+
+  const record = viewport as Record<string, unknown>
+  const x = record.x
+  const y = record.y
+  const zoom = record.zoom
+
+  if (typeof x === 'number' && typeof y === 'number' && typeof zoom === 'number') {
+    return { x, y, zoom }
+  }
+
+  return undefined
+}
+
+export function buildUiLayoutJson(viewport: {
+  x: number
+  y: number
+  zoom: number
+}): Record<string, unknown> {
+  return { viewport }
 }
 
 export function getWorkflowNodeOrder(nodes: Node[]): Node[] {
@@ -3319,12 +3397,38 @@ export function pruneEdgesForRemovedBranches(
   })
 }
 
-export function connectEdge(connection: Connection, edges: Edge[]): Edge[] {
+/** Branch label for If/Else (and similar) outgoing edges shown on the canvas. */
+export function resolveBranchEdgeLabel(
+  connection: Connection,
+  nodes: Node[],
+): string | undefined {
+  if (!connection.source || !connection.sourceHandle) return undefined
+
+  const sourceNode = nodes.find((node) => node.id === connection.source)
+  if (!sourceNode) return undefined
+
+  const data = sourceNode.data as WorkflowNodeData
+  const nodeType = data?.nodeType ?? ''
+  if (nodeType !== 'if-else') return undefined
+
+  const branch = getIfElseBranches(data).find((item) => item.id === connection.sourceHandle)
+  const label = branch?.label?.trim()
+  return label || undefined
+}
+
+export function connectEdge(
+  connection: Connection,
+  edges: Edge[],
+  nodes?: Node[],
+): Edge[] {
+  const label = nodes ? resolveBranchEdgeLabel(connection, nodes) : undefined
+
   return addEdge(
     {
       ...connection,
       id: createNodeId(),
       ...WORKFLOW_EDGE_OPTIONS,
+      ...(label ? { label } : {}),
     },
     edges,
   )

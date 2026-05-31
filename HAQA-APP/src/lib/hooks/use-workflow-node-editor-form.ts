@@ -18,12 +18,59 @@ import {
   removeLoopBreakExit,
   resolveLoopBodySteps,
   type IfElseBranch,
+  type LoopBodyStep,
   type WorkflowNodeData,
 } from '@/lib/test-flow-graph'
 import type { UseWorkflowNodeEditorFormReturn } from '@/types'
-import type { ScriptLanguage } from '@/types/workflow'
+import type {
+  ApiCallNodeConfig,
+  HttpMethod,
+  ScriptLanguage,
+  WaitDurationUnit,
+  WaitNodeConfig,
+} from '@/types/workflow'
 
 const MIN_IF_ELSE_BRANCHES = 2
+
+const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+
+const readApiCallConfig = (config?: Record<string, unknown>): ApiCallNodeConfig => {
+  const method = config?.method
+  const url = config?.url
+  const body = config?.body
+  const expectedStatus = config?.expectedStatus
+  const rawHeaders = config?.headers
+
+  let headers: Record<string, string> = {}
+  if (rawHeaders && typeof rawHeaders === 'object' && !Array.isArray(rawHeaders)) {
+    headers = Object.fromEntries(
+      Object.entries(rawHeaders as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    )
+  }
+
+  return {
+    method:
+      typeof method === 'string' && HTTP_METHODS.includes(method as HttpMethod)
+        ? (method as HttpMethod)
+        : 'GET',
+    url: typeof url === 'string' ? url : '',
+    headers,
+    body: typeof body === 'string' ? body : '',
+    expectedStatus: typeof expectedStatus === 'number' ? expectedStatus : undefined,
+  }
+}
+
+const readWaitConfig = (config?: Record<string, unknown>): WaitNodeConfig => {
+  const duration = config?.duration
+  const durationUnit = config?.durationUnit
+
+  return {
+    duration: typeof duration === 'number' && duration >= 0 ? duration : 1,
+    durationUnit: durationUnit === 'ms' || durationUnit === 's' ? durationUnit : 's',
+  }
+}
 
 export const useWorkflowNodeEditorForm = (
   node: Node | null,
@@ -38,9 +85,18 @@ export const useWorkflowNodeEditorForm = (
   const [scriptContent, setScriptContent] = useState('')
   const [branches, setBranches] = useState<IfElseBranch[]>([])
   const [breakExits, setBreakExits] = useState<IfElseBranch[]>([])
+  const [apiMethod, setApiMethod] = useState<HttpMethod>('GET')
+  const [apiUrl, setApiUrl] = useState('')
+  const [apiHeaders, setApiHeaders] = useState<Array<{ key: string; value: string }>>([])
+  const [apiBody, setApiBody] = useState('')
+  const [apiExpectedStatus, setApiExpectedStatus] = useState('')
+  const [waitDuration, setWaitDuration] = useState('1')
+  const [waitDurationUnit, setWaitDurationUnit] = useState<WaitDurationUnit>('s')
 
   const isIfElseNode = nodeType === 'if-else'
   const isLoopNode = isLoopNodeType(nodeType)
+  const isApiCallNode = nodeType === 'api-call'
+  const isWaitNode = nodeType === 'wait'
 
   const loopBodySteps = useMemo<LoopBodyStep[]>(() => {
     if (!node || !isLoopNode) return []
@@ -56,10 +112,33 @@ export const useWorkflowNodeEditorForm = (
     setScriptContent(nodeData.scriptContent ?? '')
     setBranches(isIfElseNode ? readIfElseBranches(nodeData.config) : [])
     setBreakExits(isLoopNode ? readLoopBreakExits(nodeData.config) : [])
+
+    if (isApiCallNode) {
+      const apiConfig = readApiCallConfig(nodeData.config)
+      setApiMethod(apiConfig.method ?? 'GET')
+      setApiUrl(apiConfig.url ?? '')
+      setApiBody(apiConfig.body ?? '')
+      setApiExpectedStatus(
+        apiConfig.expectedStatus !== undefined ? String(apiConfig.expectedStatus) : '',
+      )
+      const headerRows = Object.entries(apiConfig.headers ?? {}).map(([key, value]) => ({
+        key,
+        value,
+      }))
+      setApiHeaders(headerRows.length > 0 ? headerRows : [{ key: '', value: '' }])
+    }
+
+    if (isWaitNode) {
+      const waitConfig = readWaitConfig(nodeData.config)
+      setWaitDuration(String(waitConfig.duration ?? 1))
+      setWaitDurationUnit(waitConfig.durationUnit ?? 's')
+    }
   }, [
     node,
     isIfElseNode,
     isLoopNode,
+    isApiCallNode,
+    isWaitNode,
     nodeData.config,
     nodeData.description,
     nodeData.label,
@@ -105,6 +184,25 @@ export const useWorkflowNodeEditorForm = (
     setBranches((current) => removeIfElseBranch(current, branchId))
   }
 
+  const handleApiHeaderChange = (index: number, field: 'key' | 'value', nextValue: string) => {
+    setApiHeaders((current) =>
+      current.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [field]: nextValue } : row,
+      ),
+    )
+  }
+
+  const handleAddApiHeader = () => {
+    setApiHeaders((current) => [...current, { key: '', value: '' }])
+  }
+
+  const handleRemoveApiHeader = (index: number) => {
+    setApiHeaders((current) => {
+      if (current.length <= 1) return [{ key: '', value: '' }]
+      return current.filter((_, rowIndex) => rowIndex !== index)
+    })
+  }
+
   const buildSavePayload = (): Partial<WorkflowNodeData> | null => {
     if (!node) return null
 
@@ -131,6 +229,37 @@ export const useWorkflowNodeEditorForm = (
       })),
     )
 
+    const baseConfig = { ...(nodeData.config ?? {}) }
+
+    if (isApiCallNode) {
+      const headers = Object.fromEntries(
+        apiHeaders
+          .filter((row) => row.key.trim())
+          .map((row) => [row.key.trim(), row.value]),
+      )
+      const parsedStatus = apiExpectedStatus.trim()
+        ? Number.parseInt(apiExpectedStatus, 10)
+        : undefined
+
+      Object.assign(baseConfig, {
+        method: apiMethod,
+        url: apiUrl.trim(),
+        body: apiBody,
+        ...(parsedStatus !== undefined && !Number.isNaN(parsedStatus)
+          ? { expectedStatus: parsedStatus }
+          : {}),
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      })
+    }
+
+    if (isWaitNode) {
+      const parsedDuration = Number.parseFloat(waitDuration)
+      Object.assign(baseConfig, {
+        duration: Number.isFinite(parsedDuration) && parsedDuration >= 0 ? parsedDuration : 0,
+        durationUnit: waitDurationUnit,
+      })
+    }
+
     return {
       label: trimmedLabel,
       description: description.trim(),
@@ -139,20 +268,22 @@ export const useWorkflowNodeEditorForm = (
       ...(isIfElseNode
         ? {
             config: {
-              ...(nodeData.config ?? {}),
+              ...baseConfig,
               branches: normalizedIfElseBranches,
             },
           }
         : isLoopNode
           ? {
               config: migrateLoopNodeConfig({
-                ...(nodeData.config ?? {}),
+                ...baseConfig,
                 branches: [...DEFAULT_LOOP_BRANCHES],
                 breakExits: normalizedLoopBreakExits,
                 bodyNodeIds: readLoopBodyNodeIds(nodeData.config),
               }),
             }
-          : {}),
+          : isApiCallNode || isWaitNode
+            ? { config: baseConfig }
+            : {}),
     }
   }
 
@@ -171,12 +302,30 @@ export const useWorkflowNodeEditorForm = (
     breakExits,
     isIfElseNode,
     isLoopNode,
+    isApiCallNode,
+    isWaitNode,
     loopBodySteps,
     minIfElseBranches: MIN_IF_ELSE_BRANCHES,
+    apiMethod,
+    setApiMethod,
+    apiUrl,
+    setApiUrl,
+    apiHeaders,
+    apiBody,
+    setApiBody,
+    apiExpectedStatus,
+    setApiExpectedStatus,
+    waitDuration,
+    setWaitDuration,
+    waitDurationUnit,
+    setWaitDurationUnit,
     handleBranchLabelChange,
     handleLoopBreakLabelChange,
     handleAddBranch,
     handleRemoveBranch,
+    handleApiHeaderChange,
+    handleAddApiHeader,
+    handleRemoveApiHeader,
     buildSavePayload,
   }
 }

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type ViteDevServer } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -69,6 +70,10 @@ const config = defineConfig({
   server: {
     port: 3000,
     strictPort: false, // Allow fallback to next available port if 3000 is busy
+  },
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })
 

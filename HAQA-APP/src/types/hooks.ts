@@ -9,7 +9,7 @@ import type {
   IfElseBranch,
   LoopBodyStep,
 } from '@/lib/test-flow-graph'
-import type { ScriptLanguage } from '@/types/workflow'
+import type { ScriptLanguage, HttpMethod, WaitDurationUnit } from '@/types/workflow'
 
 export interface UseTestFlowFiltersReturn {
   filters: TestFlowFilters
@@ -70,11 +70,29 @@ export interface UseWorkflowNodeEditorFormReturn {
   breakExits: IfElseBranch[]
   isIfElseNode: boolean
   isLoopNode: boolean
+  isApiCallNode: boolean
+  isWaitNode: boolean
   loopBodySteps: LoopBodyStep[]
   minIfElseBranches: number
+  apiMethod: HttpMethod
+  setApiMethod: Dispatch<SetStateAction<HttpMethod>>
+  apiUrl: string
+  setApiUrl: Dispatch<SetStateAction<string>>
+  apiHeaders: Array<{ key: string; value: string }>
+  apiBody: string
+  setApiBody: Dispatch<SetStateAction<string>>
+  apiExpectedStatus: string
+  setApiExpectedStatus: Dispatch<SetStateAction<string>>
+  waitDuration: string
+  setWaitDuration: Dispatch<SetStateAction<string>>
+  waitDurationUnit: WaitDurationUnit
+  setWaitDurationUnit: Dispatch<SetStateAction<WaitDurationUnit>>
   handleBranchLabelChange: (branchId: string, nextLabel: string) => void
   handleLoopBreakLabelChange: (branchId: string, nextLabel: string) => void
   handleAddBranch: () => void
   handleRemoveBranch: (branchId: string) => void
+  handleApiHeaderChange: (index: number, field: 'key' | 'value', nextValue: string) => void
+  handleAddApiHeader: () => void
+  handleRemoveApiHeader: (index: number) => void
   buildSavePayload: () => Partial<WorkflowNodeData> | null
 }

@@ -29,6 +29,7 @@ export const NodePalette = ({ onAddNode, hasStartNode, hasEndNode }: NodePalette
               variant="ghost"
               size="sm"
               disabled={disabled}
+              data-testid={`palette-node-${def.type}`}
               onClick={() => onAddNode(def.type)}
               className="h-auto w-full justify-start gap-2 px-2 py-2 text-left"
               title={

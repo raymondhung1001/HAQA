@@ -255,7 +255,7 @@ export const useWorkflowGraph = ({
       const normalized = normalizeLoopBodyBreakTargetConnection(connection, currentNodes)
       if (!isValidWorkflowConnection(normalized, currentNodes)) return
 
-      let nextEdges = connectEdge(normalized, currentEdges)
+      let nextEdges = connectEdge(normalized, currentEdges, currentNodes)
       let nextNodes = repositionNodeForBranchConnection(currentNodes, normalized)
       const loopBodyResult = appendTargetToLoopBodyOnConnect(normalized, nextNodes, nextEdges)
       const layout = applyLoopBodyRelayout(loopBodyResult.nodes, loopBodyResult.edges)

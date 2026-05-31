@@ -283,7 +283,11 @@ export const apiRequest = async <T = unknown>(
     let errorMessage = 'An error occurred'
     try {
       const errorData = await response.json()
-      errorMessage = errorData.message || errorData.error || errorMessage
+      if (Array.isArray(errorData.message)) {
+        errorMessage = errorData.message.join('; ')
+      } else {
+        errorMessage = errorData.message || errorData.error || errorMessage
+      }
     } catch {
       errorMessage = response.statusText || `HTTP ${response.status}`
     }

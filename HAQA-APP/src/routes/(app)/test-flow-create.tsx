@@ -5,7 +5,7 @@ import { TestFlowEditor } from '@/components/test-flow-editor'
 import { useTestFlowEditorPage } from '@/lib/hooks'
 
 const CreateTestFlowPage = () => {
-  const { handleCancel, handleSubmit, isSubmitting, layoutClassName } = useTestFlowEditorPage({
+  const { handleCancel, handleSubmit, isSubmitting, setIsDirty, layoutClassName } = useTestFlowEditorPage({
     mode: 'create',
   })
 
@@ -20,6 +20,7 @@ const CreateTestFlowPage = () => {
           className={layoutClassName}
           onCancel={handleCancel}
           onSubmit={handleSubmit}
+          onDirtyChange={setIsDirty}
         />
       </div>
     </Navigation>

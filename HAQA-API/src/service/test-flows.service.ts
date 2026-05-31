@@ -15,6 +15,7 @@ import { DeepPartial } from 'typeorm';
 import {
     CreateTestFlowDto,
     SearchTestFlowsDto,
+    TestFlowListItem,
     UpdateTestFlowDto,
 } from './test-flows.service.types';
 import {
@@ -26,7 +27,7 @@ import {
     TestFlowVersionGraphResponse,
 } from './test-flow-graph.types';
 
-export type { CreateTestFlowDto, SearchTestFlowsDto, UpdateTestFlowDto } from './test-flows.service.types';
+export type { CreateTestFlowDto, SearchTestFlowsDto, TestFlowListItem, UpdateTestFlowDto } from './test-flows.service.types';
 
 export interface CreateTestFlowWithGraphDto extends CreateTestFlowDto {
     graph?: TestFlowGraphDto;
@@ -146,7 +147,13 @@ export class TestFlowsService {
         });
     }
 
-    async search(searchDto: SearchTestFlowsDto) {
+    async search(searchDto: SearchTestFlowsDto): Promise<{
+        data: TestFlowListItem[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    }> {
         const page = searchDto.page && searchDto.page > 0 ? searchDto.page : 1;
         const limit = searchDto.limit && searchDto.limit > 0 ? Math.min(searchDto.limit, 100) : 10;
         const sortBy = searchDto.sortBy || 'createdAt';

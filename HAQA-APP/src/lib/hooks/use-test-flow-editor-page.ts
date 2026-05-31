@@ -1,4 +1,8 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useState } from 'react'
+import { useBlocker, useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
+
+import { parseApiErrorMessage } from '@/lib/parse-api-error'
 import { cloneGraphWithFreshIds } from '@/lib/test-flow-graph'
 
 import {
@@ -20,26 +24,58 @@ export const useTestFlowEditorPage = (
   options: UseTestFlowEditorPageOptions,
 ): TestFlowEditorPageResult => {
   const navigate = useNavigate()
-  const navigateToList = () => navigate({ to: '/test-flow/', replace: true })
+  const [isDirty, setIsDirty] = useState(false)
+
+  const navigateToList = useCallback(() => {
+    navigate({ to: '/test-flow', replace: true })
+  }, [navigate])
 
   const createMutation = useCreateTestFlow({
-    onSuccess: navigateToList,
+    onError: (error) => {
+      toast.error(parseApiErrorMessage(error, 'Failed to create test flow'))
+    },
   })
 
-  const updateMutation = useUpdateTestFlow()
+  const updateMutation = useUpdateTestFlow({
+    onError: (error) => {
+      toast.error(
+        `Failed to save flow details: ${parseApiErrorMessage(error, 'Could not update metadata')}`,
+      )
+    },
+  })
+
   const saveGraphMutation = useSaveTestFlowGraph({
-    onSuccess: navigateToList,
+    onError: (error) => {
+      toast.error(
+        `Failed to save workflow graph: ${parseApiErrorMessage(error, 'Could not save graph')}`,
+      )
+    },
   })
 
-  const handleCancel = navigateToList
+  useBlocker({
+    shouldBlockFn: () => {
+      if (!isDirty) return false
+      return !window.confirm('You have unsaved changes. Leave without saving?')
+    },
+    enableBeforeUnload: isDirty,
+  })
+
+  const handleCancel = useCallback(() => {
+    if (
+      isDirty &&
+      !window.confirm('You have unsaved changes. Leave without saving?')
+    ) {
+      return
+    }
+    navigateToList()
+  }, [isDirty, navigateToList])
 
   const isSubmitting =
     options.mode === 'create'
       ? createMutation.isPending
       : updateMutation.isPending || saveGraphMutation.isPending
 
-  const handleSubmit = (formData: TestFlowEditorFormData, graph: TestFlowGraph) => {
-    const persistedGraph = cloneGraphWithFreshIds(graph)
+  const handleSubmit = async (formData: TestFlowEditorFormData, graph: TestFlowGraph) => {
     const flowDetails = {
       name: formData.name,
       description: formData.description || undefined,
@@ -47,24 +83,43 @@ export const useTestFlowEditorPage = (
     }
 
     if (options.mode === 'create') {
-      createMutation.mutate({
-        ...flowDetails,
-        graph: persistedGraph,
-      })
+      try {
+        await createMutation.mutateAsync({
+          ...flowDetails,
+          graph: cloneGraphWithFreshIds(graph),
+        })
+        toast.success('Test flow created successfully')
+        navigateToList()
+      } catch {
+        // onError toast already shown
+      }
       return
     }
 
-    updateMutation.mutate({
-      id: options.id,
-      data: flowDetails,
-    })
-    saveGraphMutation.mutate({ id: options.id, graph: persistedGraph })
+    try {
+      await updateMutation.mutateAsync({
+        id: options.id,
+        data: flowDetails,
+      })
+    } catch {
+      return
+    }
+
+    try {
+      await saveGraphMutation.mutateAsync({ id: options.id, graph })
+      toast.success('Test flow saved successfully')
+      navigateToList()
+    } catch {
+      // Partial failure: metadata saved but graph failed — onError toast already shown
+    }
   }
 
   return {
     handleCancel,
     handleSubmit,
     isSubmitting,
+    isDirty,
+    setIsDirty,
     layoutClassName: TEST_FLOW_EDITOR_LAYOUT_CLASS,
   }
 }

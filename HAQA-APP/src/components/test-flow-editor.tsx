@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -7,10 +7,12 @@ import {
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import type { Edge, Node } from '@xyflow/react'
+import type { Edge, Node, Viewport } from '@xyflow/react'
 
+import { Callout } from '@/components/callout'
 import { EditorHeader } from '@/components/test-flow/editor-header'
 import { TestFlowMetadataForm } from '@/components/test-flow/metadata-form'
 import { NodePalette } from '@/components/test-flow/node-palette'
@@ -18,10 +20,15 @@ import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
 import { useWorkflowGraph } from '@/lib/hooks/use-workflow-graph'
 import { cn } from '@/lib/utils'
 import {
+  buildUiLayoutJson,
+  createDefaultEdges,
+  createDefaultNodes,
+  isEmptyStarterGraph,
   reactFlowToGraph,
   WORKFLOW_EDGE_OPTIONS,
   WORKFLOW_NODE_ORIGIN,
 } from '@/lib/test-flow-graph'
+import { validateTestFlowGraph } from '@/lib/test-flow-validation'
 import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
@@ -74,16 +81,36 @@ const getBoardTranslateExtent = (flowNodes: Node[]): [[number, number], [number,
   ]
 }
 
+const serializeEditorSnapshot = (
+  formData: TestFlowEditorFormData,
+  nodes: Node[],
+  edges: Edge[],
+): string => {
+  return JSON.stringify({
+    formData,
+    graph: reactFlowToGraph(nodes, edges),
+  })
+}
+
+const isDefaultStarterGraph = (nodes: Node[], edges: Edge[]): boolean => {
+  if (nodes.length !== 2 || edges.length !== 1) return false
+
+  const types = nodes.map((node) => node.data?.nodeType).sort()
+  return types[0] === 'end' && types[1] === 'start'
+}
+
 interface TestFlowEditorProps {
   title: string
   submitLabel: string
   initialFormData: TestFlowEditorFormData
   initialNodes?: Node[]
   initialEdges?: Edge[]
+  initialViewport?: Viewport
   isSubmitting?: boolean
   className?: string
   onCancel: () => void
   onSubmit: (formData: TestFlowEditorFormData, graph: TestFlowGraph) => void
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 const TestFlowEditorCanvas = ({
@@ -92,14 +119,27 @@ const TestFlowEditorCanvas = ({
   initialFormData,
   initialNodes,
   initialEdges,
+  initialViewport,
   isSubmitting = false,
   className,
   onCancel,
   onSubmit,
+  onDirtyChange,
 }: TestFlowEditorProps) => {
+  const { getViewport, setViewport } = useReactFlow()
   const [formData, setFormData] = useState(initialFormData)
   const [nameError, setNameError] = useState<string | undefined>()
   const [showFlowHelp, setShowFlowHelp] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<Array<{ code: string; message: string }>>([])
+  const viewportRestoredRef = useRef(false)
+
+  const baselineSnapshotRef = useRef(
+    serializeEditorSnapshot(
+      initialFormData,
+      initialNodes ?? createDefaultNodes(),
+      initialEdges ?? createDefaultEdges(initialNodes ?? createDefaultNodes()),
+    ),
+  )
 
   const {
     nodes,
@@ -126,14 +166,67 @@ const TestFlowEditorCanvas = ({
 
   const boardTranslateExtent = useMemo(() => getBoardTranslateExtent(flowNodes), [flowNodes])
 
-  const handleSubmit = () => {
+  const graphValidation = useMemo(
+    () => validateTestFlowGraph(reactFlowToGraph(nodes, edges)),
+    [nodes, edges],
+  )
+
+  const isDirty = useMemo(() => {
+    const current = serializeEditorSnapshot(formData, nodes, edges)
+    return current !== baselineSnapshotRef.current
+  }, [formData, nodes, edges])
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    if (!initialViewport || viewportRestoredRef.current) return
+    setViewport(initialViewport, { duration: 0 })
+    viewportRestoredRef.current = true
+  }, [initialViewport, setViewport])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
+      if (event.key === '?' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault()
+        setShowFlowHelp((current) => !current)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const handleSubmit = useCallback(() => {
     if (!formData.name.trim()) {
       setNameError('Please enter a test flow name')
       return
     }
     setNameError(undefined)
-    onSubmit(formData, reactFlowToGraph(nodes, edges))
-  }
+
+    const validation = validateTestFlowGraph(reactFlowToGraph(nodes, edges))
+    setValidationErrors(validation.errors)
+    if (!validation.valid) return
+
+    const viewport = getViewport()
+    const graph = reactFlowToGraph(nodes, edges, buildUiLayoutJson(viewport))
+    onSubmit(formData, graph)
+  }, [formData, nodes, edges, getViewport, onSubmit])
+
+  const showEmptyCanvasHint = isEmptyStarterGraph(nodes, edges)
+  const saveDisabled = !graphValidation.valid
 
   return (
     <div
@@ -146,6 +239,7 @@ const TestFlowEditorCanvas = ({
         title={title}
         submitLabel={submitLabel}
         isSubmitting={isSubmitting}
+        saveDisabled={saveDisabled}
         onCancel={onCancel}
         onSubmit={handleSubmit}
       />
@@ -155,6 +249,37 @@ const TestFlowEditorCanvas = ({
           <TestFlowMetadataForm formData={formData} onChange={setFormData} />
           {nameError ? (
             <p className="px-4 pb-2 text-sm text-red-600 dark:text-red-400">{nameError}</p>
+          ) : null}
+
+          {!graphValidation.valid ? (
+            <div className="px-4 pb-3">
+              <Callout variant="warning" title="Fix graph issues before saving">
+                <ul className="list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
+                  {graphValidation.errors.map((error) => (
+                    <li key={`${error.code}-${error.nodeId ?? error.message}`}>{error.message}</li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          ) : validationErrors.length > 0 ? (
+            <div className="px-4 pb-3">
+              <Callout variant="warning" title="Could not save">
+                <ul className="list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
+                  {validationErrors.map((error) => (
+                    <li key={`${error.code}-${error.message}`}>{error.message}</li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          ) : null}
+
+          {showEmptyCanvasHint ? (
+            <div className="px-4 pb-3">
+              <Callout variant="info" title="Get started">
+                Add nodes from the palette below, then connect handles on the canvas to build your
+                workflow.
+              </Callout>
+            </div>
           ) : null}
 
           <div className="min-h-[220px] flex-1 lg:min-h-0">
@@ -167,7 +292,7 @@ const TestFlowEditorCanvas = ({
         </aside>
 
         <section className="relative min-h-[62vh] min-w-0 flex-1 lg:min-h-0">
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" data-testid="test-flow-canvas">
             <ReactFlow
               nodes={flowNodes}
               edges={flowEdges}
@@ -192,13 +317,13 @@ const TestFlowEditorCanvas = ({
                 minZoom: FLOW_BOARD_FIT_MIN_ZOOM,
                 maxZoom: FLOW_BOARD_FIT_MAX_ZOOM,
               }}
-              fitView
+              fitView={!initialViewport}
             >
               <Background gap={20} size={1} />
               <Controls className="!shadow-md">
                 <ControlButton
                   aria-label="Flow board help"
-                  title="Flow board help"
+                  title="Flow board help (?)"
                   className="!bg-white hover:!bg-slate-100 dark:!bg-slate-800 dark:hover:!bg-slate-700"
                   onClick={() => setShowFlowHelp((current) => !current)}
                 >
@@ -220,12 +345,13 @@ const TestFlowEditorCanvas = ({
 
           {showFlowHelp ? (
             <p className="pointer-events-none absolute bottom-3 left-16 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-              Add nodes from the palette to grow the flow to the right, connect handles to build a
-              branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
-              the canvas, wire If / Else branches to orange Break handles on the loop body rail (then
-              out to main flow), use blue Done to continue after the loop, use the arrow buttons on a
-              main-flow step to swap its order, connect handles between steps, double-click or use the
-              edit button to configure a node, and press Delete to remove a selected node.
+              Press <kbd className="rounded border px-1">?</kbd> to toggle this help. Add nodes from
+              the palette to grow the flow to the right, connect handles to build a branch tree (If /
+              Else needs Yes/Else handles), add loop body steps and wire them in the canvas, wire If /
+              Else branches to orange Break handles on the loop body rail (then out to main flow), use
+              blue Done to continue after the loop, use the arrow buttons on a main-flow step to swap
+              its order, connect handles between steps, double-click or use the edit button to
+              configure a node, and press Delete to remove a selected node.
             </p>
           ) : null}
         </section>

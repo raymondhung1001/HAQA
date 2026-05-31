@@ -1,5 +1,6 @@
 import { IRepository } from './generic-repository.interface';
 import { TestFlows } from '@/entities/TestFlows';
+import { TestFlowListItem } from '@/service/test-flows.service.types';
 
 export interface PaginatedResult<T> {
     data: T[];
@@ -10,6 +11,6 @@ export interface PaginatedResult<T> {
 }
 
 export interface ITestFlowsRepository extends IRepository<TestFlows> {
-    search(query: string, isActive?: boolean, userId?: number, page?: number, limit?: number, sortBy?: 'createdAt' | 'updatedAt'): Promise<PaginatedResult<TestFlows>>;
+    search(query: string, isActive?: boolean, userId?: number, page?: number, limit?: number, sortBy?: 'createdAt' | 'updatedAt'): Promise<PaginatedResult<TestFlowListItem>>;
 }
 

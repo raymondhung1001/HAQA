@@ -536,6 +536,10 @@ export const WorkflowNode = ({ data, selected, parentId }: NodeProps) => {
             <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
               {description}
             </p>
+          ) : nodeType === 'script' && nodeData.scriptContent?.trim() ? (
+            <p className="mt-0.5 line-clamp-2 font-mono text-[10px] text-gray-500 dark:text-gray-400">
+              {nodeData.scriptContent.trim()}
+            </p>
           ) : (
             <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
               {nodeType}

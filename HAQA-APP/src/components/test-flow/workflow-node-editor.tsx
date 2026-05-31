@@ -69,6 +69,24 @@ export const WorkflowNodeEditor = ({
     handleAddBranch,
     handleRemoveBranch,
     buildSavePayload,
+    isApiCallNode,
+    isWaitNode,
+    apiMethod,
+    setApiMethod,
+    apiUrl,
+    setApiUrl,
+    apiHeaders,
+    apiBody,
+    setApiBody,
+    apiExpectedStatus,
+    setApiExpectedStatus,
+    waitDuration,
+    setWaitDuration,
+    waitDurationUnit,
+    setWaitDurationUnit,
+    handleApiHeaderChange,
+    handleAddApiHeader,
+    handleRemoveApiHeader,
   } = useWorkflowNodeEditorForm(node, allNodes)
 
   const loopBodyWorkDefinitions = getLoopBodyWorkNodeDefinitions() ?? []
@@ -113,7 +131,11 @@ export const WorkflowNodeEditor = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        side="right"
+        className="w-full overflow-y-auto sm:max-w-lg"
+        data-testid="workflow-node-sheet"
+      >
         <SheetHeader>
           <SheetTitle>Edit Workflow Node</SheetTitle>
           <SheetDescription>
@@ -364,6 +386,113 @@ export const WorkflowNodeEditor = ({
                 />
               </FormField>
             </>
+          )}
+
+          {isApiCallNode && (
+            <>
+              <FormField label="HTTP Method">
+                <select
+                  value={apiMethod}
+                  onChange={(e) => setApiMethod(e.target.value as typeof apiMethod)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="PATCH">PATCH</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </FormField>
+
+              <FormField label="URL">
+                <Input
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                  placeholder="https://api.example.com/resource"
+                />
+              </FormField>
+
+              <FormField label="Headers">
+                <div className="space-y-2">
+                  {apiHeaders.map((row, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={row.key}
+                        onChange={(e) => handleApiHeaderChange(index, 'key', e.target.value)}
+                        placeholder="Header name"
+                        className="min-w-0 flex-1"
+                      />
+                      <Input
+                        value={row.value}
+                        onChange={(e) => handleApiHeaderChange(index, 'value', e.target.value)}
+                        placeholder="Value"
+                        className="min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => handleRemoveApiHeader(index)}
+                        title="Remove header"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddApiHeader}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add header
+                  </Button>
+                </div>
+              </FormField>
+
+              <FormField label="Request Body">
+                <Textarea
+                  value={apiBody}
+                  onChange={(e) => setApiBody(e.target.value)}
+                  className="min-h-[120px] font-mono text-sm"
+                  placeholder='{"key": "value"}'
+                  spellCheck={false}
+                />
+              </FormField>
+
+              <FormField label="Expected Status Code">
+                <Input
+                  type="number"
+                  min={100}
+                  max={599}
+                  value={apiExpectedStatus}
+                  onChange={(e) => setApiExpectedStatus(e.target.value)}
+                  placeholder="200"
+                />
+              </FormField>
+            </>
+          )}
+
+          {isWaitNode && (
+            <FormField label="Duration">
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={waitDuration}
+                  onChange={(e) => setWaitDuration(e.target.value)}
+                  className="min-w-0 flex-1"
+                />
+                <select
+                  value={waitDurationUnit}
+                  onChange={(e) =>
+                    setWaitDurationUnit(e.target.value as typeof waitDurationUnit)
+                  }
+                  className="flex h-9 w-24 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="ms">ms</option>
+                  <option value="s">s</option>
+                </select>
+              </div>
+            </FormField>
           )}
         </div>
 
