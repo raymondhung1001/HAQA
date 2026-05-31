@@ -22,7 +22,7 @@ import {
   getLoopBodyBreakHandleCenterY,
   getLoopBodyDoneHandleCenterY,
   clampLoopBodyBreakHandleCenterY,
-} from '@/components/test-flow/workflow-node-layout'
+} from './workflow-node-layout'
 import {
   getIfElseBranches,
   isLoopNodeType,
@@ -33,6 +33,22 @@ import {
   getLoopBranchRowCount,
   getLoopNodeHeight,
 } from './branch-config'
+import {
+  deriveLoopBodyLayoutOrder,
+  findLoopBodyEntryNodeIds,
+  findLoopBodyLeafNodeIds,
+  findLoopNodeForBodyMember,
+  getLoopNestingDepth,
+  isBranchingWorkNodeType,
+  isCanvasLayoutNode,
+  isNodeInLoopBody,
+} from './loop-body-selectors'
+import {
+  canConnectBodyBranchToLoopBreak,
+  getBreakExitsForLoopBodyGroup,
+} from './loop-body-connections'
+import { getLoopBodyGroupId, isLoopBodyGroupNode } from './loop-body-ids'
+import { LoopBodyAggregate } from './loop-body-aggregate'
 import { createWorkflowNode, createNodeId } from './nodes'
 import { connectEdge, pruneEdgesForRemovedBranches, workflowEdgeExists } from './connections'
 import { withWorkflowEdgeDefaults, isLoopBackEdge } from './edge-helpers'
@@ -41,32 +57,20 @@ import {
   canSwapWorkflowNode,
   getBranchOffsetY,
 } from './layout'
-import { isTestFlowNodeType } from '@/components/test-flow/workflow-node-definitions'
+import { isTestFlowNodeType } from './workflow-node-meta'
 
-function isNodeInAnyLoopBody(nodeId: string, nodes: Node[]): boolean {
-  return nodes.some((node) => {
-    const data = node.data as WorkflowNodeData
-    if (!isLoopNodeType(data.nodeType ?? '')) return false
-    return readLoopBodyNodeIds(data.config).includes(nodeId)
-  })
-}
-
-/** Parent loop that lists `loopNodeId` in its body (for nested loop exit wiring). */
-export function getLoopBodyGroupId(loopNodeId: string): string {
-  return `${loopNodeId}-loop-body`
-}
-
-export function isLoopBodyGroupNode(node: Node): boolean {
-  return node.type === LOOP_BODY_GROUP_NODE_TYPE
-}
-
-function findParentLoopNode(loopNodeId: string, nodes: Node[]): Node | undefined {
-  return nodes.find((node) => {
-    const data = node.data as WorkflowNodeData
-    if (!isLoopNodeType(data.nodeType ?? '')) return false
-    return readLoopBodyNodeIds(data.config).includes(loopNodeId)
-  })
-}
+export {
+  deriveLoopBodyLayoutOrder,
+  findLoopBodyEntryNodeIds,
+  findLoopBodyLeafNodeIds,
+  findLoopNodeForBodyMember,
+  getLoopNestingDepth,
+  isBranchingWorkNodeType,
+  isCanvasLayoutNode,
+  isNodeInLoopBody,
+} from './loop-body-selectors'
+export { canConnectBodyBranchToLoopBreak, getBreakExitsForLoopBodyGroup } from './loop-body-connections'
+export { getLoopBodyGroupId, isLoopBodyGroupNode } from './loop-body-ids'
 
 function isValidLoopGroupExitTarget(
   loopNodeId: string,
@@ -75,107 +79,17 @@ function isValidLoopGroupExitTarget(
 ): boolean {
   if (isCanvasLayoutNode(targetNode, nodes)) return true
 
-  const parentLoop = findParentLoopNode(loopNodeId, nodes)
+  const parentLoop = nodes.find((node) => {
+    const data = node.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) return false
+    return readLoopBodyNodeIds(data.config).includes(loopNodeId)
+  })
   if (!parentLoop) return false
 
   if (!isNodeInLoopBody(targetNode.id, parentLoop, nodes)) return false
 
   const targetType = (targetNode.data as WorkflowNodeData)?.nodeType ?? ''
   return isLoopBodyWorkNodeType(targetType as TestFlowNodeType)
-}
-
-export function isCanvasLayoutNode(node: Node, nodes: Node[] = []): boolean {
-  if (isLoopBodyGroupNode(node)) return false
-  if (node.parentId && node.parentId.endsWith('-loop-body')) return false
-  if (isNodeInAnyLoopBody(node.id, nodes)) return false
-  return true
-}
-
-/** Work nodes that fan out to multiple outgoing paths (branch) vs a single default output (leaf path). */
-export function isBranchingWorkNodeType(nodeType: string): boolean {
-  return nodeType === 'if-else' || isLoopNodeType(nodeType)
-}
-
-function getLoopBodyMemberSet(bodyNodeIds: string[]): Set<string> {
-  return new Set(bodyNodeIds)
-}
-
-function getLoopBodyMemberEdges(edges: Edge[], bodySet: Set<string>): Edge[] {
-  return edges.filter((edge) => bodySet.has(edge.source) && bodySet.has(edge.target))
-}
-
-/** Roots of the loop body work graph (no incoming edges from other body steps). */
-export function findLoopBodyEntryNodeIds(
-  bodyNodeIds: string[],
-  edges: Edge[],
-  loopNodeId: string,
-): string[] {
-  const bodySet = getLoopBodyMemberSet(bodyNodeIds)
-  const incomingFromBody = new Set<string>()
-
-  for (const edge of getLoopBodyMemberEdges(edges, bodySet)) {
-    incomingFromBody.add(edge.target)
-  }
-
-  const entries = bodyNodeIds.filter((id) => !incomingFromBody.has(id))
-  if (entries.length > 0) return entries
-
-  const fromLoop = edges
-    .filter(
-      (edge) =>
-        edge.source === loopNodeId &&
-        edge.sourceHandle === LOOP_BODY_BRANCH_ID &&
-        bodySet.has(edge.target),
-    )
-    .map((edge) => edge.target)
-
-  return fromLoop.length > 0 ? fromLoop : bodyNodeIds.slice(0, 1)
-}
-
-/** Steps with no further body successors — iteration paths end here before continue-back. */
-export function findLoopBodyLeafNodeIds(bodyNodeIds: string[], edges: Edge[]): string[] {
-  const bodySet = getLoopBodyMemberSet(bodyNodeIds)
-  const outgoingToBodyOrOutside = new Set<string>()
-
-  for (const edge of edges) {
-    if (bodySet.has(edge.source) && !isLoopBackEdge(edge)) {
-      outgoingToBodyOrOutside.add(edge.source)
-    }
-  }
-
-  return bodyNodeIds.filter((id) => !outgoingToBodyOrOutside.has(id))
-}
-
-/** BFS order from entry nodes for layout; disconnected members follow bodyNodeIds order. */
-export function deriveLoopBodyLayoutOrder(
-  bodyNodeIds: string[],
-  edges: Edge[],
-  loopNodeId: string,
-): string[] {
-  const bodySet = getLoopBodyMemberSet(bodyNodeIds)
-  const entries = findLoopBodyEntryNodeIds(bodyNodeIds, edges, loopNodeId)
-  const order: string[] = []
-  const visited = new Set<string>()
-  const queue = [...entries]
-
-  while (queue.length > 0) {
-    const id = queue.shift()
-    if (!id || visited.has(id)) continue
-
-    visited.add(id)
-    order.push(id)
-
-    for (const edge of edges) {
-      if (edge.source !== id || !bodySet.has(edge.target) || visited.has(edge.target)) continue
-      queue.push(edge.target)
-    }
-  }
-
-  for (const id of bodyNodeIds) {
-    if (!visited.has(id)) order.push(id)
-  }
-
-  return order
 }
 
 function workflowEdgeExists(
@@ -229,26 +143,6 @@ function getLoopBodyGroupSize(
   return { width, height }
 }
 
-/** How many ancestor loop bodies contain this loop node (0 = main-flow loop). */
-export function getLoopNestingDepth(loopNodeId: string, nodes: Node[]): number {
-  let depth = 0
-  let memberId: string | null = loopNodeId
-
-  while (memberId) {
-    const parentLoop = nodes.find((node) => {
-      const data = node.data as WorkflowNodeData
-      if (!isLoopNodeType(data.nodeType ?? '')) return false
-      return readLoopBodyNodeIds(data.config).includes(memberId!)
-    })
-
-    if (!parentLoop) break
-
-    depth += 1
-    memberId = parentLoop.id
-  }
-
-  return depth
-}
 
 function getNestedLoopBodyTopInset(): number {
   const { labelHeight, padding } = LOOP_BODY_GROUP
@@ -963,87 +857,6 @@ export function getLoopBreakOutputPosition(
   }
 }
 
-export function isNodeInLoopBody(nodeId: string, loopNode: Node, nodes: Node[]): boolean {
-  const bodyIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
-  if (bodyIds.includes(nodeId)) return true
-
-  const groupId = getLoopBodyGroupId(loopNode.id)
-  let currentId: string | undefined = nodeId
-
-  while (currentId) {
-    if (currentId === groupId) return true
-
-    const current = nodes.find((node) => node.id === currentId)
-    if (!current?.parentId) return false
-
-    if (current.parentId === groupId || current.parentId === loopNode.id) return true
-    if (bodyIds.includes(current.parentId)) return true
-
-    currentId = current.parentId
-  }
-
-  return false
-}
-
-export function findLoopNodeForBodyMember(nodeId: string, nodes: Node[]): Node | undefined {
-  let deepestLoop: Node | undefined
-  let maxDepth = -1
-
-  for (const node of nodes) {
-    const data = node.data as WorkflowNodeData
-    if (!isLoopNodeType(data.nodeType ?? '')) continue
-    if (!isNodeInLoopBody(nodeId, node, nodes)) continue
-
-    const depth = getLoopNestingDepth(node.id, nodes)
-    if (depth > maxDepth) {
-      maxDepth = depth
-      deepestLoop = node
-    }
-  }
-
-  return deepestLoop
-}
-
-function isLoopBodyBreakIncomingConnection(
-  connection: Connection,
-  targetNode: Node,
-  owningLoop: Node,
-  nodes: Node[],
-): boolean {
-  if (!isLoopBodyGroupNode(targetNode)) return false
-
-  const loopNodeId = (targetNode.data as { loopNodeId?: string })?.loopNodeId
-  if (loopNodeId !== owningLoop.id) return false
-
-  const breakExits = getBreakExitsForLoopBodyGroup(targetNode, nodes)
-  if (breakExits.length === 0) return false
-
-  return breakExits.some(
-    (branch) =>
-      connection.targetHandle === `${branch.id}-target` ||
-      connection.targetHandle === branch.id,
-  )
-}
-
-export function getBreakExitsForLoopBodyGroup(targetNode: Node, nodes: Node[]): IfElseBranch[] {
-  const loopNodeId = (targetNode.data as { loopNodeId?: string })?.loopNodeId
-  const loopNode =
-    typeof loopNodeId === 'string' && loopNodeId.length > 0
-      ? nodes.find((node) => node.id === loopNodeId)
-      : undefined
-  const fromLoop = loopNode
-    ? readLoopBreakExits((loopNode.data as WorkflowNodeData).config)
-    : []
-
-  if (fromLoop.length > 0) return fromLoop
-
-  const fromGroup = Array.isArray(targetNode.data?.breakExits)
-    ? (targetNode.data.breakExits as IfElseBranch[])
-    : []
-
-  return fromGroup
-}
-
 function loopBodyHasIfElseNode(
   loopNodeId: string,
   bodyNodeIds: string[],
@@ -1085,43 +898,6 @@ function normalizeLoopConfigForBody(
   }
 }
 
-function getLoopNodeForBodyGroup(targetNode: Node, nodes: Node[]): Node | undefined {
-  if (!isLoopBodyGroupNode(targetNode)) return undefined
-
-  const loopNodeId = (targetNode.data as { loopNodeId?: string })?.loopNodeId
-  if (typeof loopNodeId !== 'string' || loopNodeId.length === 0) return undefined
-
-  return nodes.find((node) => node.id === loopNodeId)
-}
-
-export function canConnectBodyBranchToLoopBreak(
-  connection: Connection,
-  sourceNode: Node,
-  targetNode: Node,
-  nodes: Node[],
-): boolean {
-  const targetLoop = getLoopNodeForBodyGroup(targetNode, nodes)
-  if (!targetLoop) return false
-
-  if (!isLoopBodyBreakIncomingConnection(connection, targetNode, targetLoop, nodes)) {
-    return false
-  }
-
-  const breakExits = getBreakExitsForLoopBodyGroup(targetNode, nodes)
-  if (breakExits.length === 0) return false
-
-  if (!isNodeInLoopBody(sourceNode.id, targetLoop, nodes)) return false
-
-  const sourceType = (sourceNode.data as WorkflowNodeData)?.nodeType ?? ''
-  const handle = connection.sourceHandle
-
-  if (sourceType !== 'if-else') return false
-  if (!handle) return false
-
-  const branches = getIfElseBranches(sourceNode.data as WorkflowNodeData)
-  return branches.some((branch) => branch.id === handle)
-}
-
 function getIfElseBranchHandleLaneY(
   node: Node,
   branchId: string,
@@ -1142,7 +918,7 @@ function getIfElseBranchHandleLaneY(
   return positionInGroup.y + (handleCenterFromTop - nodeHeight / 2)
 }
 
-function resolveBreakHandleCenterYForGroup(
+export function resolveBreakHandleCenterYForGroup(
   groupNode: Node,
   breakId: string,
   index: number,
@@ -1782,51 +1558,10 @@ export function applyLoopBodyUpdate(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const loopNode = nodes.find((node) => node.id === loopNodeId)
-  if (!loopNode) return { nodes, edges }
-
-  const validIds = normalizeLoopBodyNodeIds(
-    bodyNodeIds,
-    new Set(nodes.map((node) => node.id)),
-  )
-
-  const { config: nextLoopConfig, hasIfElse } = normalizeLoopConfigForBody(
-    loopNodeId,
-    (loopNode.data as WorkflowNodeData).config as Record<string, unknown> | undefined,
-    validIds,
-    nodes,
-  )
-
-  const nextLoopNode = {
-    ...loopNode,
-    data: {
-      ...loopNode.data,
-      config: nextLoopConfig,
-    },
-  }
-
-  const positionedNodes = layoutLoopBodyNodes(nextLoopNode, validIds, nodes, edges).map((node) => {
-    if (node.id !== loopNodeId) return node
-
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        config: nextLoopConfig,
-      },
-    }
-  })
-
-  let nextEdges = edges
-  if (!hasIfElse) {
-    const groupId = getLoopBodyGroupId(loopNodeId)
-    nextEdges = pruneEdgesForRemovedBranches(edges, groupId, [])
-  }
-
-  return {
-    nodes: positionedNodes,
-    edges: syncLoopBodyEdges(loopNodeId, validIds, positionedNodes, nextEdges),
-  }
+  return new LoopBodyAggregate(
+    { layoutLoopBodyNodes, syncLoopBodyEdges },
+    { nodes, edges },
+  ).applyLoopBodyUpdate(loopNodeId, bodyNodeIds)
 }
 
 export function addNodeToLoopBody(
@@ -1835,21 +1570,10 @@ export function addNodeToLoopBody(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } | null {
-  if (!isLoopBodyWorkNodeType(nodeType)) return null
-
-  const loopNode = nodes.find((node) => node.id === loopNodeId)
-  if (!loopNode) return null
-
-  const currentIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
-  const newNode = createWorkflowNode(nodeType, loopNode.position)
-  const nextEdges = connectNewLoopBodyMember(currentIds, newNode.id, nodes, edges)
-
-  return applyLoopBodyUpdate(
-    loopNodeId,
-    [...currentIds, newNode.id],
-    [...nodes, newNode],
-    nextEdges,
-  )
+  return new LoopBodyAggregate(
+    { layoutLoopBodyNodes, syncLoopBodyEdges },
+    { nodes, edges },
+  ).addNodeToLoopBody(loopNodeId, nodeType)
 }
 
 export function removeNodeFromLoopBody(
@@ -1858,17 +1582,10 @@ export function removeNodeFromLoopBody(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const loopNode = nodes.find((node) => node.id === loopNodeId)
-  if (!loopNode) return { nodes, edges }
-
-  const currentIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
-  const nextIds = currentIds.filter((id) => id !== bodyNodeId)
-  const prunedEdges = edges.filter(
-    (edge) => edge.source !== bodyNodeId && edge.target !== bodyNodeId,
-  )
-  const nextNodes = nodes.filter((node) => node.id !== bodyNodeId)
-
-  return applyLoopBodyUpdate(loopNodeId, nextIds, nextNodes, prunedEdges)
+  return new LoopBodyAggregate(
+    { layoutLoopBodyNodes, syncLoopBodyEdges },
+    { nodes, edges },
+  ).removeNodeFromLoopBody(loopNodeId, bodyNodeId)
 }
 
 function getWorkflowNodeType(node: Node): TestFlowNodeType | undefined {
@@ -2007,13 +1724,10 @@ export function reorderLoopBody(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  const loopNode = nodes.find((node) => node.id === loopNodeId)
-  if (!loopNode) return { nodes, edges }
-
-  const currentIds = readLoopBodyNodeIds((loopNode.data as WorkflowNodeData).config)
-  const nextIds = reorderLoopBodyNodeIds(currentIds, fromIndex, toIndex)
-
-  return applyLoopBodyUpdate(loopNodeId, nextIds, nodes, edges)
+  return new LoopBodyAggregate(
+    { layoutLoopBodyNodes, syncLoopBodyEdges },
+    { nodes, edges },
+  ).reorderLoopBody(loopNodeId, fromIndex, toIndex)
 }
 
 export function appendTargetToLoopBodyOnConnect(
@@ -2021,25 +1735,8 @@ export function appendTargetToLoopBodyOnConnect(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  if (!connection.source || !connection.target || connection.sourceHandle !== LOOP_BODY_BRANCH_ID) {
-    return { nodes, edges }
-  }
-
-  const sourceNode = nodes.find((node) => node.id === connection.source)
-  if (!sourceNode || !isLoopNodeType((sourceNode.data as WorkflowNodeData).nodeType ?? '')) {
-    return { nodes, edges }
-  }
-
-  const targetNode = nodes.find((node) => node.id === connection.target)
-  const targetType = (targetNode?.data as WorkflowNodeData | undefined)?.nodeType ?? 'script'
-  if (!targetNode || !isLoopBodyWorkNodeType(targetType)) {
-    return { nodes, edges }
-  }
-
-  const currentIds = readLoopBodyNodeIds((sourceNode.data as WorkflowNodeData).config)
-  if (currentIds.includes(connection.target)) {
-    return applyLoopBodyUpdate(connection.source, currentIds, nodes, edges)
-  }
-
-  return applyLoopBodyUpdate(connection.source, [...currentIds, connection.target], nodes, edges)
+  return new LoopBodyAggregate(
+    { layoutLoopBodyNodes, syncLoopBodyEdges },
+    { nodes, edges },
+  ).appendTargetToLoopBodyOnConnect(connection)
 }

@@ -13,10 +13,18 @@ import '@xyflow/react/dist/style.css'
 import type { Edge, Node, Viewport } from '@xyflow/react'
 
 import { Callout } from '@/components/callout'
+import {
+  FLOW_BOARD_FIT_MAX_ZOOM,
+  FLOW_BOARD_FIT_MIN_ZOOM,
+  FLOW_BOARD_MAX_ZOOM,
+  FLOW_BOARD_MIN_ZOOM,
+  getBoardTranslateExtent,
+} from '@/components/test-flow/flow-board-layout'
 import { EditorHeader } from '@/components/test-flow/editor-header'
 import { TestFlowMetadataForm } from '@/components/test-flow/metadata-form'
 import { NodePalette } from '@/components/test-flow/node-palette'
 import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
+import { useTestFlowEditorDirtyState } from '@/lib/hooks/use-test-flow-editor-dirty-state'
 import { useWorkflowGraph } from '@/lib/hooks/use-workflow-graph'
 import { cn } from '@/lib/utils'
 import {
@@ -32,72 +40,6 @@ import { validateTestFlowGraph } from '@/lib/test-flow-validation'
 import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
-
-const FLOW_BOARD_MIN_ZOOM = 0.5
-const FLOW_BOARD_MAX_ZOOM = 1.35
-const FLOW_BOARD_FIT_MIN_ZOOM = 0.5
-const FLOW_BOARD_FIT_MAX_ZOOM = 1
-
-/** Keep a small margin before Start; allow pan room where the flow grows to the right. */
-const BOARD_PAN_PADDING = {
-  left: 48,
-  right: 280,
-  top: 120,
-  bottom: 200,
-} as const
-
-const DEFAULT_BOARD_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
-  [-1000, -1000],
-  [2000, 2000],
-]
-
-const getFlowNodeBounds = (node: Node) => {
-  const width = Number(node.width ?? node.style?.width ?? 220)
-  const height = Number(node.height ?? node.style?.height ?? 120)
-  const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
-  const left = node.position.x - width * origin[0]
-  const top = node.position.y - height * origin[1]
-
-  return {
-    left,
-    right: left + width,
-    top,
-    bottom: top + height,
-  }
-}
-
-const getBoardTranslateExtent = (flowNodes: Node[]): [[number, number], [number, number]] => {
-  if (flowNodes.length === 0) return DEFAULT_BOARD_TRANSLATE_EXTENT
-
-  const bounds = flowNodes.map(getFlowNodeBounds)
-  const minX = Math.min(...bounds.map((bound) => bound.left))
-  const maxX = Math.max(...bounds.map((bound) => bound.right))
-  const minY = Math.min(...bounds.map((bound) => bound.top))
-  const maxY = Math.max(...bounds.map((bound) => bound.bottom))
-
-  return [
-    [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
-    [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
-  ]
-}
-
-const serializeEditorSnapshot = (
-  formData: TestFlowEditorFormData,
-  nodes: Node[],
-  edges: Edge[],
-): string => {
-  return JSON.stringify({
-    formData,
-    graph: reactFlowToGraph(nodes, edges),
-  })
-}
-
-const isDefaultStarterGraph = (nodes: Node[], edges: Edge[]): boolean => {
-  if (nodes.length !== 2 || edges.length !== 1) return false
-
-  const types = nodes.map((node) => node.data?.nodeType).sort()
-  return types[0] === 'end' && types[1] === 'start'
-}
 
 interface TestFlowEditorProps {
   title: string
@@ -133,13 +75,8 @@ const TestFlowEditorCanvas = ({
   const [validationErrors, setValidationErrors] = useState<Array<{ code: string; message: string }>>([])
   const viewportRestoredRef = useRef(false)
 
-  const baselineSnapshotRef = useRef(
-    serializeEditorSnapshot(
-      initialFormData,
-      initialNodes ?? createDefaultNodes(),
-      initialEdges ?? createDefaultEdges(initialNodes ?? createDefaultNodes()),
-    ),
-  )
+  const effectiveInitialNodes = initialNodes ?? createDefaultNodes()
+  const effectiveInitialEdges = initialEdges ?? createDefaultEdges(effectiveInitialNodes)
 
   const {
     nodes,
@@ -171,10 +108,14 @@ const TestFlowEditorCanvas = ({
     [nodes, edges],
   )
 
-  const isDirty = useMemo(() => {
-    const current = serializeEditorSnapshot(formData, nodes, edges)
-    return current !== baselineSnapshotRef.current
-  }, [formData, nodes, edges])
+  const isDirty = useTestFlowEditorDirtyState({
+    initialFormData,
+    initialNodes: effectiveInitialNodes,
+    initialEdges: effectiveInitialEdges,
+    formData,
+    nodes,
+    edges,
+  })
 
   useEffect(() => {
     onDirtyChange?.(isDirty)

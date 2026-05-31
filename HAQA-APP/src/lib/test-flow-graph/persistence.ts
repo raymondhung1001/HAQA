@@ -22,7 +22,7 @@ import {
 } from './loop-body'
 import { isUiOnlyEdge, withWorkflowEdgeDefaults } from './edge-helpers'
 import { createDefaultNodes, createDefaultEdges, createNodeId, hasStartNode, hasEndNode } from './nodes'
-import { isTestFlowNodeType } from '@/components/test-flow/workflow-node-definitions'
+import { isTestFlowNodeType } from './workflow-node-meta'
 
 export function prepareLoadedFlowGraph(
   nodes: Node[],

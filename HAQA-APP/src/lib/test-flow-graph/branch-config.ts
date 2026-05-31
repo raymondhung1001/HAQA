@@ -9,16 +9,18 @@ import {
   DEFAULT_LOOP_BRANCHES,
   MIN_LOOP_BRANCHES,
   LOOP_CONFIG_VERSION,
+  BRANCH_HANDLE_COLORS,
+  VERTICAL_BRANCH_OFFSET,
 } from './constants'
 import { createNodeId } from './nodes'
 import {
   IF_ELSE_NODE_LAYOUT,
-} from '@/components/test-flow/workflow-node-layout'
+} from './workflow-node-layout'
 import {
   getWorkflowNodeLabel,
   getWorkflowNodeTypeOrdinals,
   resolveWorkflowNodeDisplayLabel,
-} from '@/components/test-flow/workflow-node-definitions'
+} from './workflow-node-meta'
 import type { Node } from '@xyflow/react'
 
 function isIfElseBranch(value: unknown): value is IfElseBranch {
@@ -306,68 +308,5 @@ export function createIfElseBranch(label?: string): IfElseBranch {
   }
 }
 
-function getBranchOffsetY(index: number, count: number): number {
-  if (count <= 1) return 0
-  const step = (VERTICAL_BRANCH_OFFSET * 2) / (count - 1)
-  return (index - (count - 1) / 2) * step
-}
-
-export function getBranchHandleTopPercent(
-  index: number,
-  count: number,
-  reserveHeader = false,
-): string {
-  if (count <= 1) return reserveHeader ? '58%' : '50%'
-
-  const topPadding = reserveHeader ? 38 : 18
-  const bottomPadding = reserveHeader ? 22 : 18
-  const range = 100 - topPadding - bottomPadding
-
-  return `${topPadding + (index / (count - 1)) * range}%`
-}
-
-export function getBranchHandleColorClass(
-  index: number,
-  count?: number,
-  layout: 'if-else' | 'loop' = 'if-else',
-): string {
-  if (count !== undefined) {
-    if (layout === 'loop') {
-      if (index === 0) return '!border-green-500'
-      if (index === count - 1) return '!border-blue-500'
-      return BRANCH_HANDLE_COLORS[(index - 1) % BRANCH_HANDLE_COLORS.length]
-    }
-
-    if (isElseBranchIndex(index, count)) {
-      return '!border-red-500'
-    }
-  }
-
-  return BRANCH_HANDLE_COLORS[index % BRANCH_HANDLE_COLORS.length]
-}
-
-export { IF_ELSE_NODE_LAYOUT } from '@/components/test-flow/workflow-node-layout'
-
-export function getIfElseNodeHeight(branchCount: number, showFooter: boolean): number {
-  const { paddingY, headerHeight, branchRowHeight, footerHeight } = IF_ELSE_NODE_LAYOUT
-
-  return (
-    paddingY * 2 +
-    headerHeight +
-    branchCount * branchRowHeight +
-    (showFooter ? footerHeight : 0)
-  )
-}
-
-export function getIfElseBranchHandleTopPercent(
-  rowIndex: number,
-  branchCount: number,
-  showFooter: boolean,
-): string {
-  const nodeHeight = getIfElseNodeHeight(branchCount, showFooter)
-  const { paddingY, headerHeight, branchRowHeight } = IF_ELSE_NODE_LAYOUT
-  const centerY = paddingY + headerHeight + rowIndex * branchRowHeight + branchRowHeight / 2
-
-  return `${(centerY / nodeHeight) * 100}%`
-}
+export { IF_ELSE_NODE_LAYOUT } from './workflow-node-layout'
 

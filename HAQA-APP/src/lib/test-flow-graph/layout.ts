@@ -16,7 +16,7 @@ import {
   IF_ELSE_NODE_LAYOUT,
   LOOP_BODY_GROUP,
   getLoopBodyDoneHandleCenterY,
-} from '@/components/test-flow/workflow-node-layout'
+} from './workflow-node-layout'
 import {
   getIfElseBranches,
   getNodeOutputBranches,
@@ -112,6 +112,12 @@ function getBranchOutputPositionForConnection(
   }
 }
 
+export function getBranchOffsetY(index: number, count: number): number {
+  if (count <= 1) return 0
+  const step = (VERTICAL_BRANCH_OFFSET * 2) / (count - 1)
+  return (index - (count - 1) / 2) * step
+}
+
 export function getBranchHandleTopPercent(
   index: number,
   count: number,
@@ -146,7 +152,7 @@ export function getBranchHandleColorClass(
   return BRANCH_HANDLE_COLORS[index % BRANCH_HANDLE_COLORS.length]
 }
 
-export { IF_ELSE_NODE_LAYOUT } from '@/components/test-flow/workflow-node-layout'
+export { IF_ELSE_NODE_LAYOUT } from './workflow-node-layout'
 
 export function getIfElseNodeHeight(branchCount: number, showFooter: boolean): number {
   const { paddingY, headerHeight, branchRowHeight, footerHeight } = IF_ELSE_NODE_LAYOUT
@@ -391,10 +397,15 @@ export function getWorkflowNodeOrder(nodes: Node[]): Node[] {
     )
 }
 
-function mergeMainFlowRelayout(allNodes: Node[], relayoutedMain: Node[]): Node[] {
+export function mergeMainFlowRelayout(
+  allNodes: Node[],
+  relayoutedMain: Node[],
+  edges: Edge[],
+  syncLoopBodyGroups: typeof syncAllLoopBodyGroups = syncAllLoopBodyGroups,
+): Node[] {
   const relayoutedIds = new Set(relayoutedMain.map((node) => node.id))
   const preserved = allNodes.filter((node) => !relayoutedIds.has(node.id))
-  return syncAllLoopBodyGroups([...relayoutedMain, ...preserved], [])
+  return syncLoopBodyGroups([...relayoutedMain, ...preserved], edges)
 }
 
 export function canSwapWorkflowNode(
@@ -499,8 +510,14 @@ export function swapAdjacentWorkflowNode(
   const leftNodeId = direction === 'left' ? nodeB.id : nodeA.id
   const rightNodeId = direction === 'left' ? nodeA.id : nodeB.id
 
+  const remappedEdges = remapEdgesAfterAdjacentSwap(edges, leftNodeId, rightNodeId)
+
   return {
-    nodes: mergeMainFlowRelayout(nodes, relayoutOrderedNodes(nextOrdered, nodes)),
-    edges: remapEdgesAfterAdjacentSwap(edges, leftNodeId, rightNodeId),
+    nodes: mergeMainFlowRelayout(
+      nodes,
+      relayoutOrderedNodes(nextOrdered, nodes),
+      remappedEdges,
+    ),
+    edges: remappedEdges,
   }
 }

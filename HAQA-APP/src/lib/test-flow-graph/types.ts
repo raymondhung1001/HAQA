@@ -1,4 +1,5 @@
 import type { ScriptLanguage } from '@/types/workflow'
+import type { Edge, Node } from '@xyflow/react'
 
 export type TestFlowNodeType =
   | 'start'

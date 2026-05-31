@@ -1,8 +1,8 @@
 import type { IfElseBranch } from './types'
 
-export { WORKFLOW_CONNECTION_GAP } from '@/components/test-flow/workflow-node-layout'
+export { WORKFLOW_CONNECTION_GAP } from './workflow-node-layout'
 
-import { WORKFLOW_CONNECTION_GAP } from '@/components/test-flow/workflow-node-layout'
+import { WORKFLOW_CONNECTION_GAP } from './workflow-node-layout'
 
 export const WORKFLOW_NODE_TYPE = 'workflow' as const
 

@@ -20,6 +20,34 @@ import type {
 export const TEST_FLOW_EDITOR_LAYOUT_CLASS =
   'min-h-[calc(100dvh-4rem)] rounded-none border-x-0 border-t-0 shadow-none lg:min-h-[calc(100dvh-7rem)] lg:rounded-xl lg:border lg:shadow-sm'
 
+export type EditFlowSaveStatus = 'success' | 'partial' | 'failed'
+
+type EditFlowSaveParams = {
+  updateMetadata: () => Promise<unknown>
+  saveGraph: () => Promise<unknown>
+}
+
+/**
+ * Save metadata first, then graph, and normalize outcomes for the caller.
+ */
+export async function saveExistingFlow({
+  updateMetadata,
+  saveGraph,
+}: EditFlowSaveParams): Promise<EditFlowSaveStatus> {
+  try {
+    await updateMetadata()
+  } catch {
+    return 'failed'
+  }
+
+  try {
+    await saveGraph()
+    return 'success'
+  } catch {
+    return 'partial'
+  }
+}
+
 export const useTestFlowEditorPage = (
   options: UseTestFlowEditorPageOptions,
 ): TestFlowEditorPageResult => {
@@ -96,21 +124,25 @@ export const useTestFlowEditorPage = (
       return
     }
 
-    try {
-      await updateMutation.mutateAsync({
-        id: options.id,
-        data: flowDetails,
-      })
-    } catch {
+    const saveStatus = await saveExistingFlow({
+      updateMetadata: () =>
+        updateMutation.mutateAsync({
+          id: options.id,
+          data: flowDetails,
+        }),
+      saveGraph: () => saveGraphMutation.mutateAsync({ id: options.id, graph }),
+    })
+
+    if (saveStatus === 'success') {
+      toast.success('Test flow saved successfully')
+      navigateToList()
       return
     }
 
-    try {
-      await saveGraphMutation.mutateAsync({ id: options.id, graph })
-      toast.success('Test flow saved successfully')
-      navigateToList()
-    } catch {
-      // Partial failure: metadata saved but graph failed — onError toast already shown
+    if (saveStatus === 'partial') {
+      toast.error(
+        'Flow details were saved, but the workflow graph was not saved. Please retry.',
+      )
     }
   }
 

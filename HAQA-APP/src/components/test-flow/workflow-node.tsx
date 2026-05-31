@@ -33,7 +33,7 @@ import {
   LOOP_BODY_GROUP,
   WORKFLOW_HANDLE_LANE_STYLE,
   WORKFLOW_REORDER_FOOTER_HEIGHT,
-} from '@/components/test-flow/workflow-node-layout'
+} from '@/lib/test-flow-graph/workflow-node-layout'
 import { cn } from '@/lib/utils'
 
 const NODE_STYLES: Record<

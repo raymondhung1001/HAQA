@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Node } from '@xyflow/react'
 
-import { getWorkflowNodeLabel } from '@/components/test-flow/workflow-node-definitions'
 import {
   addIfElseBranch,
   addLoopBreakExit,
   DEFAULT_LOOP_BRANCHES,
+  getWorkflowNodeLabel,
   isElseBranchIndex,
   isLoopNodeType,
   migrateLoopNodeConfig,
@@ -17,6 +17,7 @@ import {
   removeIfElseBranch,
   removeLoopBreakExit,
   resolveLoopBodySteps,
+  toWorkflowNodeData,
   type IfElseBranch,
   type LoopBodyStep,
   type WorkflowNodeData,
@@ -76,7 +77,7 @@ export const useWorkflowNodeEditorForm = (
   node: Node | null,
   allNodes: Node[] = [],
 ): UseWorkflowNodeEditorFormReturn => {
-  const nodeData = (node?.data ?? {}) as WorkflowNodeData
+  const nodeData = node ? toWorkflowNodeData(node) : ({} as WorkflowNodeData)
   const nodeType = nodeData.nodeType ?? 'script'
 
   const [label, setLabel] = useState('')

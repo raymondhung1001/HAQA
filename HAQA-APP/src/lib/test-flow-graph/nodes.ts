@@ -19,7 +19,7 @@ import {
   getWorkflowNodeLabel,
   getWorkflowNodeTypeOrdinals,
   resolveWorkflowNodeDisplayLabel,
-} from '@/components/test-flow/workflow-node-definitions'
+} from './workflow-node-meta'
 import { getWorkflowNodeLayoutWidth } from './layout'
 
 function getNodeTypeFromMap(
