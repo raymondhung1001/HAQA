@@ -1461,14 +1461,10 @@ function resolveLoopBodyGroupLayout(
   const delta = minY - groupPosition.y
 
   return {
+    // Keep the nested loop card anchored to preserve incoming/outgoing edge lanes.
+    // Only push the inner loop-body group down to satisfy top inset constraints.
     groupPosition: { ...groupPosition, y: groupPosition.y + delta },
-    adjustedLoopNode: {
-      ...loopNode,
-      position: {
-        ...loopNode.position,
-        y: loopNode.position.y + delta,
-      },
-    },
+    adjustedLoopNode: null,
   }
 }
 

@@ -317,7 +317,7 @@ const LoopWorkflowNode = ({
       <Handle
         type="target"
         position={Position.Left}
-        style={isInLoopBody ? WORKFLOW_HANDLE_LANE_STYLE : { top: loopHandleTop }}
+        style={{ top: loopHandleTop }}
         className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
       />
 
