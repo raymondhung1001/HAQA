@@ -136,7 +136,7 @@ function getTargetPositionAfterNode(
   }
 }
 
-function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
+export function isLoopBodyBreakTargetEdge(edge: Edge): boolean {
   return (
     typeof edge.target === 'string' &&
     edge.target.endsWith('-loop-body') &&
@@ -333,6 +333,15 @@ export const LOOP_BODY_BRANCH_ID = 'loop'
 export const LOOP_DONE_BRANCH_ID = 'done'
 /** Auto-synced back-edge from last body step to loop node (next iteration). */
 export const LOOP_CONTINUE_SOURCE_HANDLE = 'continue'
+
+function isLoopBackEdge(edge: Edge): boolean {
+  return edge.sourceHandle === LOOP_CONTINUE_SOURCE_HANDLE || edge.data?.loopBack === true
+}
+
+/** UI-only edges excluded from persisted workflow graphs. */
+export function isUiOnlyEdge(edge: Edge): boolean {
+  return isLoopBackEdge(edge) || isLoopBodyBreakTargetEdge(edge)
+}
 
 export const DEFAULT_LOOP_BRANCHES: IfElseBranch[] = [
   { id: LOOP_BODY_BRANCH_ID, label: 'Loop' },
@@ -1679,17 +1688,11 @@ function canConnectBodyBranchToLoopBreak(
   const sourceType = (sourceNode.data as WorkflowNodeData)?.nodeType ?? ''
   const handle = connection.sourceHandle
 
-  if (sourceType === 'if-else') {
-    if (!handle) return false
-    const branches = getIfElseBranches(sourceNode.data as WorkflowNodeData)
-    return branches.some((branch) => branch.id === handle)
-  }
+  if (sourceType !== 'if-else') return false
+  if (!handle) return false
 
-  if (!handle) {
-    return isLoopBodyWorkNodeType(sourceType as TestFlowNodeType)
-  }
-
-  return false
+  const branches = getIfElseBranches(sourceNode.data as WorkflowNodeData)
+  return branches.some((branch) => branch.id === handle)
 }
 
 function getIfElseBranchHandleLaneY(
@@ -2144,12 +2147,73 @@ export function syncAllLoopBodyEdges(nodes: Node[], edges: Edge[]): Edge[] {
   return next
 }
 
+function reconstructLoopBodyBreakTargetEdges(nodes: Node[], edges: Edge[]): Edge[] {
+  let next = edges
+
+  for (const loopNode of nodes) {
+    const data = loopNode.data as WorkflowNodeData
+    if (!isLoopNodeType(data.nodeType ?? '')) continue
+
+    const loopNodeId = loopNode.id
+    const groupId = getLoopBodyGroupId(loopNodeId)
+    const breakExits = readLoopBreakExits(data.config)
+    const bodyIds = readLoopBodyNodeIds(data.config)
+    if (breakExits.length === 0 || bodyIds.length === 0) continue
+
+    const ifElseNodes = bodyIds
+      .map((id) => nodes.find((node) => node.id === id))
+      .filter((node): node is Node => {
+        if (!node) return false
+        return (node.data as WorkflowNodeData)?.nodeType === 'if-else'
+      })
+
+    if (ifElseNodes.length === 0) continue
+
+    for (let index = 0; index < breakExits.length; index += 1) {
+      const breakExit = breakExits[index]
+      const hasBreakTarget = next.some(
+        (edge) =>
+          edge.target === groupId &&
+          (edge.targetHandle === `${breakExit.id}-target` || edge.targetHandle === breakExit.id),
+      )
+      if (hasBreakTarget) continue
+
+      const hasGroupBreakOut = next.some(
+        (edge) => edge.source === groupId && edge.sourceHandle === breakExit.id,
+      )
+      if (!hasGroupBreakOut) continue
+
+      const ifElseNode = ifElseNodes[0]
+      const branches = getIfElseBranches(ifElseNode.data as WorkflowNodeData)
+      const branchIndex = Math.min(index, Math.max(branches.length - 1, 0))
+      const branch = branches[branchIndex]
+      if (!branch) continue
+
+      if (workflowEdgeExists(next, ifElseNode.id, groupId, branch.id)) continue
+
+      next = connectEdge(
+        {
+          source: ifElseNode.id,
+          target: groupId,
+          sourceHandle: branch.id,
+          targetHandle: `${breakExit.id}-target`,
+        },
+        next,
+        nodes,
+      )
+    }
+  }
+
+  return next
+}
+
 export function prepareLoadedFlowGraph(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
   const syncedNodes = syncAllLoopBodyGroups(nodes, edges)
-  const syncedEdges = syncAllLoopBodyEdges(syncedNodes, edges)
+  let syncedEdges = syncAllLoopBodyEdges(syncedNodes, edges)
+  syncedEdges = reconstructLoopBodyBreakTargetEdges(syncedNodes, syncedEdges)
 
   return relayoutMainFlowCanvasNodes({ nodes: syncedNodes, edges: syncedEdges })
 }
@@ -2213,10 +2277,6 @@ export function applyLoopNodeConfigUpdate(
   return { nodes: syncedNodes, edges: nextEdges }
 }
 
-function isLoopBackEdge(edge: Edge): boolean {
-  return edge.sourceHandle === LOOP_CONTINUE_SOURCE_HANDLE || edge.data?.loopBack === true
-}
-
 export function syncLoopBodyEdges(
   loopNodeId: string,
   bodyNodeIds: string[],
@@ -2271,21 +2331,32 @@ export function syncLoopBodyEdges(
     )
   }
 
-  return next.map((edge) =>
-    isLoopBackEdge(edge)
-      ? {
-          ...edge,
-          animated: false,
-          style: {
-            ...WORKFLOW_EDGE_OPTIONS.style,
-            ...(edge.style ?? {}),
-            strokeDasharray: '6 4',
-            opacity: 0.55,
-          },
-          data: { ...(edge.data ?? {}), loopBack: true, system: true },
-        }
-      : edge,
-  )
+  return next.map((edge) => {
+    if (isLoopBackEdge(edge)) {
+      return {
+        ...edge,
+        animated: false,
+        deletable: false,
+        style: {
+          ...WORKFLOW_EDGE_OPTIONS.style,
+          ...(edge.style ?? {}),
+          strokeDasharray: '6 4',
+          opacity: 0.55,
+        },
+        data: { ...(edge.data ?? {}), loopBack: true, system: true },
+      }
+    }
+
+    if (edge.source === loopNodeId && edge.sourceHandle === LOOP_BODY_BRANCH_ID) {
+      return {
+        ...edge,
+        deletable: false,
+        data: { ...(edge.data ?? {}), system: true },
+      }
+    }
+
+    return edge
+  })
 }
 
 export function applyLoopBodyUpdate(
@@ -2975,15 +3046,94 @@ const validateLoopBodyMemberConnection = (
   }
 
   if (isCanvasLayoutNode(targetNode, nodes)) {
-    return true
+    return false
   }
 
   return false
 }
 
+const TREE_NODE_TYPES_WITH_SINGLE_OUTGOING = new Set<TestFlowNodeType>([
+  'start',
+  'script',
+  'api-call',
+  'wait',
+  'end',
+])
+
+function countEdgesBySourceHandle(
+  edges: Edge[],
+  sourceId: string,
+  sourceHandle: string | null | undefined,
+): number {
+  return edges.filter(
+    (edge) =>
+      edge.source === sourceId &&
+      (sourceHandle === undefined || sourceHandle === null
+        ? !edge.sourceHandle
+        : edge.sourceHandle === sourceHandle),
+  ).length
+}
+
+function countIncomingEdges(edges: Edge[], targetId: string): number {
+  return edges.filter((edge) => edge.target === targetId).length
+}
+
+function countOutgoingEdges(edges: Edge[], sourceId: string): number {
+  return edges.filter((edge) => edge.source === sourceId).length
+}
+
+function validateConnectionAgainstExistingEdges(
+  connection: Connection,
+  nodes: Node[],
+  edges: Edge[],
+): boolean {
+  if (!connection.source || !connection.target) return false
+
+  const sourceNode = nodes.find((node) => node.id === connection.source)
+  const targetNode = nodes.find((node) => node.id === connection.target)
+  if (!sourceNode || !targetNode) return false
+
+  const sourceType = (sourceNode.data as WorkflowNodeData)?.nodeType ?? ''
+  const targetType = (targetNode.data as WorkflowNodeData)?.nodeType ?? ''
+  const handle = connection.sourceHandle
+
+  if (targetType !== 'end' && countIncomingEdges(edges, connection.target) >= 1) {
+    return false
+  }
+
+  if (sourceType === 'if-else' && handle) {
+    if (countEdgesBySourceHandle(edges, connection.source, handle) >= 1) {
+      return false
+    }
+  }
+
+  if (isLoopNodeType(sourceType) && handle) {
+    if (countEdgesBySourceHandle(edges, connection.source, handle) >= 1) {
+      return false
+    }
+  }
+
+  if (isLoopBodyGroupNode(sourceNode) && handle) {
+    if (countEdgesBySourceHandle(edges, connection.source, handle) >= 1) {
+      return false
+    }
+  }
+
+  if (
+    TREE_NODE_TYPES_WITH_SINGLE_OUTGOING.has(sourceType as TestFlowNodeType) &&
+    sourceType !== 'end' &&
+    countOutgoingEdges(edges, connection.source) >= 1
+  ) {
+    return false
+  }
+
+  return true
+}
+
 export function isValidWorkflowConnection(
   connection: Connection,
   nodes: Node[],
+  edges: Edge[] = [],
 ): boolean {
   if (!connection.source || !connection.target) return false
   if (connection.source === connection.target) return false
@@ -2997,7 +3147,7 @@ export function isValidWorkflowConnection(
   const handle = connection.sourceHandle
 
   if (canConnectBodyBranchToLoopBreak(connection, sourceNode, targetNode, nodes)) {
-    return true
+    return validateConnectionAgainstExistingEdges(connection, nodes, edges)
   }
 
   const loopBodyGroupResult = validateLoopBodyGroupSourceConnection(
@@ -3006,7 +3156,11 @@ export function isValidWorkflowConnection(
     handle,
     nodes,
   )
-  if (loopBodyGroupResult !== undefined) return loopBodyGroupResult
+  if (loopBodyGroupResult !== undefined) {
+    return loopBodyGroupResult
+      ? validateConnectionAgainstExistingEdges(connection, nodes, edges)
+      : false
+  }
 
   const loopNodeResult = validateLoopNodeSourceConnection(
     sourceNode,
@@ -3015,7 +3169,11 @@ export function isValidWorkflowConnection(
     handle,
     nodes,
   )
-  if (loopNodeResult !== undefined) return loopNodeResult
+  if (loopNodeResult !== undefined) {
+    return loopNodeResult
+      ? validateConnectionAgainstExistingEdges(connection, nodes, edges)
+      : false
+  }
 
   if (!hasValidBranchingSourceHandle(sourceNode, sourceType, handle)) return false
 
@@ -3025,14 +3183,18 @@ export function isValidWorkflowConnection(
     targetType,
     nodes,
   )
-  if (loopBodyMemberResult !== undefined) return loopBodyMemberResult
+  if (loopBodyMemberResult !== undefined) {
+    return loopBodyMemberResult
+      ? validateConnectionAgainstExistingEdges(connection, nodes, edges)
+      : false
+  }
 
   const targetLoop = findLoopNodeForBodyMember(targetNode.id, nodes)
   if (targetLoop && isCanvasLayoutNode(sourceNode, nodes)) {
     return false
   }
 
-  return true
+  return validateConnectionAgainstExistingEdges(connection, nodes, edges)
 }
 
 /** @deprecated Use repositionNodeForBranchConnection */
@@ -3121,7 +3283,7 @@ export function reactFlowToGraph(
   const nodeMap = new Map(nodes.map((node) => [node.id, node]))
 
   const persistedEdges = edges
-    .filter((edge) => !isLoopBackEdge(edge))
+    .filter((edge) => !isUiOnlyEdge(edge))
     .map((edge) => {
       const sourceNode = nodeMap.get(edge.source)
       if (sourceNode && isLoopBodyGroupNode(sourceNode)) {
@@ -3421,6 +3583,14 @@ export function connectEdge(
   edges: Edge[],
   nodes?: Node[],
 ): Edge[] {
+  if (
+    connection.source &&
+    connection.target &&
+    workflowEdgeExists(edges, connection.source, connection.target, connection.sourceHandle)
+  ) {
+    return edges
+  }
+
   const label = nodes ? resolveBranchEdgeLabel(connection, nodes) : undefined
 
   return addEdge(

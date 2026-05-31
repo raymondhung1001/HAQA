@@ -208,6 +208,7 @@ export class TestFlowsService {
         this.validateNestedLoopContainment(loopConfigByNodeId, nodeById);
         this.validateNodeOutgoingSemantics(graph.nodes, outgoingByNodeId, edgeById, nodeById, loopConfigByNodeId);
         this.validateLoopBodyIncomingSemantics(loopConfigByNodeId, incomingByNodeId);
+        this.validateLoopBodyOutgoingSemantics(loopConfigByNodeId, outgoingByNodeId);
     }
 
     private buildNodeMap(nodes: TestFlowGraphNodeDto[]): Map<string, TestFlowGraphNodeDto> {
@@ -615,6 +616,29 @@ export class TestFlowsService {
                             `Loop body node ${bodyNodeId} can only be entered from loop ${loopNodeId} Loop handle or same loop body`,
                         );
                     }
+                }
+            }
+        }
+    }
+
+    private validateLoopBodyOutgoingSemantics(
+        loopConfigByNodeId: Map<string, ParsedLoopConfig>,
+        outgoingByNodeId: Map<string, TestFlowGraphEdgeDto[]>,
+    ): void {
+        for (const [loopNodeId, loopConfig] of loopConfigByNodeId.entries()) {
+            const bodySet = new Set(loopConfig.bodyNodeIds);
+
+            for (const bodyNodeId of loopConfig.bodyNodeIds) {
+                const outgoing = outgoingByNodeId.get(bodyNodeId) ?? [];
+
+                for (const edge of outgoing) {
+                    if (bodySet.has(edge.targetNodeId)) {
+                        continue;
+                    }
+
+                    throw new BadRequestException(
+                        `Loop body node ${bodyNodeId} cannot connect outside its loop body except through loop break/done handles`,
+                    );
                 }
             }
         }

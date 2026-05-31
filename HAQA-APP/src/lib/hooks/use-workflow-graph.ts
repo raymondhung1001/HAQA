@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -157,8 +158,22 @@ export const useWorkflowGraph = ({
     (changes: EdgeChange[]) => {
       if (changes.length === 0) return
 
+      const filtered = changes.filter((change) => {
+        if (change.type !== 'remove') return true
+
+        const edge = edgesRef.current.find((candidate) => candidate.id === change.id)
+        if (edge?.deletable === false || edge?.data?.system === true) {
+          toast.error('This connection is managed automatically and cannot be removed.')
+          return false
+        }
+
+        return true
+      })
+
+      if (filtered.length === 0) return
+
       setEdges((currentEdges) => {
-        const nextEdges = applyEdgeChanges(changes, currentEdges)
+        const nextEdges = applyEdgeChanges(filtered, currentEdges)
         edgesRef.current = nextEdges
         return nextEdges
       })
@@ -253,7 +268,10 @@ export const useWorkflowGraph = ({
       const currentNodes = nodesRef.current
       const currentEdges = edgesRef.current
       const normalized = normalizeLoopBodyBreakTargetConnection(connection, currentNodes)
-      if (!isValidWorkflowConnection(normalized, currentNodes)) return
+      if (!isValidWorkflowConnection(normalized, currentNodes, currentEdges)) {
+        toast.error('This connection is not allowed for this workflow.')
+        return
+      }
 
       let nextEdges = connectEdge(normalized, currentEdges, currentNodes)
       let nextNodes = repositionNodeForBranchConnection(currentNodes, normalized)
@@ -269,6 +287,7 @@ export const useWorkflowGraph = ({
     return isValidWorkflowConnection(
       normalizeLoopBodyBreakTargetConnection(connection, currentNodes),
       currentNodes,
+      edgesRef.current,
     )
   }, [])
 
