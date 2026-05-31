@@ -122,6 +122,25 @@ describe('deleteWorkflowNodes', () => {
     expect(cascade).toHaveLength(3)
   })
 
+  it('handles loop containment cycles without infinite recursion', () => {
+    const loopA = createWorkflowNode('for-loop')
+    const loopB = createWorkflowNode('for-loop')
+
+    loopA.data = {
+      ...loopA.data,
+      config: { bodyNodeIds: [loopB.id], breakExits: [] },
+    }
+    loopB.data = {
+      ...loopB.data,
+      config: { bodyNodeIds: [loopA.id], breakExits: [] },
+    }
+
+    const cascade = collectCascadeDeletionIds(loopA.id, [loopA, loopB])
+
+    expect(cascade).toEqual(expect.arrayContaining([loopA.id, loopB.id]))
+    expect(cascade).toHaveLength(2)
+  })
+
   it('creates workflow nodes without forcing deletable false on start/end', () => {
     expect(createWorkflowNode('start').deletable).toBeUndefined()
     expect(createWorkflowNode('end').deletable).toBeUndefined()

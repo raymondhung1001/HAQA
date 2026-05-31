@@ -25,7 +25,6 @@ import {
 } from '@/components/test-flow/workflow-node-layout'
 import {
   getIfElseBranches,
-  getLoopBranches,
   isLoopNodeType,
   readLoopBodyNodeIds,
   readLoopBreakExits,
@@ -36,14 +35,11 @@ import {
 } from './branch-config'
 import { createWorkflowNode, createNodeId } from './nodes'
 import { connectEdge, pruneEdgesForRemovedBranches, workflowEdgeExists } from './connections'
-import { withWorkflowEdgeDefaults, isLoopBackEdge, isUiOnlyEdge } from './edge-helpers'
+import { withWorkflowEdgeDefaults, isLoopBackEdge } from './edge-helpers'
 import {
   getIfElseNodeHeight,
-  getWorkflowNodeLayoutWidth,
-  getCanvasNodeLayoutSpan,
   canSwapWorkflowNode,
   getBranchOffsetY,
-  flattenNodePosition,
 } from './layout'
 import { isTestFlowNodeType } from '@/components/test-flow/workflow-node-definitions'
 
@@ -196,33 +192,6 @@ function workflowEdgeExists(
         ? !edge.sourceHandle
         : edge.sourceHandle === sourceHandle),
   )
-}
-
-function getBranchOutputPositionForConnection(
-  sourceNode: Node,
-  handleId: string,
-  branches: IfElseBranch[],
-  targetNode: Node,
-  nodes: Node[],
-): { x: number; y: number } {
-  const index = branches.findIndex((branch) => branch.id === handleId)
-  const offsetY = index === -1 ? 0 : getBranchOffsetY(index, branches.length)
-
-  if (sourceNode.parentId && targetNode.parentId === sourceNode.parentId) {
-    return getTargetPositionAfterNode(sourceNode, nodes, offsetY, { useCanvasSpan: false })
-  }
-
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
-  const flatSource = flattenNodePosition(sourceNode, nodeMap)
-  const width =
-    isCanvasLayoutNode(sourceNode, nodes)
-      ? getCanvasNodeLayoutSpan(sourceNode, nodes)
-      : getWorkflowNodeLayoutWidth(sourceNode)
-
-  return {
-    x: flatSource.x + width + HORIZONTAL_NODE_GAP,
-    y: flatSource.y + offsetY,
-  }
 }
 
 function getLoopBodyContentSpan(bodyCount: number): number {
@@ -898,7 +867,7 @@ function resolveLoopBodyGroupLayout(
   groupHeight: number,
   entryCenterYInGroup: number,
   nodes: Node[],
-): { groupPosition: { x: number; y: number }; adjustedLoopNode: Node | null } {
+): { groupPosition: { x: number; y: number } } {
   const groupPosition = getLoopBodyGroupPosition(
     loopNode,
     groupHeight,
@@ -907,12 +876,12 @@ function resolveLoopBodyGroupLayout(
   )
 
   if (!isNestedLoopInParentBody(loopNode)) {
-    return { groupPosition, adjustedLoopNode: null }
+    return { groupPosition }
   }
 
   const minY = getNestedLoopBodyTopInset()
   if (groupPosition.y >= minY) {
-    return { groupPosition, adjustedLoopNode: null }
+    return { groupPosition }
   }
 
   const delta = minY - groupPosition.y
@@ -921,7 +890,6 @@ function resolveLoopBodyGroupLayout(
     // Keep the nested loop card anchored to preserve incoming/outgoing edge lanes.
     // Only push the inner loop-body group down to satisfy top inset constraints.
     groupPosition: { ...groupPosition, y: groupPosition.y + delta },
-    adjustedLoopNode: null,
   }
 }
 
@@ -1096,6 +1064,25 @@ function loopBodyHasIfElseNode(
       node.parentId === groupId &&
       (node.data as WorkflowNodeData)?.nodeType === 'if-else',
   )
+}
+
+function normalizeLoopConfigForBody(
+  loopNodeId: string,
+  config: Record<string, unknown> | undefined,
+  bodyNodeIds: string[],
+  nodes: Node[],
+): { config: Record<string, unknown>; hasIfElse: boolean } {
+  const hasIfElse = loopBodyHasIfElseNode(loopNodeId, bodyNodeIds, nodes)
+  const migrated = migrateLoopNodeConfig(config)
+
+  return {
+    config: {
+      ...migrated,
+      bodyNodeIds,
+      ...(hasIfElse ? {} : { breakExits: [] as IfElseBranch[] }),
+    },
+    hasIfElse,
+  }
 }
 
 function getLoopNodeForBodyGroup(targetNode: Node, nodes: Node[]): Node | undefined {
@@ -1283,7 +1270,7 @@ export function layoutLoopBodyNodes(
     breakExits.length,
     loopNode.id,
   )
-  const { groupPosition, adjustedLoopNode } = resolveLoopBodyGroupLayout(
+  const { groupPosition } = resolveLoopBodyGroupLayout(
     loopNode,
     height,
     entryCenterY,
@@ -1319,10 +1306,6 @@ export function layoutLoopBodyNodes(
   }
 
   const updatedNodes = withoutGroup.map((node) => {
-    if (adjustedLoopNode && node.id === adjustedLoopNode.id) {
-      node = adjustedLoopNode
-    }
-
     const stepIndex = layoutOrder.indexOf(node.id)
     if (stepIndex === -1) {
       if (node.parentId === groupId) {
@@ -1407,8 +1390,6 @@ export function syncAllLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[]
 
 /** Keep nested inner loop body boxes aligned after parent loop members move. */
 function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node[] {
-  const loopNodeAdjustments = new Map<string, Node>()
-
   const nextNodes = nodes.map((node) => {
     if (!isLoopBodyGroupNode(node)) return node
 
@@ -1430,16 +1411,12 @@ function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node
       breakExits.length,
       loopNode.id,
     )
-    const { groupPosition, adjustedLoopNode } = resolveLoopBodyGroupLayout(
+    const { groupPosition } = resolveLoopBodyGroupLayout(
       loopNode,
       groupHeight,
       entryCenterY,
       nodes,
     )
-
-    if (adjustedLoopNode) {
-      loopNodeAdjustments.set(adjustedLoopNode.id, adjustedLoopNode)
-    }
 
     return {
       ...node,
@@ -1464,10 +1441,7 @@ function repositionNestedLoopBodyGroups(nodes: Node[], edges: Edge[] = []): Node
       },
     }
   })
-
-  if (loopNodeAdjustments.size === 0) return nextNodes
-
-  return nextNodes.map((node) => loopNodeAdjustments.get(node.id) ?? node)
+  return nextNodes
 }
 
 /** Recompute loop body size/position after graph edits (nodes, edges, or break handles). */
@@ -1482,13 +1456,12 @@ export function syncLoopBodyGraphLayout(
     if (!isLoopNodeType(data.nodeType ?? '')) return node
 
     const validIds = normalizeLoopBodyNodeIds(readLoopBodyNodeIds(data.config), nodeIds)
-    const hasIfElse = loopBodyHasIfElseNode(node.id, validIds, nodes)
-
-    const nextConfig = {
-      ...migrateLoopNodeConfig(data.config as Record<string, unknown> | undefined),
-      bodyNodeIds: validIds,
-      ...(hasIfElse ? {} : { breakExits: [] as IfElseBranch[] }),
-    }
+    const { config: nextConfig } = normalizeLoopConfigForBody(
+      node.id,
+      data.config as Record<string, unknown> | undefined,
+      validIds,
+      nodes,
+    )
 
     return {
       ...node,
@@ -1587,7 +1560,7 @@ export function syncAllLoopBodyEdges(nodes: Node[], edges: Edge[]): Edge[] {
   return next
 }
 
-function reconstructLoopBodyBreakTargetEdges(nodes: Node[], edges: Edge[]): Edge[] {
+export function reconstructLoopBodyBreakTargetEdges(nodes: Node[], edges: Edge[]): Edge[] {
   let next = edges
 
   for (const loopNode of nodes) {
@@ -1623,19 +1596,44 @@ function reconstructLoopBodyBreakTargetEdges(nodes: Node[], edges: Edge[]): Edge
       )
       if (!hasGroupBreakOut) continue
 
-      const ifElseNode = ifElseNodes[0]
-      const branches = getIfElseBranches(ifElseNode.data as WorkflowNodeData)
-      const branchIndex = Math.min(index, Math.max(branches.length - 1, 0))
-      const branch = branches[branchIndex]
-      if (!branch) continue
+      const candidates = ifElseNodes
+        .map((ifElseNode) => {
+          const branches = getIfElseBranches(ifElseNode.data as WorkflowNodeData)
+          const branchIndex = Math.min(index, Math.max(branches.length - 1, 0))
+          const branch = branches[branchIndex]
+          return branch ? { ifElseNode, branch } : null
+        })
+        .filter(
+          (
+            value,
+          ): value is {
+            ifElseNode: Node
+            branch: IfElseBranch
+          } => value !== null,
+        )
+        .filter(
+          ({ ifElseNode, branch }) =>
+            !next.some((edge) => edge.source === ifElseNode.id && edge.sourceHandle === branch.id),
+        )
 
-      if (workflowEdgeExists(next, ifElseNode.id, groupId, branch.id)) continue
+      const fallback = ifElseNodes
+        .map((ifElseNode) => {
+          const branches = getIfElseBranches(ifElseNode.data as WorkflowNodeData)
+          const branchIndex = Math.min(index, Math.max(branches.length - 1, 0))
+          const branch = branches[branchIndex]
+          return branch ? { ifElseNode, branch } : null
+        })
+        .find((value): value is { ifElseNode: Node; branch: IfElseBranch } => value !== null)
+
+      const selected = candidates[0] ?? fallback
+      if (!selected) continue
+      if (workflowEdgeExists(next, selected.ifElseNode.id, groupId, selected.branch.id)) continue
 
       next = connectEdge(
         {
-          source: ifElseNode.id,
+          source: selected.ifElseNode.id,
           target: groupId,
-          sourceHandle: branch.id,
+          sourceHandle: selected.branch.id,
           targetHandle: `${breakExit.id}-target`,
         },
         next,
@@ -1671,17 +1669,8 @@ export function applyLoopNodeConfigUpdate(
   nodes: Node[],
   edges: Edge[],
 ): { nodes: Node[]; edges: Edge[] } {
-  let migratedConfig = migrateLoopNodeConfig(config)
-  
-  const bodyIds = readLoopBodyNodeIds(migratedConfig)
-  const hasIfElse = loopBodyHasIfElseNode(nodeId, bodyIds, nodes)
-
-  if (!hasIfElse && Array.isArray(migratedConfig.breakExits)) {
-    migratedConfig = {
-      ...migratedConfig,
-      breakExits: [],
-    }
-  }
+  const bodyIds = readLoopBodyNodeIds(config)
+  const { config: migratedConfig } = normalizeLoopConfigForBody(nodeId, config, bodyIds, nodes)
 
   const updatedNodes = nodes.map((node) =>
     node.id === nodeId
@@ -1801,38 +1790,29 @@ export function applyLoopBodyUpdate(
     new Set(nodes.map((node) => node.id)),
   )
 
-  const hasIfElse = loopBodyHasIfElseNode(loopNodeId, validIds, nodes)
+  const { config: nextLoopConfig, hasIfElse } = normalizeLoopConfigForBody(
+    loopNodeId,
+    (loopNode.data as WorkflowNodeData).config as Record<string, unknown> | undefined,
+    validIds,
+    nodes,
+  )
 
-  const nextLoopNode = { ...loopNode }
-  if (!hasIfElse) {
-    const currentConfig = (nextLoopNode.data as WorkflowNodeData).config ?? {}
-    nextLoopNode.data = {
-      ...nextLoopNode.data,
-      config: {
-        ...currentConfig,
-        breakExits: [],
-      },
-    }
+  const nextLoopNode = {
+    ...loopNode,
+    data: {
+      ...loopNode.data,
+      config: nextLoopConfig,
+    },
   }
 
   const positionedNodes = layoutLoopBodyNodes(nextLoopNode, validIds, nodes, edges).map((node) => {
     if (node.id !== loopNodeId) return node
 
-    const currentConfig = (node.data as WorkflowNodeData).config ?? {}
-    const nextConfig = {
-      ...currentConfig,
-      bodyNodeIds: validIds,
-    }
-
-    if (!hasIfElse && Array.isArray(nextConfig.breakExits)) {
-      nextConfig.breakExits = []
-    }
-
     return {
       ...node,
       data: {
         ...node.data,
-        config: nextConfig,
+        config: nextLoopConfig,
       },
     }
   })
@@ -1903,6 +1883,17 @@ function isProtectedWorkflowNode(node: Node): 'group' | null {
 
 /** Collects a node id and all nested loop body members when deleting a loop. */
 export function collectCascadeDeletionIds(nodeId: string, nodes: Node[]): string[] {
+  return collectCascadeDeletionIdsWithVisited(nodeId, nodes, new Set())
+}
+
+function collectCascadeDeletionIdsWithVisited(
+  nodeId: string,
+  nodes: Node[],
+  visited: Set<string>,
+): string[] {
+  if (visited.has(nodeId)) return []
+  visited.add(nodeId)
+
   const node = nodes.find((candidate) => candidate.id === nodeId)
   if (!node) return []
 
@@ -1912,7 +1903,7 @@ export function collectCascadeDeletionIds(nodeId: string, nodes: Node[]): string
   if (!isLoopNodeType(nodeType)) return [nodeId]
 
   for (const bodyId of readLoopBodyNodeIds((node.data as WorkflowNodeData).config)) {
-    for (const cascadeId of collectCascadeDeletionIds(bodyId, nodes)) {
+    for (const cascadeId of collectCascadeDeletionIdsWithVisited(bodyId, nodes, visited)) {
       ids.add(cascadeId)
     }
   }
@@ -1957,11 +1948,11 @@ export function deleteWorkflowNodes(
   const deletedNodeIds: string[] = []
 
   for (const id of allowedIds) {
-    const owningLoop = findLoopNodeForBodyMember(id, nodes)
+    const owningLoop = findLoopNodeForBodyMember(id, nextNodes)
     if (
       owningLoop &&
       !directDeleteSet.has(owningLoop.id) &&
-      isNodeInLoopBody(id, owningLoop, nodes)
+      isNodeInLoopBody(id, owningLoop, nextNodes)
     ) {
       const result = removeNodeFromLoopBody(owningLoop.id, id, nextNodes, nextEdges)
       nextNodes = result.nodes
