@@ -163,7 +163,7 @@ function countIncomingEdges(edges: Edge[], targetId: string): number {
 }
 
 function countOutgoingEdges(edges: Edge[], sourceId: string): number {
-  return edges.filter((edge) => edge.source === sourceId).length
+  return edges.filter((edge) => edge.source === sourceId && !isLoopBackEdge(edge)).length
 }
 
 function validateConnectionAgainstExistingEdges(

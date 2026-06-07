@@ -5,6 +5,7 @@ import {
   collectCascadeDeletionIds,
   createWorkflowNode,
   deleteWorkflowNodes,
+  isValidWorkflowConnection,
   syncLoopBodyGraphLayout,
 } from '@/lib/test-flow-graph'
 
@@ -100,6 +101,43 @@ describe('deleteWorkflowNodes', () => {
 
     const updatedLoop = result.nodes.find((node) => node.id === loop.id)
     expect(updatedLoop?.data?.config?.bodyNodeIds).toEqual([bodyB.id])
+  })
+
+  it('allows remaining loop body steps to reconnect after deleting a middle step', () => {
+    const loop = createWorkflowNode('for-loop', { x: 0, y: 0 })
+    const bodyA = createWorkflowNode('script', { x: 0, y: 0 })
+    const bodyB = createWorkflowNode('script', { x: 100, y: 0 })
+    const bodyC = createWorkflowNode('script', { x: 200, y: 0 })
+
+    loop.data = {
+      ...loop.data,
+      config: {
+        bodyNodeIds: [bodyA.id, bodyB.id, bodyC.id],
+        breakExits: [],
+      },
+    }
+
+    const layout = syncLoopBodyGraphLayout(
+      [loop, bodyA, bodyB, bodyC],
+      [
+        makeEdge(loop.id, bodyA.id, { sourceHandle: LOOP_BODY_BRANCH_ID }),
+        makeEdge(bodyA.id, bodyB.id),
+        makeEdge(bodyB.id, bodyC.id),
+      ],
+    )
+
+    const deleted = deleteWorkflowNodes([bodyB.id], layout.nodes, layout.edges)
+
+    expect(deleted.nodes.some((node) => node.id === bodyB.id)).toBe(false)
+    expect(deleted.edges.some((edge) => edge.source === bodyA.id && edge.target === bodyB.id)).toBe(false)
+    expect(deleted.edges.some((edge) => edge.source === bodyB.id && edge.target === bodyC.id)).toBe(false)
+    expect(
+      isValidWorkflowConnection(
+        { source: bodyA.id, target: bodyC.id },
+        deleted.nodes,
+        deleted.edges,
+      ),
+    ).toBe(true)
   })
 
   it('collects nested loop body members when deleting an outer loop', () => {
