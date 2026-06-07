@@ -1,7 +1,5 @@
+import { getApiBaseUrl } from './api-base-url'
 import { clearSessionCache, setSessionAuthenticated } from '@/lib/auth-session'
-
-// API base URL - defaults to localhost:3001/api (NestJS default with global prefix)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 /**
  * Custom error class for session expiration
@@ -95,9 +93,9 @@ const getCsrfToken = async (baseUrl: string): Promise<string | null> => {
     return cookieToken
   }
 
-  // If not in cookie, fetch it by making a GET request to root endpoint
+  // If not in cookie, fetch the API root (GET /api) to receive the CSRF header/cookie
   try {
-    const response = await fetch(`${baseUrl}/`, {
+    const response = await fetch(baseUrl, {
       method: 'GET',
       credentials: 'include',
     })
@@ -127,7 +125,7 @@ const getBaseUrl = (customBaseUrl?: string): string => {
   if (customBaseUrl) {
     return customBaseUrl
   }
-  return API_BASE_URL
+  return getApiBaseUrl()
 }
 
 interface AuthTokenPayload {

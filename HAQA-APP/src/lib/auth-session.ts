@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './api-base-url'
+
 /**
  * In-memory session cache for client-side auth state.
  * Tokens live in HttpOnly cookies; this cache tracks whether the user logged in.
@@ -53,7 +55,7 @@ export const clearSessionCache = (): void => {
 const probeSessionFromCookies = async (): Promise<boolean> => {
   if (typeof window === 'undefined') return false
 
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+  const baseUrl = getApiBaseUrl()
 
   try {
     const response = await fetch(`${baseUrl}/test-flow?page=1&limit=1`, {
