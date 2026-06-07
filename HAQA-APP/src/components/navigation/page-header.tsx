@@ -3,7 +3,7 @@ interface PageHeaderProps {
   subtitle?: string
 }
 
-export function PageHeader({ title, subtitle }: PageHeaderProps) {
+export const PageHeader = ({ title, subtitle }: PageHeaderProps) => {
   return (
     <header className="hidden lg:block bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 shadow-sm sticky top-0 z-30">
       <div className="px-6 py-6">

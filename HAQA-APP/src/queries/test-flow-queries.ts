@@ -8,7 +8,7 @@ import {
   type UseMutationOptions,
 } from '@tanstack/react-query'
 
-import { apiClient, SessionExpiredError, UnauthorizedError, unwrapData } from '@/lib/api-client'
+import { apiClient, unwrapData } from '@/lib/api-client'
 import { testFlowQueryKeys } from '@/types'
 import type {
   CreateTestFlowInput,
@@ -42,7 +42,7 @@ const emptyPaginatedTestFlows = (): PaginatedTestFlows => ({
   totalPages: 0,
 })
 
-function normalizeTestFlowRow(row: unknown): TestFlow | null {
+const normalizeTestFlowRow = (row: unknown): TestFlow | null => {
   if (!row || typeof row !== 'object') return null
   const record = row as Record<string, unknown>
 
@@ -57,6 +57,9 @@ function normalizeTestFlowRow(row: unknown): TestFlow | null {
   const rawUserId = record.userId ?? record.user_id
   const rawCreatedAt = record.createdAt ?? record.created_at
   const rawUpdatedAt = record.updatedAt ?? record.updated_at
+  const rawLatestVersion =
+    record.latestVersionNumber ?? record.latest_version_number
+  const rawNodeCount = record.nodeCount ?? record.node_count
 
   return {
     id: rawId,
@@ -66,10 +69,17 @@ function normalizeTestFlowRow(row: unknown): TestFlow | null {
     userId: typeof rawUserId === 'number' ? rawUserId : undefined,
     createdAt: typeof rawCreatedAt === 'string' ? rawCreatedAt : undefined,
     updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : undefined,
+    latestVersionNumber:
+      typeof rawLatestVersion === 'number'
+        ? rawLatestVersion
+        : rawLatestVersion === null
+          ? null
+          : undefined,
+    nodeCount: typeof rawNodeCount === 'number' ? rawNodeCount : undefined,
   }
 }
 
-function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
+const parsePaginatedTestFlows = (response: unknown): PaginatedTestFlows => {
   const data = (response as { data?: unknown })?.data ?? response
   if (isPaginatedTestFlows(data)) {
     return {
@@ -80,62 +90,48 @@ function parsePaginatedTestFlows(response: unknown): PaginatedTestFlows {
   return emptyPaginatedTestFlows()
 }
 
-export function useSearchTestFlows(
+export const useSearchTestFlows = (
   params?: SearchTestFlowsParams,
   options?: Omit<
     UseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows(params)
-        return parsePaginatedTestFlows(response)
-      } catch (error) {
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        throw error
-      }
+      const response = await apiClient.searchTestFlows(params)
+      return parsePaginatedTestFlows(response)
     },
     enabled: true,
     ...options,
   })
 }
 
-export function useSearchTestFlowsSuspense(
+export const useSearchTestFlowsSuspense = (
   params?: SearchTestFlowsParams,
   options?: Omit<
     UseSuspenseQueryOptions<PaginatedTestFlows, Error, PaginatedTestFlows, TestFlowListQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useSuspenseQuery({
     queryKey: testFlowQueryKeys.list(params),
     queryFn: async () => {
-      try {
-        const response = await apiClient.searchTestFlows(params)
-        return parsePaginatedTestFlows(response)
-      } catch (error) {
-        if (error instanceof SessionExpiredError || error instanceof UnauthorizedError) {
-          throw error
-        }
-        throw error
-      }
+      const response = await apiClient.searchTestFlows(params)
+      return parsePaginatedTestFlows(response)
     },
     ...options,
   })
 }
 
-export function useTestFlow(
+export const useTestFlow = (
   id: string,
   options?: Omit<
     UseQueryOptions<TestFlowDetail, Error, TestFlowDetail, TestFlowDetailQueryKey>,
     'queryKey' | 'queryFn'
   >,
-) {
+) => {
   return useQuery({
     queryKey: testFlowQueryKeys.detail(id),
     queryFn: () => apiClient.getTestFlow(id),
@@ -144,12 +140,12 @@ export function useTestFlow(
   })
 }
 
-export function useCreateTestFlow(
+export const useCreateTestFlow = (
   options?: Omit<
     UseMutationOptions<TestFlowDetail, Error, CreateTestFlowInput, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -164,12 +160,12 @@ export function useCreateTestFlow(
   })
 }
 
-export function useUpdateTestFlow(
+export const useUpdateTestFlow = (
   options?: Omit<
     UseMutationOptions<TestFlow, Error, UpdateTestFlowMutationVariables, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -185,12 +181,12 @@ export function useUpdateTestFlow(
   })
 }
 
-export function useSaveTestFlowGraph(
+export const useSaveTestFlowGraph = (
   options?: Omit<
     UseMutationOptions<TestFlowVersionGraph | null, Error, SaveTestFlowGraphVariables, unknown>,
     'mutationFn'
   >,
-) {
+) => {
   const queryClient = useQueryClient()
 
   return useMutation({

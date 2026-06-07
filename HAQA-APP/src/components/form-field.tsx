@@ -13,7 +13,7 @@ interface FormFieldProps {
   children: React.ReactNode
 }
 
-export function FormField({
+export const FormField = ({
   label,
   htmlFor,
   required,
@@ -21,7 +21,7 @@ export function FormField({
   description,
   className,
   children,
-}: FormFieldProps) {
+}: FormFieldProps) => {
   return (
     <div className={cn('space-y-1', className)}>
       <Label htmlFor={htmlFor}>

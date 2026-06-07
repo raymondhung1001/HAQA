@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -15,59 +16,108 @@ import { LoopBodyGroupNode } from '@/components/test-flow/loop-body-group-node'
 import { workflowNodeTypes } from '@/components/test-flow/workflow-node-types'
 import {
   canSwapWorkflowNode,
-  swapAdjacentWorkflowNode,
   WORKFLOW_NODE_ORIGIN,
-  addNodeToLoopBody,
-  appendTargetToLoopBodyOnConnect,
-  applyLoopNodeConfigUpdate,
-  connectEdge,
   createDefaultEdges,
   createDefaultNodes,
-  createWorkflowNode,
-  getNextNodePosition,
   hasEndNode,
   hasStartNode,
   isLoopNodeType,
   isValidWorkflowConnection,
-  migrateLoopNodeConfig,
   normalizeLoopBodyBreakTargetConnection,
-  pruneEdgesForRemovedBranches,
   LOOP_BODY_GROUP_NODE_TYPE,
   LOOP_BODY_GROUP_ORIGIN,
-  readIfElseBranches,
   readLoopBodyNodeIds,
-  removeNodeFromLoopBody,
-  repositionNodeForBranchConnection,
   buildWorkflowNodeDisplayLabels,
+  getWorkflowNodeType,
   resolveLoopBodySteps,
-  reorderLoopBody,
   getLoopBodyLayoutDigest,
-  syncLoopBodyGraphLayout,
+  toWorkflowNodeData,
   withWorkflowEdgeDefaults,
+  WorkflowGraphService,
   type TestFlowNodeType,
   type WorkflowNodeData,
 } from '@/lib/test-flow-graph'
 
 import type { UseWorkflowGraphOptions, UseWorkflowGraphReturn } from '@/types'
 
-export function useWorkflowGraph({
+const patchWorkflowNodeData = (
+  nodes: Node[],
+  nodeId: string,
+  updates: Partial<WorkflowNodeData>,
+): Node[] => {
+  return nodes.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            ...updates,
+            config: updates.config
+              ? {
+                  ...(node.data?.config as Record<string, unknown> | undefined),
+                  ...updates.config,
+                }
+              : node.data?.config,
+          },
+        }
+      : node,
+  )
+}
+
+const patchLoopNodeData = (
+  nodes: Node[],
+  nodeId: string,
+  updates: Partial<WorkflowNodeData>,
+): Node[] => {
+  return nodes.map((node) =>
+    node.id === nodeId
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            ...updates,
+          },
+        }
+      : node,
+  )
+}
+
+export const useWorkflowGraph = ({
   initialNodes,
   initialEdges,
-}: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn {
+}: UseWorkflowGraphOptions = {}): UseWorkflowGraphReturn => {
   const defaultNodes = initialNodes ?? createDefaultNodes()
   const defaultEdges = initialEdges ?? createDefaultEdges(defaultNodes)
   const [nodes, setNodes] = useNodesState(defaultNodes)
   const [edges, setEdges] = useEdgesState(defaultEdges)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const layoutDigestRef = useRef(getLoopBodyLayoutDigest(defaultNodes, defaultEdges))
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  const editingNodeIdRef = useRef(editingNodeId)
+  const graphService = useMemo(() => new WorkflowGraphService(), [])
+
+  nodesRef.current = nodes
+  edgesRef.current = edges
+  editingNodeIdRef.current = editingNodeId
 
   const applyLoopBodyRelayout = useCallback(
     (nextNodes: Node[], nextEdges: Edge[]) => {
-      const layout = syncLoopBodyGraphLayout(nextNodes, nextEdges)
+      const layout = graphService.applyLoopBodyRelayout(nextNodes, nextEdges)
       layoutDigestRef.current = getLoopBodyLayoutDigest(layout.nodes, layout.edges)
       return layout
     },
-    [],
+    [graphService],
+  )
+
+  const commitGraph = useCallback(
+    (nextNodes: Node[], nextEdges: Edge[]) => {
+      nodesRef.current = nextNodes
+      edgesRef.current = nextEdges
+      setNodes(nextNodes)
+      setEdges(nextEdges)
+    },
+    [setNodes, setEdges],
   )
 
   const onNodesChange = useCallback(
@@ -75,29 +125,80 @@ export function useWorkflowGraph({
       const filtered = changes.filter((change) => change.type !== 'position')
       if (filtered.length === 0) return
 
-      setNodes((currentNodes) => applyNodeChanges(filtered, currentNodes))
+      const removeIds = filtered
+        .filter((change): change is NodeChange & { type: 'remove'; id: string } => change.type === 'remove')
+        .map((change) => change.id)
+      const otherChanges = filtered.filter((change) => change.type !== 'remove')
+
+      if (removeIds.length > 0) {
+        const result = graphService.deleteNodes(removeIds, {
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        })
+
+        if (result.deletedNodeIds.length === 0) {
+          return
+        }
+
+        if (result.deletedNodeIds.includes(editingNodeIdRef.current ?? '')) {
+          setEditingNodeId(null)
+        }
+
+        const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+        commitGraph(layout.nodes, layout.edges)
+      }
+
+      if (otherChanges.length === 0) return
+
+      setNodes((currentNodes) => {
+        const nextNodes = applyNodeChanges(otherChanges, currentNodes)
+        nodesRef.current = nextNodes
+        return nextNodes
+      })
     },
-    [setNodes],
+    [applyLoopBodyRelayout, commitGraph, graphService, setNodes],
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       if (changes.length === 0) return
 
-      setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges))
+      let blockedSystemEdge = false
+      const filtered = changes.filter((change) => {
+        if (change.type !== 'remove') return true
+
+        const edge = edgesRef.current.find((candidate) => candidate.id === change.id)
+        if (edge?.deletable === false || edge?.data?.system === true) {
+          blockedSystemEdge = true
+          return false
+        }
+
+        return true
+      })
+
+      if (blockedSystemEdge) {
+        toast.error('This connection is managed automatically and cannot be removed.')
+      }
+
+      if (filtered.length === 0) return
+
+      setEdges((currentEdges) => {
+        const nextEdges = applyEdgeChanges(filtered, currentEdges)
+        edgesRef.current = nextEdges
+        return nextEdges
+      })
     },
     [setEdges],
   )
 
   useEffect(() => {
-    const layout = syncLoopBodyGraphLayout(nodes, edges)
+    const layout = graphService.applyLoopBodyRelayout(nodes, edges)
     const digest = getLoopBodyLayoutDigest(layout.nodes, layout.edges)
     if (digest === layoutDigestRef.current) return
 
     layoutDigestRef.current = digest
-    setNodes(layout.nodes)
-    setEdges(layout.edges)
-  }, [nodes, edges, setNodes, setEdges])
+    commitGraph(layout.nodes, layout.edges)
+  }, [nodes, edges, commitGraph, graphService])
 
   const startNodeExists = useMemo(() => hasStartNode(nodes), [nodes])
   const endNodeExists = useMemo(() => hasEndNode(nodes), [nodes])
@@ -109,11 +210,17 @@ export function useWorkflowGraph({
 
   const handleSwapNode = useCallback(
     (nodeId: string, direction: 'left' | 'right') => {
-      const result = swapAdjacentWorkflowNode(nodes, edges, nodeId, direction)
-      setNodes(result.nodes)
-      setEdges(result.edges)
+      const result = graphService.swapAdjacent(
+        {
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        },
+        nodeId,
+        direction,
+      )
+      commitGraph(result.nodes, result.edges)
     },
-    [nodes, edges, setNodes, setEdges],
+    [commitGraph, graphService],
   )
 
   const displayLabelByNodeId = useMemo(() => buildWorkflowNodeDisplayLabels(nodes), [nodes])
@@ -134,7 +241,7 @@ export function useWorkflowGraph({
           }
         }
 
-        const data = node.data as WorkflowNodeData
+        const data = toWorkflowNodeData(node)
         const loopBodySteps = isLoopNodeType(data.nodeType ?? '')
           ? resolveLoopBodySteps(readLoopBodyNodeIds(data.config), nodes)
           : undefined
@@ -168,26 +275,24 @@ export function useWorkflowGraph({
 
   const flowEdges = useMemo(() => edges.map(withWorkflowEdgeDefaults), [edges])
 
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
-  nodesRef.current = nodes
-  edgesRef.current = edges
-
   const onConnect = useCallback(
     (connection: Connection) => {
       const currentNodes = nodesRef.current
       const currentEdges = edgesRef.current
       const normalized = normalizeLoopBodyBreakTargetConnection(connection, currentNodes)
-      if (!isValidWorkflowConnection(normalized, currentNodes)) return
+      if (!isValidWorkflowConnection(normalized, currentNodes, currentEdges)) {
+        toast.error('This connection is not allowed for this workflow.')
+        return
+      }
 
-      let nextEdges = connectEdge(normalized, currentEdges)
-      let nextNodes = repositionNodeForBranchConnection(currentNodes, normalized)
-      const loopBodyResult = appendTargetToLoopBodyOnConnect(normalized, nextNodes, nextEdges)
+      const loopBodyResult = graphService.connect(connection, {
+        nodes: currentNodes,
+        edges: currentEdges,
+      })
       const layout = applyLoopBodyRelayout(loopBodyResult.nodes, loopBodyResult.edges)
-      setEdges(layout.edges)
-      setNodes(layout.nodes)
+      commitGraph(layout.nodes, layout.edges)
     },
-    [setEdges, setNodes, applyLoopBodyRelayout],
+    [applyLoopBodyRelayout, commitGraph, graphService],
   )
 
   const isValidConnection = useCallback((connection: Connection) => {
@@ -195,115 +300,103 @@ export function useWorkflowGraph({
     return isValidWorkflowConnection(
       normalizeLoopBodyBreakTargetConnection(connection, currentNodes),
       currentNodes,
+      edgesRef.current,
     )
   }, [])
 
   const handleAddLoopBodyNode = useCallback(
     (loopNodeId: string, nodeType: TestFlowNodeType) => {
-      const result = addNodeToLoopBody(loopNodeId, nodeType, nodes, edges)
+      const result = graphService.addLoopBodyNode(loopNodeId, nodeType, {
+        nodes: nodesRef.current,
+        edges: edgesRef.current,
+      })
       if (!result) return
       const layout = applyLoopBodyRelayout(result.nodes, result.edges)
-      setNodes(layout.nodes)
-      setEdges(layout.edges)
+      commitGraph(layout.nodes, layout.edges)
     },
-    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
+    [applyLoopBodyRelayout, commitGraph, graphService],
   )
 
   const handleRemoveLoopBodyNode = useCallback(
     (loopNodeId: string, bodyNodeId: string) => {
-      const result = removeNodeFromLoopBody(loopNodeId, bodyNodeId, nodes, edges)
+      const result = graphService.removeLoopBodyNode(
+        loopNodeId,
+        bodyNodeId,
+        {
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        },
+      )
       const layout = applyLoopBodyRelayout(result.nodes, result.edges)
-      setNodes(layout.nodes)
-      setEdges(layout.edges)
+      commitGraph(layout.nodes, layout.edges)
     },
-    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
+    [applyLoopBodyRelayout, commitGraph, graphService],
   )
 
   const handleReorderLoopBodyNode = useCallback(
     (loopNodeId: string, fromIndex: number, toIndex: number) => {
-      const result = reorderLoopBody(loopNodeId, fromIndex, toIndex, nodes, edges)
+      const result = graphService.reorderLoopBody(
+        loopNodeId,
+        fromIndex,
+        toIndex,
+        {
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        },
+      )
       const layout = applyLoopBodyRelayout(result.nodes, result.edges)
-      setNodes(layout.nodes)
-      setEdges(layout.edges)
+      commitGraph(layout.nodes, layout.edges)
     },
-    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
+    [applyLoopBodyRelayout, commitGraph, graphService],
   )
 
   const handleAddNode = useCallback(
     (nodeType: TestFlowNodeType) => {
-      if (nodeType === 'start' && hasStartNode(nodes)) {
+      const currentNodes = nodesRef.current
+      const currentEdges = edgesRef.current
+
+      if (nodeType === 'start' && hasStartNode(currentNodes)) {
         return
       }
-      if (nodeType === 'end' && hasEndNode(nodes)) {
+      if (nodeType === 'end' && hasEndNode(currentNodes)) {
         return
       }
 
-      const position = getNextNodePosition(nodes, edges)
-      setNodes((current) => [...current, createWorkflowNode(nodeType, position)])
+      const next = graphService.addNode(nodeType, {
+        nodes: currentNodes,
+        edges: currentEdges,
+      })
+      commitGraph(next.nodes, next.edges)
     },
-    [nodes, edges, setNodes],
+    [commitGraph, graphService],
   )
 
   const handleUpdateNode = useCallback(
     (nodeId: string, updates: Partial<WorkflowNodeData>) => {
-      const existing = nodes.find((node) => node.id === nodeId)
-      const nodeType = (existing?.data as WorkflowNodeData)?.nodeType
+      const result = graphService.updateNode(
+        nodeId,
+        updates,
+        {
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        },
+        patchWorkflowNodeData,
+        patchLoopNodeData,
+      )
+      const maybeLoopNode = nodesRef.current.find((node) => node.id === nodeId)
+      const shouldRelayout =
+        (maybeLoopNode ? isLoopNodeType(getWorkflowNodeType(maybeLoopNode) ?? '') : false) ||
+        Boolean(updates.config?.branches)
 
-      if (updates.config?.branches && nodeType === 'if-else') {
-        const branches = readIfElseBranches(updates.config)
-        if (branches.length > 0) {
-          setEdges((current) => pruneEdgesForRemovedBranches(current, nodeId, branches))
-        }
-      }
-
-      if (isLoopNodeType(nodeType ?? '') && updates.config) {
-        const mergedConfig = migrateLoopNodeConfig({
-          ...((existing?.data as WorkflowNodeData)?.config ?? {}),
-          ...updates.config,
-        })
-        const result = applyLoopNodeConfigUpdate(
-          nodeId,
-          mergedConfig,
-          nodes.map((node) =>
-            node.id === nodeId
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    ...updates,
-                  },
-                }
-              : node,
-          ),
-          edges,
-        )
-        const layout = applyLoopBodyRelayout(result.nodes, result.edges)
-        setNodes(layout.nodes)
-        setEdges(layout.edges)
+      if (!shouldRelayout) {
+        commitGraph(result.nodes, result.edges)
         return
       }
 
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  ...updates,
-                  config: updates.config
-                    ? {
-                        ...(node.data?.config as Record<string, unknown> | undefined),
-                        ...updates.config,
-                      }
-                    : node.data?.config,
-                },
-              }
-            : node,
-        ),
-      )
+      const layout = applyLoopBodyRelayout(result.nodes, result.edges)
+      commitGraph(layout.nodes, layout.edges)
     },
-    [nodes, edges, setNodes, setEdges, applyLoopBodyRelayout],
+    [applyLoopBodyRelayout, commitGraph, graphService],
   )
 
   const closeNodeEditor = useCallback(() => setEditingNodeId(null), [])

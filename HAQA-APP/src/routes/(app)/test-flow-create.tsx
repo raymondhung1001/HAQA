@@ -4,12 +4,8 @@ import { Navigation } from '@/components/navigation'
 import { TestFlowEditor } from '@/components/test-flow-editor'
 import { useTestFlowEditorPage } from '@/lib/hooks'
 
-export const Route = createFileRoute('/(app)/test-flow-create')({
-  component: CreateTestFlowPage,
-})
-
-function CreateTestFlowPage() {
-  const { handleCancel, handleSubmit, isSubmitting, layoutClassName } = useTestFlowEditorPage({
+const CreateTestFlowPage = () => {
+  const { handleCancel, handleSubmit, isSubmitting, setIsDirty, layoutClassName } = useTestFlowEditorPage({
     mode: 'create',
   })
 
@@ -24,8 +20,13 @@ function CreateTestFlowPage() {
           className={layoutClassName}
           onCancel={handleCancel}
           onSubmit={handleSubmit}
+          onDirtyChange={setIsDirty}
         />
       </div>
     </Navigation>
   )
 }
+
+export const Route = createFileRoute('/(app)/test-flow-create')({
+  component: CreateTestFlowPage,
+})

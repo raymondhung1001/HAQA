@@ -15,6 +15,7 @@ import { DeepPartial } from 'typeorm';
 import {
     CreateTestFlowDto,
     SearchTestFlowsDto,
+    TestFlowListItem,
     UpdateTestFlowDto,
 } from './test-flows.service.types';
 import {
@@ -26,7 +27,7 @@ import {
     TestFlowVersionGraphResponse,
 } from './test-flow-graph.types';
 
-export type { CreateTestFlowDto, SearchTestFlowsDto, UpdateTestFlowDto } from './test-flows.service.types';
+export type { CreateTestFlowDto, SearchTestFlowsDto, TestFlowListItem, UpdateTestFlowDto } from './test-flows.service.types';
 
 export interface CreateTestFlowWithGraphDto extends CreateTestFlowDto {
     graph?: TestFlowGraphDto;
@@ -146,7 +147,13 @@ export class TestFlowsService {
         });
     }
 
-    async search(searchDto: SearchTestFlowsDto) {
+    async search(searchDto: SearchTestFlowsDto): Promise<{
+        data: TestFlowListItem[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    }> {
         const page = searchDto.page && searchDto.page > 0 ? searchDto.page : 1;
         const limit = searchDto.limit && searchDto.limit > 0 ? Math.min(searchDto.limit, 100) : 10;
         const sortBy = searchDto.sortBy || 'createdAt';
@@ -201,6 +208,7 @@ export class TestFlowsService {
         this.validateNestedLoopContainment(loopConfigByNodeId, nodeById);
         this.validateNodeOutgoingSemantics(graph.nodes, outgoingByNodeId, edgeById, nodeById, loopConfigByNodeId);
         this.validateLoopBodyIncomingSemantics(loopConfigByNodeId, incomingByNodeId);
+        this.validateLoopBodyOutgoingSemantics(loopConfigByNodeId, outgoingByNodeId);
     }
 
     private buildNodeMap(nodes: TestFlowGraphNodeDto[]): Map<string, TestFlowGraphNodeDto> {
@@ -608,6 +616,29 @@ export class TestFlowsService {
                             `Loop body node ${bodyNodeId} can only be entered from loop ${loopNodeId} Loop handle or same loop body`,
                         );
                     }
+                }
+            }
+        }
+    }
+
+    private validateLoopBodyOutgoingSemantics(
+        loopConfigByNodeId: Map<string, ParsedLoopConfig>,
+        outgoingByNodeId: Map<string, TestFlowGraphEdgeDto[]>,
+    ): void {
+        for (const [loopNodeId, loopConfig] of loopConfigByNodeId.entries()) {
+            const bodySet = new Set(loopConfig.bodyNodeIds);
+
+            for (const bodyNodeId of loopConfig.bodyNodeIds) {
+                const outgoing = outgoingByNodeId.get(bodyNodeId) ?? [];
+
+                for (const edge of outgoing) {
+                    if (bodySet.has(edge.targetNodeId)) {
+                        continue;
+                    }
+
+                    throw new BadRequestException(
+                        `Loop body node ${bodyNodeId} cannot connect outside its loop body except through loop break/done handles`,
+                    );
                 }
             }
         }

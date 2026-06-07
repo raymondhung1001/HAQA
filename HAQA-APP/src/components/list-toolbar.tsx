@@ -19,7 +19,7 @@ interface ListToolbarProps<TSort extends string> {
   className?: string
 }
 
-export function ListToolbar<TSort extends string>({
+export const ListToolbar = <TSort extends string>({
   searchValue,
   onSearchChange,
   searchPlaceholder = 'Search...',
@@ -30,7 +30,7 @@ export function ListToolbar<TSort extends string>({
   onLimitChange,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
   className,
-}: ListToolbarProps<TSort>) {
+}: ListToolbarProps<TSort>) => {
   return (
     <div className={cn('mb-4 flex items-center gap-4', className)}>
       <SearchInput

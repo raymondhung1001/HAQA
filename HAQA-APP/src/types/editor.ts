@@ -17,6 +17,8 @@ export interface TestFlowEditorPageBase {
   handleCancel: () => void
   handleSubmit: TestFlowEditorSubmitHandler
   isSubmitting: boolean
+  isDirty: boolean
+  setIsDirty: (dirty: boolean) => void
   layoutClassName: string
 }
 

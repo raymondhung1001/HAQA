@@ -15,7 +15,7 @@ interface MobileSidebarProps {
   isLoggingOut: boolean
 }
 
-export function MobileSidebar({
+export const MobileSidebar = ({
   open,
   onOpenChange,
   navItems,
@@ -23,7 +23,7 @@ export function MobileSidebar({
   onNavClick,
   onLogout,
   isLoggingOut,
-}: MobileSidebarProps) {
+}: MobileSidebarProps) => {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className={cn('p-0', mobileSidebarWidthClass)}>

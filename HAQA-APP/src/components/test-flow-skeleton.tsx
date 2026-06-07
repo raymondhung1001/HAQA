@@ -5,7 +5,7 @@ interface TestFlowSkeletonProps {
   count?: number
 }
 
-export function TestFlowSkeleton({ count = 3 }: TestFlowSkeletonProps) {
+export const TestFlowSkeleton = ({ count = 3 }: TestFlowSkeletonProps) => {
   return (
     <div className="space-y-4 mb-6">
       {Array.from({ length: count }).map((_, index) => (

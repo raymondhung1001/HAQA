@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -7,38 +7,39 @@ import {
   MiniMap,
   ReactFlowProvider,
   ConnectionLineType,
-  ConnectionMode,
+  useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import type { Edge, Node } from '@xyflow/react'
+import type { Edge, Node, Viewport } from '@xyflow/react'
 
+import { Callout } from '@/components/callout'
+import {
+  FLOW_BOARD_FIT_MAX_ZOOM,
+  FLOW_BOARD_FIT_MIN_ZOOM,
+  FLOW_BOARD_MAX_ZOOM,
+  FLOW_BOARD_MIN_ZOOM,
+  getBoardTranslateExtent,
+} from '@/components/test-flow/flow-board-layout'
 import { EditorHeader } from '@/components/test-flow/editor-header'
 import { TestFlowMetadataForm } from '@/components/test-flow/metadata-form'
 import { NodePalette } from '@/components/test-flow/node-palette'
 import { WorkflowNodeEditor } from '@/components/test-flow/workflow-node-editor'
+import { useTestFlowEditorDirtyState } from '@/lib/hooks/use-test-flow-editor-dirty-state'
 import { useWorkflowGraph } from '@/lib/hooks/use-workflow-graph'
 import { cn } from '@/lib/utils'
 import {
+  buildUiLayoutJson,
+  createDefaultEdges,
+  createDefaultNodes,
+  isEmptyStarterGraph,
   reactFlowToGraph,
   WORKFLOW_EDGE_OPTIONS,
   WORKFLOW_NODE_ORIGIN,
 } from '@/lib/test-flow-graph'
+import { validateTestFlowGraph } from '@/lib/test-flow-validation'
 import type { TestFlowEditorFormData, TestFlowGraph } from '@/types'
 
 export type { TestFlowEditorFormData } from '@/types'
-
-const FLOW_BOARD_MIN_ZOOM = 0.5
-const FLOW_BOARD_MAX_ZOOM = 1.35
-const FLOW_BOARD_FIT_MIN_ZOOM = 0.5
-const FLOW_BOARD_FIT_MAX_ZOOM = 1
-
-/** Keep a small margin before Start; allow pan room where the flow grows to the right. */
-const BOARD_PAN_PADDING = {
-  left: 48,
-  right: 280,
-  top: 120,
-  bottom: 200,
-} as const
 
 interface TestFlowEditorProps {
   title: string
@@ -46,26 +47,36 @@ interface TestFlowEditorProps {
   initialFormData: TestFlowEditorFormData
   initialNodes?: Node[]
   initialEdges?: Edge[]
+  initialViewport?: Viewport
   isSubmitting?: boolean
   className?: string
   onCancel: () => void
   onSubmit: (formData: TestFlowEditorFormData, graph: TestFlowGraph) => void
+  onDirtyChange?: (dirty: boolean) => void
 }
 
-function TestFlowEditorCanvas({
+const TestFlowEditorCanvas = ({
   title,
   submitLabel,
   initialFormData,
   initialNodes,
   initialEdges,
+  initialViewport,
   isSubmitting = false,
   className,
   onCancel,
   onSubmit,
-}: TestFlowEditorProps) {
+  onDirtyChange,
+}: TestFlowEditorProps) => {
+  const { getViewport, setViewport } = useReactFlow()
   const [formData, setFormData] = useState(initialFormData)
   const [nameError, setNameError] = useState<string | undefined>()
   const [showFlowHelp, setShowFlowHelp] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<Array<{ code: string; message: string }>>([])
+  const viewportRestoredRef = useRef(false)
+
+  const effectiveInitialNodes = initialNodes ?? createDefaultNodes()
+  const effectiveInitialEdges = initialEdges ?? createDefaultEdges(effectiveInitialNodes)
 
   const {
     nodes,
@@ -90,45 +101,73 @@ function TestFlowEditorCanvas({
     handleReorderLoopBodyNode,
   } = useWorkflowGraph({ initialNodes, initialEdges })
 
-  const boardTranslateExtent = useMemo<[[number, number], [number, number]]>(() => {
-    if (flowNodes.length === 0) {
-      return [[-1000, -1000], [2000, 2000]]
+  const boardTranslateExtent = useMemo(() => getBoardTranslateExtent(flowNodes), [flowNodes])
+
+  const graphValidation = useMemo(
+    () => validateTestFlowGraph(reactFlowToGraph(nodes, edges)),
+    [nodes, edges],
+  )
+
+  const isDirty = useTestFlowEditorDirtyState({
+    initialFormData,
+    initialNodes: effectiveInitialNodes,
+    initialEdges: effectiveInitialEdges,
+    formData,
+    nodes,
+    edges,
+  })
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    if (!initialViewport || viewportRestoredRef.current) return
+    setViewport(initialViewport, { duration: 0 })
+    viewportRestoredRef.current = true
+  }, [initialViewport, setViewport])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
+      if (event.key === '?' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault()
+        setShowFlowHelp((current) => !current)
+      }
     }
 
-    let minX = Number.POSITIVE_INFINITY
-    let maxX = Number.NEGATIVE_INFINITY
-    let minY = Number.POSITIVE_INFINITY
-    let maxY = Number.NEGATIVE_INFINITY
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
-    for (const node of flowNodes) {
-      const width = Number(node.width ?? node.style?.width ?? 220)
-      const height = Number(node.height ?? node.style?.height ?? 120)
-      const origin = (node.origin as [number, number] | undefined) ?? WORKFLOW_NODE_ORIGIN
-      const left = node.position.x - width * origin[0]
-      const right = left + width
-      const top = node.position.y - height * origin[1]
-      const bottom = top + height
-
-      minX = Math.min(minX, left)
-      maxX = Math.max(maxX, right)
-      minY = Math.min(minY, top)
-      maxY = Math.max(maxY, bottom)
-    }
-
-    return [
-      [minX - BOARD_PAN_PADDING.left, minY - BOARD_PAN_PADDING.top],
-      [maxX + BOARD_PAN_PADDING.right, maxY + BOARD_PAN_PADDING.bottom],
-    ]
-  }, [flowNodes])
-
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!formData.name.trim()) {
       setNameError('Please enter a test flow name')
       return
     }
     setNameError(undefined)
-    onSubmit(formData, reactFlowToGraph(nodes, edges))
-  }
+
+    const validation = validateTestFlowGraph(reactFlowToGraph(nodes, edges))
+    setValidationErrors(validation.errors)
+    if (!validation.valid) return
+
+    const viewport = getViewport()
+    const graph = reactFlowToGraph(nodes, edges, buildUiLayoutJson(viewport))
+    onSubmit(formData, graph)
+  }, [formData, nodes, edges, getViewport, onSubmit])
+
+  const showEmptyCanvasHint = isEmptyStarterGraph(nodes, edges)
+  const saveDisabled = !graphValidation.valid
 
   return (
     <div
@@ -141,6 +180,7 @@ function TestFlowEditorCanvas({
         title={title}
         submitLabel={submitLabel}
         isSubmitting={isSubmitting}
+        saveDisabled={saveDisabled}
         onCancel={onCancel}
         onSubmit={handleSubmit}
       />
@@ -150,6 +190,37 @@ function TestFlowEditorCanvas({
           <TestFlowMetadataForm formData={formData} onChange={setFormData} />
           {nameError ? (
             <p className="px-4 pb-2 text-sm text-red-600 dark:text-red-400">{nameError}</p>
+          ) : null}
+
+          {!graphValidation.valid ? (
+            <div className="px-4 pb-3">
+              <Callout variant="warning" title="Fix graph issues before saving">
+                <ul className="list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
+                  {graphValidation.errors.map((error) => (
+                    <li key={`${error.code}-${error.nodeId ?? error.message}`}>{error.message}</li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          ) : validationErrors.length > 0 ? (
+            <div className="px-4 pb-3">
+              <Callout variant="warning" title="Could not save">
+                <ul className="list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
+                  {validationErrors.map((error) => (
+                    <li key={`${error.code}-${error.message}`}>{error.message}</li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          ) : null}
+
+          {showEmptyCanvasHint ? (
+            <div className="px-4 pb-3">
+              <Callout variant="info" title="Get started">
+                Add nodes from the palette below, then connect handles on the canvas to build your
+                workflow.
+              </Callout>
+            </div>
           ) : null}
 
           <div className="min-h-[220px] flex-1 lg:min-h-0">
@@ -162,7 +233,7 @@ function TestFlowEditorCanvas({
         </aside>
 
         <section className="relative min-h-[62vh] min-w-0 flex-1 lg:min-h-0">
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" data-testid="test-flow-canvas">
             <ReactFlow
               nodes={flowNodes}
               edges={flowEdges}
@@ -171,7 +242,6 @@ function TestFlowEditorCanvas({
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               isValidConnection={isValidConnection}
-              connectionMode={ConnectionMode.Loose}
               onNodeDoubleClick={(_, node) => openNodeEditor(node.id)}
               nodesDraggable={false}
               nodeOrigin={WORKFLOW_NODE_ORIGIN}
@@ -188,13 +258,13 @@ function TestFlowEditorCanvas({
                 minZoom: FLOW_BOARD_FIT_MIN_ZOOM,
                 maxZoom: FLOW_BOARD_FIT_MAX_ZOOM,
               }}
-              fitView
+              fitView={!initialViewport}
             >
               <Background gap={20} size={1} />
               <Controls className="!shadow-md">
                 <ControlButton
                   aria-label="Flow board help"
-                  title="Flow board help"
+                  title="Flow board help (?)"
                   className="!bg-white hover:!bg-slate-100 dark:!bg-slate-800 dark:hover:!bg-slate-700"
                   onClick={() => setShowFlowHelp((current) => !current)}
                 >
@@ -216,12 +286,15 @@ function TestFlowEditorCanvas({
 
           {showFlowHelp ? (
             <p className="pointer-events-none absolute bottom-3 left-16 z-10 max-w-xl rounded-md bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-sm backdrop-blur-sm dark:bg-slate-900/90 dark:text-gray-300">
-              Add nodes from the palette to grow the flow to the right, connect handles to build a
-              branch tree (If / Else needs Yes/Else handles), add loop body steps and wire them in
-              the canvas, wire If / Else branches to orange Break handles on the loop body rail (then
-              out to main flow), use blue Done to continue after the loop, use the arrow buttons on a
-              main-flow step to swap its order, connect handles between steps, double-click or use the
-              edit button to configure a node, and press Delete to remove a selected node.
+              Press <kbd className="rounded border px-1">?</kbd> to toggle this help. Add nodes from
+              the palette to grow the flow to the right, connect handles to build a branch tree (If /
+              Else needs Yes/Else handles), add loop body steps and wire them in the canvas, wire If /
+              Else branches to orange Break handles on the loop body rail (then out to main flow), use
+              blue Done to continue after the loop, use the arrow buttons on a main-flow step to swap
+              its order, connect handles between steps, double-click or use the edit button to
+              configure a node, press Delete to remove selected nodes or edges (loop entry and
+              loop-back connections are protected), and remove loop body steps from the node editor
+              or by selecting them on the canvas.
             </p>
           ) : null}
         </section>
@@ -243,7 +316,7 @@ function TestFlowEditorCanvas({
   )
 }
 
-export function TestFlowEditor(props: TestFlowEditorProps) {
+export const TestFlowEditor = (props: TestFlowEditorProps) => {
   return (
     <ReactFlowProvider>
       <TestFlowEditorCanvas {...props} />

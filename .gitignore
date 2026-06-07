@@ -3,6 +3,10 @@
 node_modules/
 /node_modules
 
+# Workspace lockfiles — only the root bun.lock is used
+HAQA-API/bun.lock
+HAQA-APP/bun.lock
+
 # Compiled output
 /dist
 dist

@@ -13,7 +13,7 @@ interface QueryStateProps {
   className?: string
 }
 
-export function QueryState({
+export const QueryState = ({
   isLoading,
   error,
   isEmpty,
@@ -22,7 +22,7 @@ export function QueryState({
   emptyMessage = 'No data found.',
   children,
   className,
-}: QueryStateProps) {
+}: QueryStateProps) => {
   if (isLoading) {
     return (
       <Navigation>

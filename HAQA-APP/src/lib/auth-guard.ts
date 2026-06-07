@@ -4,7 +4,7 @@ import { getAuthSession } from './auth-session'
 /**
  * Route guard for authenticated app pages.
  */
-export async function requireAuth(): Promise<void> {
+export const requireAuth = async (): Promise<void> => {
   if (typeof window === 'undefined') {
     return
   }

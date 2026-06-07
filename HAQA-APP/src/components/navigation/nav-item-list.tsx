@@ -13,7 +13,7 @@ interface NavItemListProps {
   onItemClick: (path: string) => void
 }
 
-export function NavItemList({ items, activePath, onItemClick }: NavItemListProps) {
+export const NavItemList = ({ items, activePath, onItemClick }: NavItemListProps) => {
   return (
     <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
       {items.map((item) => (

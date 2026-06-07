@@ -8,7 +8,7 @@ interface NodePaletteProps {
   hasEndNode: boolean
 }
 
-export function NodePalette({ onAddNode, hasStartNode, hasEndNode }: NodePaletteProps) {
+export const NodePalette = ({ onAddNode, hasStartNode, hasEndNode }: NodePaletteProps) => {
   return (
     <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-900/50">
       <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-700">
@@ -29,6 +29,7 @@ export function NodePalette({ onAddNode, hasStartNode, hasEndNode }: NodePalette
               variant="ghost"
               size="sm"
               disabled={disabled}
+              data-testid={`palette-node-${def.type}`}
               onClick={() => onAddNode(def.type)}
               className="h-auto w-full justify-start gap-2 px-2 py-2 text-left"
               title={

@@ -10,12 +10,12 @@ interface AppPageProps {
   containerClassName?: string
 }
 
-export function AppPage({
+export const AppPage = ({
   children,
   size = '2xl',
   className,
   containerClassName,
-}: AppPageProps) {
+}: AppPageProps) => {
   return (
     <Navigation>
       <Container size={size} className={cn(containerClassName)}>

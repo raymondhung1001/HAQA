@@ -35,7 +35,7 @@ interface WorkflowNodeEditorProps {
   onReorderLoopBodyNode?: (loopNodeId: string, fromIndex: number, toIndex: number) => void
 }
 
-export function WorkflowNodeEditor({
+export const WorkflowNodeEditor = ({
   node,
   allNodes = [],
   open,
@@ -44,7 +44,7 @@ export function WorkflowNodeEditor({
   onAddLoopBodyNode,
   onRemoveLoopBodyNode,
   onReorderLoopBodyNode,
-}: WorkflowNodeEditorProps) {
+}: WorkflowNodeEditorProps) => {
   const [nameError, setNameError] = useState<string | undefined>()
   const [branchError, setBranchError] = useState<string | undefined>()
 
@@ -69,9 +69,29 @@ export function WorkflowNodeEditor({
     handleAddBranch,
     handleRemoveBranch,
     buildSavePayload,
+    isApiCallNode,
+    isWaitNode,
+    apiMethod,
+    setApiMethod,
+    apiUrl,
+    setApiUrl,
+    apiHeaders,
+    apiBody,
+    setApiBody,
+    apiExpectedStatus,
+    setApiExpectedStatus,
+    waitDuration,
+    setWaitDuration,
+    waitDurationUnit,
+    setWaitDurationUnit,
+    handleApiHeaderChange,
+    handleAddApiHeader,
+    handleRemoveApiHeader,
   } = useWorkflowNodeEditorForm(node, allNodes)
 
   const loopBodyWorkDefinitions = getLoopBodyWorkNodeDefinitions() ?? []
+  const nodeId = node?.id
+  const hasConditionalLoopStep = loopBodySteps.some((step) => step.nodeType === 'if-else')
 
   const handleSave = () => {
     setNameError(undefined)
@@ -88,15 +108,34 @@ export function WorkflowNodeEditor({
     }
 
     const payload = buildSavePayload()
-    if (!payload || !node) return
+    if (!payload || !nodeId) return
 
-    onSave(node.id, payload)
+    onSave(nodeId, payload)
     onOpenChange(false)
+  }
+
+  const handleReorderLoopBodyStep = (fromIndex: number, toIndex: number) => {
+    if (!nodeId) return
+    onReorderLoopBodyNode?.(nodeId, fromIndex, toIndex)
+  }
+
+  const handleRemoveLoopBodyStep = (bodyNodeId: string) => {
+    if (!nodeId) return
+    onRemoveLoopBodyNode?.(nodeId, bodyNodeId)
+  }
+
+  const handleAddLoopBodyWorkNode = (nodeType: TestFlowNodeType) => {
+    if (!nodeId) return
+    onAddLoopBodyNode?.(nodeId, nodeType)
   }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        side="right"
+        className="w-full overflow-y-auto sm:max-w-lg"
+        data-testid="workflow-node-sheet"
+      >
         <SheetHeader>
           <SheetTitle>Edit Workflow Node</SheetTitle>
           <SheetDescription>
@@ -220,7 +259,7 @@ export function WorkflowNodeEditor({
                           size="icon"
                           className="h-7 w-7"
                           disabled={index === 0}
-                          onClick={() => onReorderLoopBodyNode?.(node!.id, index, index - 1)}
+                          onClick={() => handleReorderLoopBodyStep(index, index - 1)}
                           title="Move step up"
                         >
                           <ChevronUp className="h-3.5 w-3.5" />
@@ -231,7 +270,7 @@ export function WorkflowNodeEditor({
                           size="icon"
                           className="h-7 w-7"
                           disabled={index === loopBodySteps.length - 1}
-                          onClick={() => onReorderLoopBodyNode?.(node!.id, index, index + 1)}
+                          onClick={() => handleReorderLoopBodyStep(index, index + 1)}
                           title="Move step down"
                         >
                           <ChevronDown className="h-3.5 w-3.5" />
@@ -242,7 +281,7 @@ export function WorkflowNodeEditor({
                         variant="outline"
                         size="icon"
                         className="shrink-0"
-                        onClick={() => onRemoveLoopBodyNode?.(node!.id, step.id)}
+                        onClick={() => handleRemoveLoopBodyStep(step.id)}
                         title="Remove from loop body"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -262,7 +301,7 @@ export function WorkflowNodeEditor({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => onAddLoopBodyNode?.(node!.id, definition.type)}
+                      onClick={() => handleAddLoopBodyWorkNode(definition.type)}
                     >
                       <Icon className="mr-1 h-3.5 w-3.5" />
                       {definition.label}
@@ -279,7 +318,7 @@ export function WorkflowNodeEditor({
               title="Break exits"
               description="Break handles sit on the right rail of the loop body box, aligned with If / Else branch rows. Wire a branch to the orange handle, then wire the outer dot to the next main-flow step."
             >
-              {loopBodySteps.some(step => step.nodeType === 'if-else') ? (
+              {hasConditionalLoopStep ? (
                 <>
                   <div className="flex justify-end">
                     <Button type="button" variant="outline" size="sm" onClick={handleAddBranch}>
@@ -347,6 +386,113 @@ export function WorkflowNodeEditor({
                 />
               </FormField>
             </>
+          )}
+
+          {isApiCallNode && (
+            <>
+              <FormField label="HTTP Method">
+                <select
+                  value={apiMethod}
+                  onChange={(e) => setApiMethod(e.target.value as typeof apiMethod)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="PATCH">PATCH</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </FormField>
+
+              <FormField label="URL">
+                <Input
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                  placeholder="https://api.example.com/resource"
+                />
+              </FormField>
+
+              <FormField label="Headers">
+                <div className="space-y-2">
+                  {apiHeaders.map((row, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={row.key}
+                        onChange={(e) => handleApiHeaderChange(index, 'key', e.target.value)}
+                        placeholder="Header name"
+                        className="min-w-0 flex-1"
+                      />
+                      <Input
+                        value={row.value}
+                        onChange={(e) => handleApiHeaderChange(index, 'value', e.target.value)}
+                        placeholder="Value"
+                        className="min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => handleRemoveApiHeader(index)}
+                        title="Remove header"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddApiHeader}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add header
+                  </Button>
+                </div>
+              </FormField>
+
+              <FormField label="Request Body">
+                <Textarea
+                  value={apiBody}
+                  onChange={(e) => setApiBody(e.target.value)}
+                  className="min-h-[120px] font-mono text-sm"
+                  placeholder='{"key": "value"}'
+                  spellCheck={false}
+                />
+              </FormField>
+
+              <FormField label="Expected Status Code">
+                <Input
+                  type="number"
+                  min={100}
+                  max={599}
+                  value={apiExpectedStatus}
+                  onChange={(e) => setApiExpectedStatus(e.target.value)}
+                  placeholder="200"
+                />
+              </FormField>
+            </>
+          )}
+
+          {isWaitNode && (
+            <FormField label="Duration">
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={waitDuration}
+                  onChange={(e) => setWaitDuration(e.target.value)}
+                  className="min-w-0 flex-1"
+                />
+                <select
+                  value={waitDurationUnit}
+                  onChange={(e) =>
+                    setWaitDurationUnit(e.target.value as typeof waitDurationUnit)
+                  }
+                  className="flex h-9 w-24 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="ms">ms</option>
+                  <option value="s">s</option>
+                </select>
+              </div>
+            </FormField>
           )}
         </div>
 

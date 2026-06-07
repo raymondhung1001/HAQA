@@ -33,7 +33,7 @@ import {
   LOOP_BODY_GROUP,
   WORKFLOW_HANDLE_LANE_STYLE,
   WORKFLOW_REORDER_FOOTER_HEIGHT,
-} from '@/components/test-flow/workflow-node-layout'
+} from '@/lib/test-flow-graph/workflow-node-layout'
 import { cn } from '@/lib/utils'
 
 const NODE_STYLES: Record<
@@ -102,13 +102,13 @@ type ToneClass = {
   subtitle: string
 }
 
-function WorkflowNodeReorderFooter({
+const WorkflowNodeReorderFooter = ({
   nodeData,
   borderClassName = 'border-black/5 dark:border-white/10',
 }: {
   nodeData: WorkflowNodeData
   borderClassName?: string
-}) {
+}) => {
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   if (!showSwap) return null
 
@@ -151,7 +151,7 @@ function WorkflowNodeReorderFooter({
   )
 }
 
-function MultiBranchWorkflowNode({
+const MultiBranchWorkflowNode = ({
   nodeData,
   style,
   name,
@@ -169,7 +169,7 @@ function MultiBranchWorkflowNode({
   selected: boolean
   defaultSubtitle: string
   toneClass: ToneClass
-}) {
+}) => {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const nodeHeight = getIfElseNodeHeight(branches.length, showSwap)
@@ -258,7 +258,7 @@ function MultiBranchWorkflowNode({
   )
 }
 
-function LoopWorkflowNode({
+const LoopWorkflowNode = ({
   nodeData,
   style,
   name,
@@ -280,7 +280,7 @@ function LoopWorkflowNode({
   defaultSubtitle: string
   toneClass: ToneClass
   isInLoopBody?: boolean
-}) {
+}) => {
   const Icon = style.icon
   const showSwap = Boolean(nodeData.canSwapLeft || nodeData.canSwapRight)
   const hasLoopBody = bodySteps.length > 0
@@ -317,7 +317,7 @@ function LoopWorkflowNode({
       <Handle
         type="target"
         position={Position.Left}
-        style={isInLoopBody ? WORKFLOW_HANDLE_LANE_STYLE : { top: loopHandleTop }}
+        style={{ top: loopHandleTop }}
         className="!h-2.5 !w-2.5 !border-2 !border-gray-400 !bg-white"
       />
 
@@ -434,7 +434,7 @@ function LoopWorkflowNode({
   )
 }
 
-export function WorkflowNode({ data, selected, parentId }: NodeProps) {
+export const WorkflowNode = ({ data, selected, parentId }: NodeProps) => {
   const nodeData = data as WorkflowNodeData
   const nodeType = nodeData.nodeType ?? 'script'
   const style = NODE_STYLES[nodeType] ?? NODE_STYLES.script
@@ -535,6 +535,10 @@ export function WorkflowNode({ data, selected, parentId }: NodeProps) {
           {description ? (
             <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
               {description}
+            </p>
+          ) : nodeType === 'script' && nodeData.scriptContent?.trim() ? (
+            <p className="mt-0.5 line-clamp-2 font-mono text-[10px] text-gray-500 dark:text-gray-400">
+              {nodeData.scriptContent.trim()}
             </p>
           ) : (
             <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">

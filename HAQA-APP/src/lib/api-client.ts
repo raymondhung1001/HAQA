@@ -65,7 +65,7 @@ export interface ApiResponse<T = unknown> {
 /**
  * Get a cookie value by name (only works for non-HttpOnly cookies)
  */
-function getCookie(name: string): string | null {
+const getCookie = (name: string): string | null => {
   if (typeof window === 'undefined') return null
   const value = `; ${document.cookie}`
   const parts = value.split(`; ${name}=`)
@@ -86,7 +86,7 @@ function getCookie(name: string): string | null {
 /**
  * Get CSRF token from cookie or fetch it from the server
  */
-async function getCsrfToken(baseUrl: string): Promise<string | null> {
+const getCsrfToken = async (baseUrl: string): Promise<string | null> => {
   if (typeof window === 'undefined') return null
 
   // Try to read from cookie first
@@ -123,7 +123,7 @@ async function getCsrfToken(baseUrl: string): Promise<string | null> {
 /**
  * Get the API base URL
  */
-function getBaseUrl(customBaseUrl?: string): string {
+const getBaseUrl = (customBaseUrl?: string): string => {
   if (customBaseUrl) {
     return customBaseUrl
   }
@@ -137,7 +137,16 @@ interface AuthTokenPayload {
 
 let refreshInFlight: Promise<boolean> | null = null
 
-function unwrapAuthTokenPayload(response: unknown): AuthTokenPayload | null {
+const appendSearchParam = (
+  queryParams: URLSearchParams,
+  key: string,
+  value: string | number | boolean | undefined,
+) => {
+  if (value === undefined || value === '' || value === 0) return
+  queryParams.append(key, String(value))
+}
+
+const unwrapAuthTokenPayload = (response: unknown): AuthTokenPayload | null => {
   const payload = (response as { data?: AuthTokenPayload })?.data ?? response
   if (!payload || typeof payload !== 'object') {
     return null
@@ -145,12 +154,12 @@ function unwrapAuthTokenPayload(response: unknown): AuthTokenPayload | null {
   return payload as AuthTokenPayload
 }
 
-function isAuthTokenEndpoint(fullUrl: string, baseUrl: string): boolean {
+const isAuthTokenEndpoint = (fullUrl: string, baseUrl: string): boolean => {
   const path = fullUrl.replace(baseUrl, '').split('?')[0]?.replace(/\/$/, '') || ''
   return path === '/token' || path === '/token/refresh'
 }
 
-async function refreshAccessToken(baseUrl: string): Promise<boolean> {
+const refreshAccessToken = async (baseUrl: string): Promise<boolean> => {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
@@ -195,10 +204,10 @@ async function refreshAccessToken(baseUrl: string): Promise<boolean> {
 /**
  * API request wrapper that handles authentication, CSRF tokens, and error handling
  */
-export async function apiRequest<T = unknown>(
+export const apiRequest = async <T = unknown>(
   url: string,
   options: ApiRequestOptions = {}
-): Promise<T | ApiResponse<T>> {
+): Promise<T | ApiResponse<T>> => {
   const {
     retryOn401 = true,
     includeCsrf,
@@ -211,7 +220,8 @@ export async function apiRequest<T = unknown>(
   
   // Determine if URL is absolute or relative
   const isAbsoluteUrl = url.startsWith('http://') || url.startsWith('https://')
-  const fullUrl = isAbsoluteUrl ? url : `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+  const relativePath = url.startsWith('/') ? url : `/${url}`
+  const fullUrl = isAbsoluteUrl ? url : `${baseUrl}${relativePath}`
 
   const method = (fetchOptions.method || 'GET').toUpperCase()
   
@@ -273,7 +283,11 @@ export async function apiRequest<T = unknown>(
     let errorMessage = 'An error occurred'
     try {
       const errorData = await response.json()
-      errorMessage = errorData.message || errorData.error || errorMessage
+      if (Array.isArray(errorData.message)) {
+        errorMessage = errorData.message.join('; ')
+      } else {
+        errorMessage = errorData.message || errorData.error || errorMessage
+      }
     } catch {
       errorMessage = response.statusText || `HTTP ${response.status}`
     }
@@ -304,19 +318,19 @@ export async function apiRequest<T = unknown>(
 /**
  * Convenience methods for common HTTP methods
  */
-export async function apiGet<T = unknown>(
+export const apiGet = async <T = unknown>(
   url: string,
   options?: Omit<ApiRequestOptions, 'method'>
-): Promise<T> {
+): Promise<T> => {
   const result = await apiRequest<T>(url, { ...options, method: 'GET', parseJson: true })
   return result as T
 }
 
-export async function apiPost<T = unknown>(
+export const apiPost = async <T = unknown>(
   url: string,
   body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
-): Promise<T> {
+): Promise<T> => {
   const result = await apiRequest<T>(url, {
     ...options,
     method: 'POST',
@@ -326,11 +340,11 @@ export async function apiPost<T = unknown>(
   return result as T
 }
 
-export async function apiPut<T = unknown>(
+export const apiPut = async <T = unknown>(
   url: string,
   body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
-): Promise<T> {
+): Promise<T> => {
   const result = await apiRequest<T>(url, {
     ...options,
     method: 'PUT',
@@ -340,11 +354,11 @@ export async function apiPut<T = unknown>(
   return result as T
 }
 
-export async function apiPatch<T = unknown>(
+export const apiPatch = async <T = unknown>(
   url: string,
   body?: JsonValue,
   options?: Omit<ApiRequestOptions, 'method' | 'body'>
-): Promise<T> {
+): Promise<T> => {
   const result = await apiRequest<T>(url, {
     ...options,
     method: 'PATCH',
@@ -354,10 +368,10 @@ export async function apiPatch<T = unknown>(
   return result as T
 }
 
-export async function apiDelete<T = unknown>(
+export const apiDelete = async <T = unknown>(
   url: string,
   options?: Omit<ApiRequestOptions, 'method'>
-): Promise<T> {
+): Promise<T> => {
   const result = await apiRequest<T>(url, { ...options, method: 'DELETE', parseJson: true })
   return result as T
 }
@@ -371,7 +385,7 @@ import type {
   UpdateTestFlowInput,
 } from '@/types'
 
-export function unwrapData<T>(response: { data?: T } | T): T {
+export const unwrapData = <T>(response: { data?: T } | T): T => {
   return ((response as { data?: T })?.data ?? response) as T
 }
 
@@ -395,14 +409,16 @@ export const apiClient = {
     >(`/test-flow/${id}/graph`, graph as JsonValue)
     return unwrapData(response)
   },
-  searchTestFlows: async (params?: SearchTestFlowsParams): Promise<{ data?: PaginatedTestFlows } | PaginatedTestFlows> => {
+  searchTestFlows: async (
+    params?: SearchTestFlowsParams,
+  ): Promise<{ data?: PaginatedTestFlows } | PaginatedTestFlows> => {
     const queryParams = new URLSearchParams()
-    if (params?.query) queryParams.append('query', params.query)
-    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
-    if (params?.userId) queryParams.append('userId', params.userId.toString())
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
-    if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
+    appendSearchParam(queryParams, 'query', params?.query)
+    appendSearchParam(queryParams, 'isActive', params?.isActive)
+    appendSearchParam(queryParams, 'userId', params?.userId)
+    appendSearchParam(queryParams, 'page', params?.page)
+    appendSearchParam(queryParams, 'limit', params?.limit)
+    appendSearchParam(queryParams, 'sortBy', params?.sortBy)
 
     const queryString = queryParams.toString()
     const endpoint = queryString ? `/test-flow?${queryString}` : '/test-flow'

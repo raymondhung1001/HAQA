@@ -40,7 +40,7 @@ export const queryClient = new QueryClient({
  * Handle session expiration and unauthorized errors globally
  * Redirects to login page when session expires or unauthorized and clears query cache
  */
-function handleSessionExpiration(error: unknown) {
+const handleSessionExpiration = (error: unknown) => {
   if (
     error instanceof SessionExpiredError ||
     error instanceof UnauthorizedError ||

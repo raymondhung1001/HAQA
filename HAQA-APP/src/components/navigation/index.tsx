@@ -15,7 +15,7 @@ interface NavigationProps {
   children: React.ReactNode
 }
 
-export function Navigation({ children }: NavigationProps) {
+export const Navigation = ({ children }: NavigationProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const uiState = useStore(uiStore)

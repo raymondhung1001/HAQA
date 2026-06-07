@@ -7,7 +7,7 @@ interface EmptyStateProps {
   className?: string
 }
 
-export function EmptyState({ title, description, action, className }: EmptyStateProps) {
+export const EmptyState = ({ title, description, action, className }: EmptyStateProps) => {
   return (
     <div className={cn('text-center sm:text-left', className)}>
       <p className="text-gray-600 dark:text-gray-400">{title}</p>

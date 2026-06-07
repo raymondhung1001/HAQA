@@ -60,11 +60,11 @@ const doneExitHandleStyle: CSSProperties = {
 }
 
 /** Default: label in the rail beside the handle. Connected: shift above the incoming edge. */
-function getBreakExitLabelStyle(
+const getBreakExitLabelStyle = (
   topPx: number,
   isConnected: boolean,
   exitRailWidth: number,
-): CSSProperties {
+): CSSProperties => {
   if (!isConnected) {
     return {
       top: topPx,
@@ -83,13 +83,13 @@ function getBreakExitLabelStyle(
   }
 }
 
-function resolveBreakHandleTopPx(
+const resolveBreakHandleTopPx = (
   nodeHeight: number,
   breakId: string,
   index: number,
   total: number,
   overrides?: Record<string, number>,
-): number {
+): number => {
   const override = overrides?.[breakId]
   if (typeof override === 'number') {
     return clampLoopBodyBreakHandleCenterY(nodeHeight, override)
@@ -98,7 +98,7 @@ function resolveBreakHandleTopPx(
   return getLoopBodyBreakHandleCenterY(nodeHeight, index, total)
 }
 
-export function LoopBodyGroupNode({ id, selected, data, height }: NodeProps) {
+export const LoopBodyGroupNode = ({ id, selected, data, height }: NodeProps) => {
   const groupData = (data ?? {}) as LoopBodyGroupNodeData
   const breakHandleCenterYs = groupData.breakHandleCenterYs
   const entryCenterY = groupData.entryCenterY

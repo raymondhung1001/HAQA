@@ -20,6 +20,8 @@ export interface TestFlow {
   userId?: number
   createdAt?: string
   updatedAt?: string
+  latestVersionNumber?: number | null
+  nodeCount?: number
 }
 
 /** @deprecated Use `TestFlow` — kept for gradual migration */

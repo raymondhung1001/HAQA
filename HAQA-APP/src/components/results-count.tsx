@@ -7,14 +7,14 @@ interface ResultsCountProps {
   className?: string
 }
 
-export function ResultsCount({
+export const ResultsCount = ({
   page,
   limit,
   total,
   noun = 'items',
   isLoading = false,
   className,
-}: ResultsCountProps) {
+}: ResultsCountProps) => {
   if (isLoading || total <= 0) {
     return null
   }

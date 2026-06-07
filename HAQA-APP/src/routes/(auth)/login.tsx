@@ -9,38 +9,21 @@ import { Input } from '@/components/ui/input'
 import { useLogin } from '@/queries/auth-queries'
 import { getAuthSession } from '@/lib/auth-session'
 
-export const Route = createFileRoute('/(auth)/login')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    returnUrl: typeof search.returnUrl === 'string' ? search.returnUrl : undefined,
-  }),
-  beforeLoad: async () => {
-    try {
-      const { isValid } = await getAuthSession()
-      if (isValid) {
-        throw redirect({ to: '/' })
-      }
-    } catch (error) {
-      if (error && typeof error === 'object' && 'to' in error) {
-        throw error
-      }
-    }
-  },
-  component: LoginPage,
-})
+const LOGIN_REDIRECT_DELAY_MS = 50
 
-function LoginPage() {
+const isRouteRedirect = (error: unknown) => {
+  return Boolean(error && typeof error === 'object' && 'to' in error)
+}
+
+const LoginPage = () => {
   const navigate = useNavigate()
   const { returnUrl } = Route.useSearch()
+  const postLoginPath = returnUrl?.startsWith('/') ? returnUrl : '/'
 
   const loginMutation = useLogin({
     onSuccess: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50))
-
-      if (returnUrl && returnUrl.startsWith('/')) {
-        navigate({ to: returnUrl as '/' })
-      } else {
-        navigate({ to: '/' })
-      }
+      await new Promise((resolve) => setTimeout(resolve, LOGIN_REDIRECT_DELAY_MS))
+      navigate({ to: postLoginPath as '/' })
     },
   })
 
@@ -190,3 +173,22 @@ function LoginPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/(auth)/login')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    returnUrl: typeof search.returnUrl === 'string' ? search.returnUrl : undefined,
+  }),
+  beforeLoad: async () => {
+    try {
+      const { isValid } = await getAuthSession()
+      if (isValid) {
+        throw redirect({ to: '/' })
+      }
+    } catch (error) {
+      if (isRouteRedirect(error)) {
+        throw error
+      }
+    }
+  },
+  component: LoginPage,
+})

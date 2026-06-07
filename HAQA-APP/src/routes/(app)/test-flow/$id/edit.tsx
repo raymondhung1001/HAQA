@@ -8,18 +8,13 @@ import { useTestFlow } from '@/queries/test-flow-queries'
 import { graphToReactFlow } from '@/lib/test-flow-graph'
 import type {
   TestFlowDetail,
-  TestFlowEditorFormData,
   TestFlowEditorSubmitHandler,
 } from '@/types'
 
-export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
-  component: EditTestFlowPage,
-})
-
-function EditTestFlowPage() {
+const EditTestFlowPage = () => {
   const { id } = Route.useParams()
   const { data, isLoading, error } = useTestFlow(id)
-  const { handleCancel, handleSubmit, isSubmitting, layoutClassName } = useTestFlowEditorPage({
+  const { handleCancel, handleSubmit, isSubmitting, setIsDirty, layoutClassName } = useTestFlowEditorPage({
     mode: 'edit',
     id,
   })
@@ -40,26 +35,29 @@ function EditTestFlowPage() {
           isSubmitting={isSubmitting}
           onCancel={handleCancel}
           onSubmit={handleSubmit}
+          onDirtyChange={setIsDirty}
         />
       ) : null}
     </QueryState>
   )
 }
 
-function EditTestFlowEditor({
+const EditTestFlowEditor = ({
   data,
   layoutClassName,
   isSubmitting,
   onCancel,
   onSubmit,
+  onDirtyChange,
 }: {
   data: TestFlowDetail
   layoutClassName: string
   isSubmitting: boolean
   onCancel: () => void
   onSubmit: TestFlowEditorSubmitHandler
-}) {
-  const { nodes, edges } = graphToReactFlow(data.latestVersion)
+  onDirtyChange: (dirty: boolean) => void
+}) => {
+  const { nodes, edges, viewport } = graphToReactFlow(data.latestVersion)
 
   return (
     <Navigation>
@@ -74,10 +72,12 @@ function EditTestFlowEditor({
           }}
           initialNodes={nodes}
           initialEdges={edges}
+          initialViewport={viewport}
           isSubmitting={isSubmitting}
           className={layoutClassName}
           onCancel={onCancel}
           onSubmit={onSubmit}
+          onDirtyChange={onDirtyChange}
         />
         {data.latestVersion ? (
           <p className="px-4 py-2 text-xs text-gray-500 lg:px-0">
@@ -89,3 +89,7 @@ function EditTestFlowEditor({
     </Navigation>
   )
 }
+
+export const Route = createFileRoute('/(app)/test-flow/$id/edit')({
+  component: EditTestFlowPage,
+})

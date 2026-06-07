@@ -1,7 +1,8 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./HAQA-API" },
-    { "path": "./HAQA-APP" }
-  ]
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [],
+  "exclude": ["**/node_modules", "**/dist"]
 }

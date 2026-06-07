@@ -7,21 +7,21 @@ import type { PaginatedTestFlows, TestFlow, TestFlowFilters, TestFlowSortBy } fr
 
 const TEST_FLOW_SORT_BY: TestFlowSortBy[] = ['createdAt', 'updatedAt']
 
-export function isTestFlowSortBy(value: unknown): value is TestFlowSortBy {
+export const isTestFlowSortBy = (value: unknown): value is TestFlowSortBy => {
   return typeof value === 'string' && TEST_FLOW_SORT_BY.includes(value as TestFlowSortBy)
 }
 
-export function isPageSizeOption(value: number): value is PageSizeOption {
+export const isPageSizeOption = (value: number): value is PageSizeOption => {
   return [10, 25, 50, 100].includes(value)
 }
 
-export function isTestFlow(value: unknown): value is TestFlow {
+export const isTestFlow = (value: unknown): value is TestFlow => {
   if (!value || typeof value !== 'object') return false
   const row = value as TestFlow
   return typeof row.id === 'string' && typeof row.name === 'string'
 }
 
-export function isPaginatedTestFlows(value: unknown): value is PaginatedTestFlows {
+export const isPaginatedTestFlows = (value: unknown): value is PaginatedTestFlows => {
   if (!value || typeof value !== 'object') return false
   const page = value as PaginatedTestFlows
   return (
@@ -33,7 +33,7 @@ export function isPaginatedTestFlows(value: unknown): value is PaginatedTestFlow
   )
 }
 
-export function parseTestFlowFilters(stored: unknown): Partial<TestFlowFilters> | null {
+export const parseTestFlowFilters = (stored: unknown): Partial<TestFlowFilters> | null => {
   if (!stored || typeof stored !== 'object') return null
 
   const raw = stored as Record<string, unknown>
@@ -62,6 +62,8 @@ export const defaultTestFlowFilters: TestFlowFilters = {
   sortBy: 'createdAt',
 }
 
-export function mergeTestFlowFilters(partial?: Partial<TestFlowFilters> | null): TestFlowFilters {
+export const mergeTestFlowFilters = (
+  partial?: Partial<TestFlowFilters> | null,
+): TestFlowFilters => {
   return { ...defaultTestFlowFilters, ...partial }
 }

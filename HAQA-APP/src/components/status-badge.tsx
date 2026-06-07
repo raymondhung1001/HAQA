@@ -5,7 +5,7 @@ interface StatusBadgeProps {
   className?: string
 }
 
-export function StatusBadge({ active, className }: StatusBadgeProps) {
+export const StatusBadge = ({ active, className }: StatusBadgeProps) => {
   return (
     <Badge variant={active ? 'success' : 'muted'} className={className}>
       {active ? 'Active' : 'Inactive'}

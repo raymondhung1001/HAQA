@@ -11,6 +11,24 @@ export interface PaginationProps {
   className?: string
 }
 
+const MAX_VISIBLE_PAGES = 5
+
+const getVisiblePageNumbers = (currentPage: number, totalPages: number) => {
+  if (totalPages <= 0) return []
+
+  const visibleCount = Math.min(MAX_VISIBLE_PAGES, totalPages)
+  const firstPage =
+    totalPages <= MAX_VISIBLE_PAGES
+      ? 1
+      : currentPage <= 3
+        ? 1
+        : currentPage >= totalPages - 2
+          ? totalPages - MAX_VISIBLE_PAGES + 1
+          : currentPage - 2
+
+  return Array.from({ length: visibleCount }, (_, index) => firstPage + index)
+}
+
 export const Pagination = React.forwardRef<HTMLDivElement, PaginationProps>(
   ({ currentPage, totalPages, onPageChange, isLoading = false, className }, ref) => {
     const handlePageChange = (newPage: number) => {
@@ -19,36 +37,7 @@ export const Pagination = React.forwardRef<HTMLDivElement, PaginationProps>(
       }
     }
 
-    const getPageNumbers = () => {
-      if (totalPages <= 0) return []
-      
-      const maxVisible = 5
-      const pages: number[] = []
-      
-      if (totalPages <= maxVisible) {
-        // Show all pages if total is 5 or less
-        for (let i = 1; i <= totalPages; i++) {
-          pages.push(i)
-        }
-      } else if (currentPage <= 3) {
-        // Show first 5 pages
-        for (let i = 1; i <= maxVisible; i++) {
-          pages.push(i)
-        }
-      } else if (currentPage >= totalPages - 2) {
-        // Show last 5 pages
-        for (let i = totalPages - 4; i <= totalPages; i++) {
-          pages.push(i)
-        }
-      } else {
-        // Show 2 pages before and after current
-        for (let i = currentPage - 2; i <= currentPage + 2; i++) {
-          pages.push(i)
-        }
-      }
-      
-      return pages
-    }
+    const pageNumbers = getVisiblePageNumbers(currentPage, totalPages)
 
     if (totalPages <= 0) {
       return null
@@ -73,7 +62,7 @@ export const Pagination = React.forwardRef<HTMLDivElement, PaginationProps>(
             Previous
           </Button>
           <div className="flex items-center gap-1">
-            {getPageNumbers().map((pageNum) => (
+            {pageNumbers.map((pageNum) => (
               <Button
                 key={pageNum}
                 variant={currentPage === pageNum ? "default" : "outline"}

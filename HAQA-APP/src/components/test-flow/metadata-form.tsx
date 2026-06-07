@@ -9,7 +9,7 @@ interface TestFlowMetadataFormProps {
   onChange: (formData: TestFlowEditorFormData) => void
 }
 
-export function TestFlowMetadataForm({ formData, onChange }: TestFlowMetadataFormProps) {
+export const TestFlowMetadataForm = ({ formData, onChange }: TestFlowMetadataFormProps) => {
   return (
     <div className="space-y-4 border-b border-gray-200 p-4 dark:border-slate-700">
       <FormField label="Name" required>
