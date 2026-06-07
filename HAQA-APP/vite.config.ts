@@ -50,6 +50,7 @@ const gracefulShutdownPlugin = () => {
 }
 
 const config = defineConfig({
+  envDir: path.resolve(__dirname, '..'),
   plugins: [
     devtools(),
     nitro(),

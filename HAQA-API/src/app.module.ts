@@ -11,6 +11,7 @@ import { multistream } from 'pino';
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
 import { appConfiguration } from '@/config';
+import { monorepoEnvFiles } from '@/config/monorepo-root';
 
 import { ControllerModule } from '@/controller/controller.module';
 import { ServiceModule } from '@/service/service.module';
@@ -27,6 +28,7 @@ import { LoggerService } from '@/logger';
 	imports: [
 		ConfigModule.forRoot({
 			isGlobal: true,
+			envFilePath: monorepoEnvFiles,
 			load: [appConfiguration],
 		}),
 		LoggerModule.forRootAsync({
