@@ -23,7 +23,7 @@ if (!directory) {
 	process.exit(1)
 }
 
-const result = spawnSync('bun', ['run', `--cwd=${directory}`, ...scriptArgs], {
+const result = spawnSync(process.execPath, ['run', `--cwd=${directory}`, ...scriptArgs], {
 	cwd: root,
 	stdio: 'inherit',
 })
