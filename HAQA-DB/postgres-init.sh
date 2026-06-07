@@ -11,7 +11,7 @@ PROCESSED_DIR="/tmp/processed-sql"
 for f in "$TEMPLATE_DIR"/*.sql; do
   filename=$(basename "$f")
   echo "Processing $filename..."
-  
+
   sed "s|##APP_USER_PASSWORD##|${APP_USER_PASSWORD}|g" "$f" > "$PROCESSED_DIR/$filename"
 done
 echo "SQL templates processed successfully."
@@ -37,12 +37,12 @@ PSQL="psql -v ON_ERROR_STOP=1 -U postgres -d $POSTGRES_DB"
 run_sql_file() {
     local file="$1"
     local description="$2"
-    
+
     if [ ! -f "$file" ]; then
         echo "WARNING: SQL file $file not found, skipping..."
         return 0
     fi
-    
+
     echo "Running $description..."
     if $PSQL -f "$file"; then
         echo "✓ $description completed successfully"
