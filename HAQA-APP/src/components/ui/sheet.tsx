@@ -44,7 +44,18 @@ interface SheetProps {
   children: React.ReactNode
 }
 
-const Sheet = ({ children, open: openProp, onOpenChange }: SheetProps) => {
+const SheetSSR = ({
+  children,
+  open: openProp = false,
+  onOpenChange: onOpenChangeProp = () => {},
+}: SheetProps) => (
+  <SheetContext.Provider value={{ open: openProp, onOpenChange: onOpenChangeProp }}>
+    {children}
+  </SheetContext.Provider>
+)
+SheetSSR.displayName = "Sheet"
+
+const SheetClient = ({ children, open: openProp, onOpenChange }: SheetProps) => {
   const [internalOpen, setInternalOpen] = React.useState(false)
   const open = openProp ?? internalOpen
   const handleOpenChange = onOpenChange ?? setInternalOpen
@@ -66,7 +77,9 @@ const Sheet = ({ children, open: openProp, onOpenChange }: SheetProps) => {
     </SheetContext.Provider>
   )
 }
-Sheet.displayName = "Sheet"
+SheetClient.displayName = "Sheet"
+
+const Sheet = import.meta.env.SSR ? SheetSSR : SheetClient
 
 const SheetTrigger = React.forwardRef<
   HTMLButtonElement,
@@ -108,40 +121,48 @@ const SheetClose = React.forwardRef<
 })
 SheetClose.displayName = "SheetClose"
 
-const SheetContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
-    side?: VariantProps<typeof sheetVariants>["side"]
-  }
->(({ side = "right", className, children, ...props }, ref) => {
-  const { open, onOpenChange } = useSheetContext()
+type SheetContentProps = React.HTMLAttributes<HTMLDivElement> & {
+  side?: VariantProps<typeof sheetVariants>["side"]
+}
 
-  if (!open) return null
+const SheetContentSSR = React.forwardRef<HTMLDivElement, SheetContentProps>(
+  () => null,
+)
+SheetContentSSR.displayName = "SheetContent"
 
-  return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300"
-        onClick={() => onOpenChange(false)}
-      />
-      {/* Sheet Panel */}
-      <div
-        ref={ref}
-        className={cn(sheetVariants({ side }), className)}
-        data-state={open ? "open" : "closed"}
-        {...props}
-      >
-        {children}
-        <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </SheetClose>
-      </div>
-    </>
-  )
-})
-SheetContent.displayName = "SheetContent"
+const SheetContentClient = React.forwardRef<HTMLDivElement, SheetContentProps>(
+  ({ side = "right", className, children, ...props }, ref) => {
+    const { open, onOpenChange } = useSheetContext()
+
+    if (!open) return null
+
+    return (
+      <>
+        {/* Overlay */}
+        <div
+          className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300"
+          onClick={() => onOpenChange(false)}
+        />
+        {/* Sheet Panel */}
+        <div
+          ref={ref}
+          className={cn(sheetVariants({ side }), className)}
+          data-state={open ? "open" : "closed"}
+          {...props}
+        >
+          {children}
+          <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </SheetClose>
+        </div>
+      </>
+    )
+  },
+)
+SheetContentClient.displayName = "SheetContent"
+
+const SheetContent = import.meta.env.SSR ? SheetContentSSR : SheetContentClient
 
 const SheetHeader = ({
   className,
