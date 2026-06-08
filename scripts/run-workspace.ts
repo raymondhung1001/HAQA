@@ -23,8 +23,15 @@ if (!directory) {
 	process.exit(1)
 }
 
+const env = { ...process.env }
+if (workspace === 'haqa-app') {
+	// The root .env uses PORT for HAQA-API; keep it from steering the app dev server.
+	env.PORT = '3000'
+}
+
 const result = spawnSync(process.execPath, ['run', `--cwd=${directory}`, ...scriptArgs], {
 	cwd: root,
+	env,
 	stdio: 'inherit',
 })
 

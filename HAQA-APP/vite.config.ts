@@ -50,7 +50,7 @@ const gracefulShutdownPlugin = () => {
 }
 
 const config = defineConfig({
-  envDir: path.resolve(__dirname, '..'),
+  envDir: __dirname,
   plugins: [
     devtools(),
     nitro(),
@@ -70,7 +70,7 @@ const config = defineConfig({
   },
   server: {
     port: 3000,
-    strictPort: false, // Allow fallback to next available port if 3000 is busy
+    strictPort: true,
   },
   test: {
     environment: 'jsdom',
